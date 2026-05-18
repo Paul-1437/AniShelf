@@ -187,4 +187,22 @@ struct LibrarySortingAndDeletionTests {
             #expect(store.filterAndSort(entries).map(\.tmdbID) == expected.map(\.tmdbID))
         }
     }
+
+    @Test @MainActor func testAlphabeticalSortUsesEntryNames() throws {
+        try withRestoredLibrarySortingPreferences {
+            let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+            store.groupStrategy = .none
+            store.sortStrategy = .alphabetical
+            store.sortReversed = false
+
+            let entries = [
+                makeLibraryEntry(name: "Naruto", tmdbID: 101, daySaved: 4),
+                makeLibraryEntry(name: "Bleach", tmdbID: 102, daySaved: 3),
+                makeLibraryEntry(name: "Attack on Titan", tmdbID: 103, daySaved: 2),
+                makeLibraryEntry(name: "Bleach", tmdbID: 104, daySaved: 1)
+            ]
+
+            #expect(store.filterAndSort(entries).map(\.tmdbID) == [103, 104, 102, 101])
+        }
+    }
 }

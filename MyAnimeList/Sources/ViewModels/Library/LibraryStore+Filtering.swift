@@ -152,7 +152,7 @@ extension LibraryStore {
         CustomLocalizedStringResourceConvertible,
         Codable
     {
-        case dateSaved, dateStarted, dateFinished, dateOnAir
+        case dateSaved, dateStarted, dateFinished, dateOnAir, alphabetical
 
         func compare(_ lhs: AnimeEntry, _ rhs: AnimeEntry) -> Bool {
             switch self {
@@ -164,6 +164,8 @@ extension LibraryStore {
                 return lhs.dateFinished ?? .distantFuture < rhs.dateFinished ?? .distantFuture
             case .dateOnAir:
                 return lhs.onAirDate ?? .distantFuture < rhs.onAirDate ?? .distantFuture
+            case .alphabetical:
+                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
             }
         }
 
@@ -173,6 +175,7 @@ extension LibraryStore {
             case .dateSaved: "Date Saved"
             case .dateStarted: "Date Started"
             case .dateOnAir: "Date On Air"
+            case .alphabetical: "Name"
             }
         }
     }
