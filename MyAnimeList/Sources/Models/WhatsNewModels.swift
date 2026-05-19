@@ -150,6 +150,25 @@ enum WhatsNewRegistry {
                     kind: .openURL(projectURL)
                 )
             ]
+        ),
+        "1.81": .init(
+            version: "1.81",
+            summary:
+                "This version includes multiple bug fixes and improvements.",
+            highlights: [
+                "Ratings are now shown directly in List and Gallery views.",
+                "Optimized backup file size.",
+                "Added sorting by name (A–Z)."
+            ],
+            primaryAction: nil,
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
         )
     ]
 

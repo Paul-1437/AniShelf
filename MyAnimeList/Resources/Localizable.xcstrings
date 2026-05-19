@@ -376,6 +376,22 @@
         }
       }
     },
+    "Added sorting by name (A–Z)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前順（A–Z）の並び替えを追加しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增按名称排序（A–Z）"
+          }
+        }
+      }
+    },
     "Added TV anime / movie filtering." : {
       "localizations" : {
         "ja" : {
@@ -1550,22 +1566,6 @@
         }
       }
     },
-    "Name" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名前"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名称"
-          }
-        }
-      }
-    },
     "Date Started" : {
       "localizations" : {
         "ja" : {
@@ -2074,23 +2074,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出为..."
-          }
-        }
-      }
-    },
-    "Export or restore your local library." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ローカルライブラリをエクスポートまたは復元します。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导出或导入你的本地资料库。"
           }
         }
       }
@@ -2983,6 +2966,22 @@
         }
       }
     },
+    "Name" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称"
+          }
+        }
+      }
+    },
     "Network Error!" : {
       "localizations" : {
         "ja" : {
@@ -3352,6 +3351,22 @@
         }
       }
     },
+    "Optimized backup file size." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップファイルのサイズを最適化しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "优化了备份文件大小"
+          }
+        }
+      }
+    },
     "Optimized the Details page UI: added Staff information, added an overscroll zoom effect for posters." : {
       "localizations" : {
         "ja" : {
@@ -3654,6 +3669,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "预览"
+          }
+        }
+      }
+    },
+    "Ratings are now shown directly in List and Gallery views." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストビューとギャラリービューに評価が直接表示されるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列表视图和画廊视图现在直接显示评分"
           }
         }
       }
@@ -4201,6 +4232,22 @@
         }
       }
     },
+    "Score %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スコア: %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "评分: %lld"
+          }
+        }
+      }
+    },
     "Search" : {
       "localizations" : {
         "ja" : {
@@ -4712,6 +4759,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如果你想立即更新现有条目，也可以在此页面触发完整的元数据刷新。"
+          }
+        }
+      }
+    },
+    "This version includes multiple bug fixes and improvements." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバージョンには複数のバグ修正と改善が含まれています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本包含多项问题修复和改进。"
           }
         }
       }
