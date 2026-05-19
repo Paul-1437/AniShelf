@@ -31,15 +31,96 @@ struct LibraryWatchStatusBadge: View {
         HStack(spacing: 6) {
             LibraryWatchStatusIndicator(status: status, diameter: 5)
             Text(status.localizedStringResource)
-                .font(.caption2.weight(.semibold))
+                .font(Self.textFont)
                 .foregroundStyle(status.libraryTintColor.opacity(0.92))
                 .lineLimit(1)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, Self.horizontalPadding)
+        .padding(.vertical, Self.verticalPadding)
         .background {
             Capsule(style: .continuous)
                 .fill(status.libraryTintColor.opacity(0.09))
+        }
+    }
+
+    fileprivate static let horizontalPadding: CGFloat = 8
+    fileprivate static let verticalPadding: CGFloat = 4
+    fileprivate static let textFont = Font.caption2.weight(.semibold)
+    fileprivate static let iconFont = Font.system(size: 10).weight(.semibold)
+}
+
+struct LibraryScoreBadge: View {
+    enum Style {
+        case inline
+        case posterOverlay
+    }
+
+    @AppStorage(.libraryScoringEnabled) private var scoringEnabled = true
+
+    let score: Int?
+    var style: Style = .inline
+
+    var body: some View {
+        if scoringEnabled, let score {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Image(systemName: "star.fill")
+                    .font(iconFont)
+                    .symbolRenderingMode(.hierarchical)
+                Text("\(score)")
+                    .font(textFont)
+                    .monospacedDigit()
+            }
+            .foregroundStyle(foregroundStyle)
+            .lineLimit(1)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(backgroundStyle)
+            }
+            .accessibilityLabel(Text("Score \(score)"))
+        }
+    }
+
+    private var iconFont: Font {
+        switch style {
+        case .inline: LibraryWatchStatusBadge.iconFont
+        case .posterOverlay: .system(size: 10, weight: .bold)
+        }
+    }
+
+    private var textFont: Font {
+        switch style {
+        case .inline: LibraryWatchStatusBadge.textFont
+        case .posterOverlay: .system(size: 11, weight: .bold)
+        }
+    }
+
+    private var foregroundStyle: some ShapeStyle {
+        switch style {
+        case .inline: return .yellow.opacity(0.95)
+        case .posterOverlay: return .white.opacity(0.96)
+        }
+    }
+
+    private var backgroundStyle: some ShapeStyle {
+        switch style {
+        case .inline: return .yellow.opacity(0.12)
+        case .posterOverlay: return .black.opacity(0.38)
+        }
+    }
+
+    private var horizontalPadding: CGFloat {
+        switch style {
+        case .inline: 7
+        case .posterOverlay: 7
+        }
+    }
+
+    private var verticalPadding: CGFloat {
+        switch style {
+        case .inline: 4
+        case .posterOverlay: 5
         }
     }
 }

@@ -22,6 +22,7 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
     let primaryMetadata: [String]
     let secondaryMetadata: String?
     let watchStatus: AnimeEntry.WatchStatus
+    let score: Int?
     let isFavorite: Bool
     let dateStarted: Date?
     let dateFinished: Date?
@@ -34,6 +35,7 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
         primaryMetadata = Self.primaryMetadata(for: entry)
         secondaryMetadata = Self.secondaryMetadata(for: entry)
         watchStatus = entry.watchStatus
+        score = entry.score
         isFavorite = entry.favorite
         dateStarted = entry.dateStarted
         dateFinished = entry.dateFinished
