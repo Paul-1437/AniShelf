@@ -28,7 +28,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "* 出于安全考虑，您的 TMDb API 密钥不会被导出。"
+            "value" : "* 出于安全考虑，您的TMDb API密钥不会被导出。"
           }
         }
       }
@@ -211,7 +211,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的 iOS 原生动漫书架。"
+            "value" : "你的iOS原生动漫书架。"
           }
         }
       }
@@ -227,7 +227,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "关于 AniShelf"
+            "value" : "关于AniShelf"
           }
         }
       }
@@ -253,13 +253,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無料の API キーを一度追加すれば、検索やポスターなどが使えるようになります。"
+            "value" : "無料のAPIキーを一度追加すれば、検索やポスターなどが使えるようになります。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只需添加一个免费的 API 密钥，即可解锁搜索、海报等功能。"
+            "value" : "只需添加一个免费的API密钥，即可解锁搜索、海报等功能。"
           }
         }
       }
@@ -365,13 +365,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新しい複数形式のエクスポート機能を追加しました。ライブラリを TXT、CSV、XLSX などの形式でエクスポートできるようになりました。"
+            "value" : "新しい複数形式のエクスポート機能を追加しました。ライブラリをTXT、CSV、XLSXなどの形式でエクスポートできるようになりました。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增多格式导出功能，支持将资料库导出为 TXT、CSV、XLSX 等多种格式"
+            "value" : "新增多格式导出功能，支持将资料库导出为TXT、CSV、XLSX等多种格式"
           }
         }
       }
@@ -397,13 +397,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新しい TV アニメと映画のフィルター機能を追加しました。"
+            "value" : "新しいTVアニメと映画のフィルター機能を追加しました。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增 TV 动画与电影筛选功能"
+            "value" : "新增TV动画与电影筛选功能"
           }
         }
       }
@@ -581,7 +581,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AniShelf 现在可以在启动后显示选定的更新说明，也可以稍后从设置中重新打开。"
+            "value" : "AniShelf现在可以在启动后显示选定的更新说明，也可以稍后从设置中重新打开。"
           }
         }
       }
@@ -613,7 +613,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AniShelf 资料库"
+            "value" : "AniShelf资料库"
           }
         }
       }
@@ -629,7 +629,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GitHub 上的 AniShelf"
+            "value" : "GitHub上的AniShelf"
           }
         }
       }
@@ -639,13 +639,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb への直接接続が不安定な場合に備え、AniShelf は標準で中継を使用します。"
+            "value" : "TMDbへの直接接続が不安定な場合に備え、AniShelfは標準で中継を使用します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AniShelf 默认使用中继，以应对 TMDb 直连不稳定的情况。"
+            "value" : "AniShelf默认使用中继，以应对TMDb直连不稳定的情况。"
           }
         }
       }
@@ -677,7 +677,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "应用备份会保存 AniShelf 数据和设置，以便日后恢复。资料库导出会生成标准格式文件。"
+            "value" : "应用备份会保存AniShelf数据和设置，以便日后恢复。资料库导出会生成标准格式文件。"
           }
         }
       }
@@ -815,13 +815,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "戻るまで、現在の TMDb 検索画面は一括追加画面に切り替わります。"
+            "value" : "戻るまで、現在のTMDb検索画面は一括追加画面に切り替わります。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "进入后，当前 TMDb 搜索界面会切换为批量添加界面，直到你返回搜索。"
+            "value" : "进入后，当前TMDb搜索界面会切换为批量添加界面，直到你返回搜索。"
           }
         }
       }
@@ -949,7 +949,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更改 API 密钥"
+            "value" : "更改API密钥"
           }
         }
       }
@@ -981,7 +981,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更改 API 密钥"
+            "value" : "更改API密钥"
           }
         }
       }
@@ -1266,13 +1266,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AniShelf を TMDb に接続"
+            "value" : "AniShelfをTMDbに接続"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将 AniShelf 连接到 TMDb"
+            "value" : "将AniShelf连接到TMDb"
           }
         }
       }
@@ -1282,13 +1282,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb に接続"
+            "value" : "TMDbに接続"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接 TMDb"
+            "value" : "连接TMDb"
           }
         }
       }
@@ -1449,7 +1449,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "复制 API 密钥"
+            "value" : "复制API密钥"
           }
         }
       }
@@ -1481,7 +1481,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "复制 API 密钥，不要复制读取访问令牌。"
+            "value" : "复制API密钥，不要复制读取访问令牌。"
           }
         }
       }
@@ -1874,13 +1874,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1行に1タイトルずつ入力してください。各タイトルでは TMDb のTVシリーズと映画の最上位結果のみを表示するため、できるだけ正確なタイトルを入力してください。"
+            "value" : "1行に1タイトルずつ入力してください。各タイトルではTMDbのTVシリーズと映画の最上位結果のみを表示するため、できるだけ正確なタイトルを入力してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每行输入一个标题。每个标题只会显示 TMDb 排名最高的 TV 动画结果和电影结果，因此标题越准确越好。"
+            "value" : "每行输入一个标题。每个标题只会显示TMDb排名最高的TV动画结果和电影结果，因此标题越准确越好。"
           }
         }
       }
@@ -2008,7 +2008,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Excel 工作簿 (.xlsx)"
+            "value" : "Excel工作簿(.xlsx)"
           }
         }
       }
@@ -2163,13 +2163,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "各項目の最新の TMDb メタデータを取得します。"
+            "value" : "各項目の最新のTMDbメタデータを取得します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "为每个条目获取最新的 TMDb 元数据。"
+            "value" : "为每个条目获取最新的TMDb元数据。"
           }
         }
       }
@@ -2353,13 +2353,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "詳細ページで Staff 表示が正常に表示されない問題を修正しました。"
+            "value" : "詳細ページでStaff表示が正常に表示されない問題を修正しました。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "修复详情页中 Staff 显示异常的问题"
+            "value" : "修复详情页中Staff显示异常的问题"
           }
         }
       }
@@ -2439,7 +2439,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "获取 TMDb API 密钥"
+            "value" : "获取TMDb API密钥"
           }
         }
       }
@@ -2449,13 +2449,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サインイン後に API ページへ移動してください。"
+            "value" : "サインイン後にAPIページへ移動してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登录后前往 API 页面。"
+            "value" : "登录后前往API页面。"
           }
         }
       }
@@ -2551,7 +2551,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更新 App 后，现在可以显示一次重要版本说明。"
+            "value" : "更新App后，现在可以显示一次重要版本说明。"
           }
         }
       }
@@ -2578,13 +2578,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb に登録"
+            "value" : "TMDbに登録"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "注册 TMDb"
+            "value" : "注册TMDb"
           }
         }
       }
@@ -2805,13 +2805,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb にログイン"
+            "value" : "TMDbにログイン"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登录 TMDb"
+            "value" : "登录TMDb"
           }
         }
       }
@@ -2821,13 +2821,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Samuel He により開発。メタデータとアートワークは TMDb 提供。"
+            "value" : "Samuel Heにより開発。メタデータとアートワークはTMDb提供。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "由 Samuel He 开发。元数据和图片由 TMDb 提供。"
+            "value" : "由Samuel He开发。元数据和图片由TMDb提供。"
           }
         }
       }
@@ -3163,13 +3163,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この入力に一致する TMDb 結果はありません。"
+            "value" : "この入力に一致するTMDb結果はありません。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这个输入没有找到对应的 TMDb 结果。"
+            "value" : "这个输入没有找到对应的TMDb结果。"
           }
         }
       }
@@ -3266,7 +3266,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开 API 页面"
+            "value" : "打开API页面"
           }
         }
       }
@@ -3282,7 +3282,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打开 API 设置"
+            "value" : "打开API设置"
           }
         }
       }
@@ -3378,7 +3378,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "优化了详情页界面：新增 Staff 信息，并为海报添加了过度滚动缩放效果。"
+            "value" : "优化了详情页界面：新增Staff信息，并为海报添加了过度滚动缩放效果。"
           }
         }
       }
@@ -3452,13 +3452,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "タイトル一覧を貼り付けて、TMDb を検索してください。"
+            "value" : "タイトル一覧を貼り付けて、TMDbを検索してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "粘贴标题列表，然后搜索 TMDb。"
+            "value" : "粘贴标题列表，然后搜索TMDb。"
           }
         }
       }
@@ -3500,13 +3500,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新しい APIキーを貼り付けてください。保存前に AniShelf が確認します。"
+            "value" : "新しいAPIキーを貼り付けてください。保存前にAniShelfが確認します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请粘贴新的 API 密钥。AniShelf 会在保存前检查。"
+            "value" : "请粘贴新的API密钥。AniShelf会在保存前检查。"
           }
         }
       }
@@ -3516,13 +3516,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ここに TMDb APIキーを貼り付けてください。保存前に AniShelf が確認します。"
+            "value" : "ここにTMDb APIキーを貼り付けてください。保存前にAniShelfが確認します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请在此粘贴你的 TMDb API 密钥。AniShelf 会在保存前检查。"
+            "value" : "请在此粘贴你的TMDb API密钥。AniShelf会在保存前检查。"
           }
         }
       }
@@ -4013,13 +4013,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AniShelf が検索とメタデータに使う TMDb キーを変更します。"
+            "value" : "AniShelfが検索とメタデータに使うTMDbキーを変更します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "替换 AniShelf 用于搜索和元数据的 TMDb 密钥。"
+            "value" : "替换AniShelf用于搜索和元数据的TMDb密钥。"
           }
         }
       }
@@ -4147,7 +4147,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "GitHub 上的 Samuel He"
+            "value" : "GitHub上的Samuel He"
           }
         }
       }
@@ -4179,7 +4179,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存 API 密钥"
+            "value" : "保存API密钥"
           }
         }
       }
@@ -4307,7 +4307,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "搜索 TV 动画或电影..."
+            "value" : "搜索TV动画或电影..."
           }
         }
       }
@@ -4333,13 +4333,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb を検索中..."
+            "value" : "TMDbを検索中..."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在搜索 TMDb..."
+            "value" : "正在搜索TMDb..."
           }
         }
       }
@@ -4510,13 +4510,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb にサインイン"
+            "value" : "TMDbにサインイン"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登录 TMDb"
+            "value" : "登录TMDb"
           }
         }
       }
@@ -4854,7 +4854,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb API 密钥"
+            "value" : "TMDb API密钥"
           }
         }
       }
@@ -4864,13 +4864,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb 接続"
+            "value" : "TMDb接続"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb 连接"
+            "value" : "TMDb连接"
           }
         }
       }
@@ -4880,13 +4880,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb はこの選択のポスターをまだ返していません。"
+            "value" : "TMDbはこの選択のポスターをまだ返していません。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb 暂未返回该选择的海报。"
+            "value" : "TMDb暂未返回该选择的海报。"
           }
         }
       }
@@ -4896,13 +4896,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb は各アカウントに個人用 APIキーを提供します。個人利用なら完全無料です。"
+            "value" : "TMDbは各アカウントに個人用APIキーを提供します。個人利用なら完全無料です。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb 会为每个账号提供专属 API 密钥。个人使用完全免费。"
+            "value" : "TMDb会为每个账号提供专属API密钥。个人使用完全免费。"
           }
         }
       }
@@ -4912,13 +4912,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb が AniShelf を支えています。"
+            "value" : "TMDbがAniShelfを支えています。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb 为 AniShelf 提供支持。"
+            "value" : "TMDb为AniShelf提供支持。"
           }
         }
       }
@@ -4928,13 +4928,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb プロキシを更新しました"
+            "value" : "TMDbプロキシを更新しました"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb 代理已更新"
+            "value" : "TMDb代理已更新"
           }
         }
       }
@@ -4950,7 +4950,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb 评分"
+            "value" : "TMDb评分"
           }
         }
       }
@@ -5008,13 +5008,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "VPN を常用している場合や TMDb への直接接続の方が速い場合はオフにしてください。"
+            "value" : "VPNを常用している場合やTMDbへの直接接続の方が速い場合はオフにしてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果你已长期使用代理，或直连 TMDb 更快，可以关闭此选项。"
+            "value" : "如果你已长期使用代理，或直连TMDb更快，可以关闭此选项。"
           }
         }
       }
@@ -5046,7 +5046,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TV 动画"
+            "value" : "TV动画"
           }
         }
       }
@@ -5062,7 +5062,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TV 动画候选"
+            "value" : "TV动画候选"
           }
         }
       }
@@ -5126,13 +5126,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "メタデータに使う TMDb キーを更新します。"
+            "value" : "メタデータに使うTMDbキーを更新します。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更新用于元数据的 TMDb 密钥。"
+            "value" : "更新用于元数据的TMDb密钥。"
           }
         }
       }
@@ -5148,7 +5148,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请使用 API 密钥，不要使用读取访问令牌。"
+            "value" : "请使用API密钥，不要使用读取访问令牌。"
           }
         }
       }
@@ -5206,13 +5206,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDb プロキシを使用"
+            "value" : "TMDbプロキシを使用"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用 TMDb 代理"
+            "value" : "使用TMDb代理"
           }
         }
       }
@@ -5420,7 +5420,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你可能需要重启 App 才能让此更改生效。"
+            "value" : "你可能需要重启App才能让此更改生效。"
           }
         }
       }
