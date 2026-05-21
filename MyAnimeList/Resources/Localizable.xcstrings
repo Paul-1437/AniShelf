@@ -1933,6 +1933,28 @@
         }
       }
     },
+    "Episode %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Episode %1$lld of %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全%2$lld話中、第%1$lld話"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共%2$lld集，第%1$lld集"
+          }
+        }
+      }
+    },
     "Episode Progress" : {
       "localizations" : {
         "ja" : {

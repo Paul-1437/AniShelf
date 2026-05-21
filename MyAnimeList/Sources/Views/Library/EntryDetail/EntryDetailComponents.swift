@@ -343,11 +343,34 @@ fileprivate struct EntryDetailTrackingEditor: View {
 }
 
 fileprivate struct EntryEpisodeProgressControl: View {
-    let entry: AnimeEntry
+    // The displayed episode count cannot be derived from persisted progress alone.
+    // During a drag we need to show the in-flight slider value, and after release we
+    // need to keep showing the committed value until `entry` catches up asynchronously.
+    // Modeling that explicitly as a tiny state machine is simpler than trying to
+    // reconcile a persisted value with several loosely-related transient flags.
+    private enum EpisodeProgressInteractionState: Equatable {
+        case idle
+        case editing(Int)
+        case committing(Int)
+    }
+
+    @Bindable var entry: AnimeEntry
     let onCompletionPromptRequested: (AnimeEntryEpisodeProgressCompletionPrompt) -> Void
     @State private var selectedSeasonNumber: Int?
+    @State private var progressInteractionState: EpisodeProgressInteractionState = .idle
+
+    init(
+        entry: AnimeEntry,
+        onCompletionPromptRequested: @escaping (AnimeEntryEpisodeProgressCompletionPrompt) -> Void
+    ) {
+        self.entry = entry
+        self.onCompletionPromptRequested = onCompletionPromptRequested
+    }
 
     private let accentColor = Color.blue
+    // Keep text transitions and commit handoff on the same spring so the count does
+    // not visually desynchronize from the slider interaction.
+    private let progressAnimation = Animation.spring(response: 0.28, dampingFraction: 0.86)
 
     private var seasonOptions: [Int] {
         entry.episodeProgressSeasonOptions
@@ -366,6 +389,8 @@ fileprivate struct EntryEpisodeProgressControl: View {
 
     var body: some View {
         if let selectedSeason, let summary {
+            let displayedEpisode = displayedWatchedThroughEpisode(for: summary)
+
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 12) {
                     Text(EntryDetailL10n.episodeProgress)
@@ -379,6 +404,9 @@ fileprivate struct EntryEpisodeProgressControl: View {
                             ForEach(seasonOptions, id: \.self) { seasonNumber in
                                 Button {
                                     selectedSeasonNumber = seasonNumber
+                                    withAnimation(progressAnimation) {
+                                        progressInteractionState = .idle
+                                    }
                                 } label: {
                                     if seasonNumber == selectedSeason {
                                         Label(seasonTitle(for: seasonNumber), systemImage: "checkmark")
@@ -398,17 +426,23 @@ fileprivate struct EntryEpisodeProgressControl: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 24) {
                         progressButton(
                             systemImage: "minus",
                             disabled: summary.watchedThroughEpisode == 0
                         ) {
                             adjustProgress(for: selectedSeason, by: -1)
+                        } longPressAction: {
+                            guard summary.watchedThroughEpisode > 0 else { return }
+                            adjustProgress(
+                                for: selectedSeason,
+                                by: -summary.watchedThroughEpisode
+                            )
                         }
 
                         HStack(alignment: .lastTextBaseline, spacing: 4) {
-                            Text("\(summary.watchedThroughEpisode)")
+                            Text("\(displayedEpisode)")
                                 .font(.system(size: 30, weight: .bold, design: .rounded))
                                 .monospacedDigit()
                                 .contentTransition(.numericText())
@@ -423,34 +457,58 @@ fileprivate struct EntryEpisodeProgressControl: View {
                         }
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
-                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .frame(minWidth: 132, minHeight: 54)
+                        .animation(progressAnimation, value: displayedEpisode)
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(progressAccessibilityText(for: summary))
+                        .accessibilityLabel(
+                            progressAccessibilityText(
+                                watchedThroughEpisode: displayedEpisode,
+                                episodeCount: summary.episodeCount
+                            )
+                        )
 
                         progressButton(
                             systemImage: "plus",
                             disabled: isAtLimit(summary)
                         ) {
                             adjustProgress(for: selectedSeason, by: 1)
+                        } longPressAction: {
+                            guard !isAtLimit(summary) else { return }
+                            guard let episodeCount = summary.episodeCount else { return }
+                            adjustProgress(
+                                for: selectedSeason,
+                                by: episodeCount - summary.watchedThroughEpisode
+                            )
                         }
                     }
+                    .frame(maxWidth: .infinity)
 
                     if let episodeCount = summary.episodeCount, episodeCount > 0 {
-                        EntryEpisodeProgressBar(
-                            progress: Double(summary.watchedThroughEpisode) / Double(episodeCount),
-                            tint: accentColor
+                        EntryEpisodeProgressSlider(
+                            episode: sliderEpisodeBinding(for: summary),
+                            episodeCount: episodeCount,
+                            tint: accentColor,
+                            onInteractionBegan: {
+                                beginSliderInteraction(for: summary)
+                            },
+                            onInteractionEnded: {
+                                commitSliderInteraction(for: selectedSeason, summary: summary)
+                            }
+                        )
+                        .id(selectedSeason)
+                        .padding(.horizontal, 18)
+                        .accessibilityLabel(Text(EntryDetailL10n.episodeProgress))
+                        .accessibilityValue(
+                            Text(
+                                "Episode \(displayedEpisode) of \(episodeCount)"
+                            )
                         )
                     }
                 }
-                .padding(14)
-                .background(
-                    .thinMaterial,
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(.white.opacity(0.1), lineWidth: 0.8)
-                }
+                .padding(.top, 2)
+            }
+            .onChange(of: summary.watchedThroughEpisode) { _, newValue in
+                synchronizeInteractionState(with: newValue)
             }
         }
     }
@@ -474,26 +532,57 @@ fileprivate struct EntryEpisodeProgressControl: View {
     private func progressButton(
         systemImage: String,
         disabled: Bool,
-        action: @escaping () -> Void
+        action: @escaping () -> Void,
+        longPressAction: @escaping () -> Void = {}
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.headline.weight(.bold))
-                .frame(width: 42, height: 42)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 38, height: 38)
         }
         .buttonStyle(EntryEpisodeProgressButtonStyle(tint: accentColor))
+        .simultaneousGesture(progressButtonLongPressGesture(action: longPressAction))
         .disabled(disabled)
         .opacity(disabled ? 0.5 : 1)
     }
 
-    private func progressAccessibilityText(for summary: AnimeEntryEpisodeProgressSummary) -> String {
-        if let episodeCount = summary.episodeCount {
+    private func progressButtonLongPressGesture(action: @escaping () -> Void) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.5)
+            .onEnded { _ in action() }
+    }
+
+    private func displayedWatchedThroughEpisode(for summary: AnimeEntryEpisodeProgressSummary) -> Int {
+        switch progressInteractionState {
+        case .idle:
+            return summary.watchedThroughEpisode
+        case .editing(let episode), .committing(let episode):
+            return episode
+        }
+    }
+
+    private func sliderEpisodeBinding(for summary: AnimeEntryEpisodeProgressSummary) -> Binding<Double> {
+        Binding(
+            get: { Double(displayedWatchedThroughEpisode(for: summary)) },
+            set: { newValue in
+                let snappedValue = min(max(Int(newValue.rounded()), 0), summary.episodeCount ?? .max)
+                withAnimation(progressAnimation) {
+                    progressInteractionState = .editing(snappedValue)
+                }
+            }
+        )
+    }
+
+    private func progressAccessibilityText(
+        watchedThroughEpisode: Int,
+        episodeCount: Int?
+    ) -> String {
+        if let episodeCount {
             return String(
                 localized:
-                    "Watched through episode \(summary.watchedThroughEpisode) of \(episodeCount)"
+                    "Watched through episode \(watchedThroughEpisode) of \(episodeCount)"
             )
         }
-        return String(localized: "Watched through episode \(summary.watchedThroughEpisode)")
+        return String(localized: "Watched through episode \(watchedThroughEpisode)")
     }
 
     private func isAtLimit(_ summary: AnimeEntryEpisodeProgressSummary) -> Bool {
@@ -510,8 +599,53 @@ fileprivate struct EntryEpisodeProgressControl: View {
             return
         }
 
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-            entry.incrementEpisodeProgress(seasonNumber: seasonNumber, by: amount)
+        setProgress(for: seasonNumber, to: currentSummary.watchedThroughEpisode + amount)
+    }
+
+    private func beginSliderInteraction(for summary: AnimeEntryEpisodeProgressSummary) {
+        withAnimation(progressAnimation) {
+            progressInteractionState = .editing(displayedWatchedThroughEpisode(for: summary))
+        }
+    }
+
+    private func commitSliderInteraction(
+        for seasonNumber: Int,
+        summary: AnimeEntryEpisodeProgressSummary
+    ) {
+        guard case .editing(let episode) = progressInteractionState else { return }
+        setProgress(for: seasonNumber, to: episode)
+        if episode == summary.watchedThroughEpisode {
+            withAnimation(progressAnimation) {
+                progressInteractionState = .idle
+            }
+        }
+    }
+
+    private func setProgress(for seasonNumber: Int, to requestedEpisode: Int) {
+        let currentSummary = entry.episodeProgressSummary(forSeason: seasonNumber)
+        let clampedEpisode: Int
+        if let episodeCount = currentSummary.episodeCount {
+            clampedEpisode = min(max(requestedEpisode, 0), episodeCount)
+        } else {
+            clampedEpisode = max(requestedEpisode, 0)
+        }
+
+        guard clampedEpisode != currentSummary.watchedThroughEpisode else {
+            withAnimation(progressAnimation) {
+                progressInteractionState = .idle
+            }
+            return
+        }
+
+        withAnimation(progressAnimation) {
+            progressInteractionState = .committing(clampedEpisode)
+        }
+
+        withAnimation(progressAnimation) {
+            entry.setEpisodeProgress(
+                seasonNumber: seasonNumber,
+                watchedThroughEpisode: clampedEpisode
+            )
         }
 
         if let prompt = entry.episodeProgressCompletionPrompt(
@@ -521,37 +655,44 @@ fileprivate struct EntryEpisodeProgressControl: View {
             onCompletionPromptRequested(prompt)
         }
     }
-}
 
-fileprivate struct EntryEpisodeProgressBar: View {
-    let progress: Double
-    let tint: Color
-
-    var body: some View {
-        GeometryReader { proxy in
-            let clampedProgress = min(max(progress, 0), 1)
-            let fillWidth =
-                clampedProgress == 0
-                ? 0
-                : min(max(proxy.size.width * clampedProgress, 18), proxy.size.width)
-
-            ZStack(alignment: .leading) {
-                Capsule(style: .continuous)
-                    .fill(.white.opacity(0.08))
-
-                Capsule(style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [tint.opacity(0.95), tint.opacity(0.62)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: fillWidth)
+    private func synchronizeInteractionState(with watchedThroughEpisode: Int) {
+        guard case .committing(let episode) = progressInteractionState else { return }
+        if episode == watchedThroughEpisode {
+            withAnimation(progressAnimation) {
+                progressInteractionState = .idle
             }
         }
-        .frame(height: 7)
-        .accessibilityHidden(true)
+    }
+}
+
+fileprivate struct EntryEpisodeProgressSlider: View {
+    @Binding var episode: Double
+    let episodeCount: Int
+    let tint: Color
+    let onInteractionBegan: () -> Void
+    let onInteractionEnded: () -> Void
+
+    var body: some View {
+        Slider(
+            value: $episode,
+            in: 0...Double(episodeCount),
+            step: 1
+        )
+        // `Slider`'s built-in editing state is unreliable on iOS 26 for this control.
+        // We track drag begin/end with an explicit gesture so the parent state machine
+        // can deterministically move between `editing` and `committing`.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    onInteractionBegan()
+                }
+                .onEnded { _ in
+                    onInteractionEnded()
+                }
+        )
+        .tint(tint)
+        .controlSize(.mini)
     }
 }
 
@@ -560,14 +701,14 @@ fileprivate struct EntryEpisodeProgressButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(tint)
+            .foregroundStyle(tint.opacity(configuration.isPressed ? 0.9 : 0.72))
             .background {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(tint.opacity(configuration.isPressed ? 0.18 : 0.12))
+                    .fill(.white.opacity(configuration.isPressed ? 0.12 : 0.07))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(tint.opacity(0.22), lineWidth: 1)
+                    .stroke(.white.opacity(configuration.isPressed ? 0.14 : 0.08), lineWidth: 0.8)
             }
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
