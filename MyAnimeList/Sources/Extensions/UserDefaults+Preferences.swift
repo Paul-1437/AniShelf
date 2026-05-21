@@ -23,4 +23,8 @@ extension UserDefaults {
     var isLibraryScoringEnabled: Bool {
         bool(forKey: .libraryScoringEnabled, defaultValue: true)
     }
+
+    var isEpisodeProgressTrackingEnabled: Bool {
+        bool(forKey: .episodeProgressTrackingEnabled, defaultValue: false)
+    }
 }

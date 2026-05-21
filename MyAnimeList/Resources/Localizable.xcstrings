@@ -1917,6 +1917,38 @@
         }
       }
     },
+    "Episode Progress" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エピソード進捗"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分集进度"
+          }
+        }
+      }
+    },
+    "Episode progress %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エピソード進捗 %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分集进度 %@"
+          }
+        }
+      }
+    },
     "Episodes" : {
       "localizations" : {
         "ja" : {
@@ -2854,6 +2886,38 @@
         }
       }
     },
+    "Mark as Watched" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴済みにする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标为已看"
+          }
+        }
+      }
+    },
+    "Mark as Watched?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴済みにしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标为已看？"
+          }
+        }
+      }
+    },
     "Mark Status" : {
       "localizations" : {
         "ja" : {
@@ -3186,6 +3250,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无"
+          }
+        }
+      }
+    },
+    "Not Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "後で"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂不"
           }
         }
       }
@@ -4971,6 +5051,22 @@
         }
       }
     },
+    "Track Episode Progress" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エピソード進捗を記録"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录分集进度"
+          }
+        }
+      }
+    },
     "Tracking" : {
       "localizations" : {
         "ja" : {
@@ -5031,6 +5127,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "关闭后不会删除之前保存的评分。"
+          }
+        }
+      }
+    },
+    "Turning this off hides episode progress without deleting saved progress." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフにすると、保存済みの進捗は削除せずに非表示にします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭后会隐藏分集进度，但不会删除已保存的进度。"
           }
         }
       }
@@ -5329,6 +5441,44 @@
         }
       }
     },
+    "Watched through episode %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第%lld話まで視聴済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已看到第%lld集"
+          }
+        }
+      }
+    },
+    "Watched through episode %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Watched through episode %1$lld of %2$lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全%2$lld話中、第%1$lld話まで視聴済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共%2$lld集，已看到第%1$lld集"
+          }
+        }
+      }
+    },
     "Watching" : {
       "localizations" : {
         "ja" : {
@@ -5421,6 +5571,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你可能需要重启App才能让此更改生效。"
+          }
+        }
+      }
+    },
+    "You've watched through all episodes in this season." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このシーズンの全エピソードを視聴済みです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你已看完本季所有剧集。"
+          }
+        }
+      }
+    },
+    "You've watched through every numbered season in this series." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このシリーズの全シーズンを視聴済みです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你已看完本系列所有季度。"
           }
         }
       }

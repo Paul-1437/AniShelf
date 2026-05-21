@@ -150,6 +150,7 @@ extension AnimeEntry {
     }
 
     func userInfoHasChanges(comparedTo compared: UserEntryInfo) -> Bool {
-        userInfo != compared
+        !userInfo.isSemanticallyEquivalent(to: compared)
     }
+
 }

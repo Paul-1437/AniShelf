@@ -191,6 +191,10 @@ struct AnimeEntryListRow: View {
     private var statusLabel: some View {
         HStack(spacing: 10) {
             statusBadge
+            LibraryEpisodeProgressBadge(
+                label: snapshot.episodeProgressLabel,
+                fractionCompleted: snapshot.episodeProgressFraction
+            )
             LibraryScoreBadge(score: snapshot.score)
             Spacer(minLength: 8)
             favoriteButton

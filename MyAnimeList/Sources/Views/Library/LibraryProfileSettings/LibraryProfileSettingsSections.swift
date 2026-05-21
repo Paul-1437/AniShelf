@@ -135,6 +135,7 @@ struct LibraryProfileSettingsCard: View {
     @Binding var entryDetailCharactersExpandedByDefault: Bool
     @Binding var entryDetailStaffExpandedByDefault: Bool
     @Binding var scoringEnabled: Bool
+    @Binding var episodeProgressTrackingEnabled: Bool
     @Binding var autoPrefetchImagesOnAddAndRestore: Bool
     @Binding var useTMDbRelayServer: Bool
     @Binding var preferredLanguage: Language
@@ -346,6 +347,24 @@ struct LibraryProfileSettingsCard: View {
                 }
                 Spacer(minLength: 12)
                 Toggle("Enable Scoring", isOn: $scoringEnabled)
+                    .labelsHidden()
+                    .tint(.mint)
+                    .scaleEffect(0.78, anchor: .trailing)
+                    .frame(width: 42, height: 26, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Track Episode Progress")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Turning this off hides episode progress without deleting saved progress.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 12)
+                Toggle("Track Episode Progress", isOn: $episodeProgressTrackingEnabled)
                     .labelsHidden()
                     .tint(.mint)
                     .scaleEffect(0.78, anchor: .trailing)

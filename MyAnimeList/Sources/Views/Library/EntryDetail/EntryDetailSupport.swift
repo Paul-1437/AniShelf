@@ -13,12 +13,14 @@ enum EntryDetailL10n {
     static let showDetail: LocalizedStringResource = "Show Detail"
     static let save: LocalizedStringResource = "Save"
     static let cancel: LocalizedStringResource = "Cancel"
+    static let notNow: LocalizedStringResource = "Not Now"
     static let discard: LocalizedStringResource = "Discard"
     static let discardChanges: LocalizedStringResource = "Discard Changes"
     static let changePoster: LocalizedStringResource = "Change Poster"
     static let overview: LocalizedStringResource = "Overview"
     static let tracking: LocalizedStringResource = "Tracking"
     static let watchStatus: LocalizedStringResource = "Watch Status"
+    static let episodeProgress: LocalizedStringResource = "Episode Progress"
     static let trackDates: LocalizedStringResource = "Track Dates"
     static let hideDates: LocalizedStringResource = "Hide Dates"
     static let dateStarted: LocalizedStringResource = "Date Started"
@@ -45,6 +47,12 @@ enum EntryDetailL10n {
         "Another season entry for this series is already in your library. Converting this season to a series can leave both the series and the sibling season entries in the library."
     static let markAsDropped: LocalizedStringResource = "Mark as Dropped"
     static let undrop: LocalizedStringResource = "Undrop"
+    static let markAsWatched: LocalizedStringResource = "Mark as Watched"
+    static let markAsWatchedPromptTitle: LocalizedStringResource = "Mark as Watched?"
+    static let seasonEpisodeProgressFinishedMessage: LocalizedStringResource =
+        "You've watched through all episodes in this season."
+    static let seriesEpisodeProgressFinishedMessage: LocalizedStringResource =
+        "You've watched through every numbered season in this series."
     static let tmdb: LocalizedStringResource = "TMDb"
     static let couldNotLoadDetails: LocalizedStringResource = "Couldn't load details"
     static let noOverviewAvailable: LocalizedStringResource = "No overview available."
@@ -71,6 +79,7 @@ struct EntryDetailPresentationState {
     var activeSheet: EntryDetailSheet?
     var showSeasonPicker = false
     var showSiblingSeasonWarning = false
+    var episodeProgressCompletionPrompt: AnimeEntryEpisodeProgressCompletionPrompt?
 }
 
 struct EntryDetailConversionState {

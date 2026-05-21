@@ -195,6 +195,8 @@ struct EntryScoreCard: View {
 struct EntryDetailTrackingSection: View {
     let entry: AnimeEntry
     let scoringEnabled: Bool
+    let episodeProgressTrackingEnabled: Bool
+    let onEpisodeProgressCompletionSuggested: (AnimeEntryEpisodeProgressCompletionPrompt) -> Void
     @Binding var isEditingDetails: Bool
 
     var body: some View {
@@ -209,7 +211,11 @@ struct EntryDetailTrackingSection: View {
                         systemImage: "checklist",
                         isExpanded: $isEditingDetails
                     ) {
-                        EntryDetailTrackingEditor(entry: entry)
+                        EntryDetailTrackingEditor(
+                            entry: entry,
+                            episodeProgressTrackingEnabled: episodeProgressTrackingEnabled,
+                            onEpisodeProgressCompletionSuggested: onEpisodeProgressCompletionSuggested
+                        )
                     }
                 }
                 .padding(18)
@@ -220,7 +226,11 @@ struct EntryDetailTrackingSection: View {
                     systemImage: "checklist",
                     isExpanded: $isEditingDetails
                 ) {
-                    EntryDetailTrackingEditor(entry: entry)
+                    EntryDetailTrackingEditor(
+                        entry: entry,
+                        episodeProgressTrackingEnabled: episodeProgressTrackingEnabled,
+                        onEpisodeProgressCompletionSuggested: onEpisodeProgressCompletionSuggested
+                    )
                 }
             }
         }
@@ -229,6 +239,8 @@ struct EntryDetailTrackingSection: View {
 
 fileprivate struct EntryDetailTrackingEditor: View {
     let entry: AnimeEntry
+    let episodeProgressTrackingEnabled: Bool
+    let onEpisodeProgressCompletionSuggested: (AnimeEntryEpisodeProgressCompletionPrompt) -> Void
 
     private var dateTrackingButtonLabel: LocalizedStringResource {
         entry.isDateTrackingEnabled ? EntryDetailL10n.hideDates : EntryDetailL10n.trackDates
@@ -256,11 +268,18 @@ fileprivate struct EntryDetailTrackingEditor: View {
                     .buttonStyle(.plain)
                 }
                 AnimeEntryWatchedStatusPicker(for: entry)
-                    .pickerStyle(.segmented)
+                .pickerStyle(.segmented)
 
                 if entry.isDateTrackingEnabled {
                     AnimeEntryDatePickers(entry: entry)
                 }
+            }
+
+            if episodeProgressTrackingEnabled, entry.watchStatus == .watching {
+                EntryEpisodeProgressControl(
+                    entry: entry,
+                    onCompletionPromptRequested: onEpisodeProgressCompletionSuggested
+                )
             }
 
             Divider()
@@ -288,6 +307,239 @@ fileprivate struct EntryDetailTrackingEditor: View {
                 }
             }
         }
+        .animation(.default, value: entry.watchStatus)
+    }
+}
+
+fileprivate struct EntryEpisodeProgressControl: View {
+    let entry: AnimeEntry
+    let onCompletionPromptRequested: (AnimeEntryEpisodeProgressCompletionPrompt) -> Void
+    @State private var selectedSeasonNumber: Int?
+
+    private let accentColor = Color.blue
+
+    private var seasonOptions: [Int] {
+        entry.episodeProgressSeasonOptions
+    }
+
+    private var selectedSeason: Int? {
+        if let selectedSeasonNumber, seasonOptions.contains(selectedSeasonNumber) {
+            return selectedSeasonNumber
+        }
+        return seasonOptions.first
+    }
+
+    private var summary: AnimeEntryEpisodeProgressSummary? {
+        selectedSeason.map { entry.episodeProgressSummary(forSeason: $0) }
+    }
+
+    var body: some View {
+        if let selectedSeason, let summary {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text(EntryDetailL10n.episodeProgress)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 12)
+
+                    if seasonOptions.count > 1 {
+                        Menu {
+                            ForEach(seasonOptions, id: \.self) { seasonNumber in
+                                Button {
+                                    selectedSeasonNumber = seasonNumber
+                                } label: {
+                                    if seasonNumber == selectedSeason {
+                                        Label(seasonTitle(for: seasonNumber), systemImage: "checkmark")
+                                    } else {
+                                        Text(seasonTitle(for: seasonNumber))
+                                    }
+                                }
+                            }
+                        } label: {
+                            seasonPickerLabel(title: seasonTitle(for: selectedSeason))
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Text(seasonTitle(for: selectedSeason))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        progressButton(
+                            systemImage: "minus",
+                            disabled: summary.watchedThroughEpisode == 0
+                        ) {
+                            adjustProgress(for: selectedSeason, by: -1)
+                        }
+
+                        HStack(alignment: .lastTextBaseline, spacing: 4) {
+                            Text("\(summary.watchedThroughEpisode)")
+                                .font(.system(size: 30, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .contentTransition(.numericText())
+
+                            if let episodeCount = summary.episodeCount {
+                                Text(verbatim: "/\(episodeCount)")
+                                    .font(.title3.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                    .contentTransition(.numericText())
+                            }
+                        }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(progressAccessibilityText(for: summary))
+
+                        progressButton(
+                            systemImage: "plus",
+                            disabled: isAtLimit(summary)
+                        ) {
+                            adjustProgress(for: selectedSeason, by: 1)
+                        }
+                    }
+
+                    if let episodeCount = summary.episodeCount, episodeCount > 0 {
+                        EntryEpisodeProgressBar(
+                            progress: Double(summary.watchedThroughEpisode) / Double(episodeCount),
+                            tint: accentColor
+                        )
+                    }
+                }
+                .padding(14)
+                .background(
+                    .thinMaterial,
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(.white.opacity(0.1), lineWidth: 0.8)
+                }
+            }
+        }
+    }
+
+    private func seasonTitle(for seasonNumber: Int) -> String {
+        seasonNumber == 0 ? String(localized: "Specials") : String(localized: "Season \(seasonNumber)")
+    }
+
+    private func seasonPickerLabel(title: String) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+
+            Image(systemName: "chevron.down")
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(.secondary)
+    }
+
+    private func progressButton(
+        systemImage: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.headline.weight(.bold))
+                .frame(width: 42, height: 42)
+        }
+        .buttonStyle(EntryEpisodeProgressButtonStyle(tint: accentColor))
+        .disabled(disabled)
+        .opacity(disabled ? 0.5 : 1)
+    }
+
+    private func progressAccessibilityText(for summary: AnimeEntryEpisodeProgressSummary) -> String {
+        if let episodeCount = summary.episodeCount {
+            return String(
+                localized:
+                    "Watched through episode \(summary.watchedThroughEpisode) of \(episodeCount)"
+            )
+        }
+        return String(localized: "Watched through episode \(summary.watchedThroughEpisode)")
+    }
+
+    private func isAtLimit(_ summary: AnimeEntryEpisodeProgressSummary) -> Bool {
+        guard let episodeCount = summary.episodeCount else { return false }
+        return summary.watchedThroughEpisode >= episodeCount
+    }
+
+    private func adjustProgress(for seasonNumber: Int, by amount: Int) {
+        let currentSummary = entry.episodeProgressSummary(forSeason: seasonNumber)
+        if amount > 0, isAtLimit(currentSummary) {
+            return
+        }
+        if amount < 0, currentSummary.watchedThroughEpisode == 0 {
+            return
+        }
+
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            entry.incrementEpisodeProgress(seasonNumber: seasonNumber, by: amount)
+        }
+
+        if let prompt = entry.episodeProgressCompletionPrompt(
+            forSeason: seasonNumber,
+            previousWatchedThroughEpisode: currentSummary.watchedThroughEpisode
+        ) {
+            onCompletionPromptRequested(prompt)
+        }
+    }
+}
+
+fileprivate struct EntryEpisodeProgressBar: View {
+    let progress: Double
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let clampedProgress = min(max(progress, 0), 1)
+            let fillWidth =
+                clampedProgress == 0
+                ? 0
+                : min(max(proxy.size.width * clampedProgress, 18), proxy.size.width)
+
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(.white.opacity(0.08))
+
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [tint.opacity(0.95), tint.opacity(0.62)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: fillWidth)
+            }
+        }
+        .frame(height: 7)
+        .accessibilityHidden(true)
+    }
+}
+
+fileprivate struct EntryEpisodeProgressButtonStyle: ButtonStyle {
+    let tint: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(tint)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(tint.opacity(configuration.isPressed ? 0.18 : 0.12))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(tint.opacity(0.22), lineWidth: 1)
+            }
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 

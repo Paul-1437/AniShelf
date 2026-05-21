@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import DataProvider
@@ -216,6 +217,252 @@ import Testing
     #expect(staff.role == "Directing")
     #expect(staff.orderedJobs.map(\.creditID) == ["director", "music"])
     #expect(staff.orderedJobs.map(\.job) == ["Director", "Music"])
+}
+
+@Test func episodeProgressSetIncrementClearAndClamp() async throws {
+    let entry = AnimeEntry(
+        name: "Season",
+        type: .season(seasonNumber: 1, parentSeriesID: 10),
+        tmdbID: 11,
+        detail: AnimeEntryDetail(language: "en-US", title: "Season", episodeCount: 12)
+    )
+
+    entry.setEpisodeProgress(
+        seasonNumber: 1,
+        watchedThroughEpisode: 5,
+        now: referenceDate(day: 1)
+    )
+    #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 5)
+
+    entry.incrementEpisodeProgress(seasonNumber: 1, by: 20, now: referenceDate(day: 2))
+    #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 12)
+
+    entry.incrementEpisodeProgress(seasonNumber: 1, by: -2, now: referenceDate(day: 3))
+    #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 10)
+
+    entry.clearEpisodeProgress(seasonNumber: 1)
+    #expect(entry.episodeProgresses.isEmpty)
+}
+
+@Test func userEntryInfoRoundTripPreservesEpisodeProgress() async throws {
+    let series = AnimeEntry(name: "Series", type: .series, tmdbID: 31)
+    series.setEpisodeProgress(seasonNumber: 0, watchedThroughEpisode: 1, now: referenceDate(day: 1))
+    series.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 5, now: referenceDate(day: 2))
+
+    let userInfo = UserEntryInfo(from: series)
+    #expect(userInfo.episodeProgresses.map(\.seasonNumber) == [2])
+    #expect(userInfo.episodeProgresses.map(\.watchedThroughEpisode) == [5])
+
+    let encoded = try JSONEncoder().encode(userInfo)
+    let decoded = try JSONDecoder().decode(UserEntryInfo.self, from: encoded)
+    #expect(decoded == userInfo)
+
+    let restoredSeries = AnimeEntry(name: "Restored", type: .series, tmdbID: 32)
+    restoredSeries.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 9, now: referenceDate(day: 3))
+    restoredSeries.updateUserInfo(from: decoded)
+
+    #expect(restoredSeries.orderedEpisodeProgresses.map(\.seasonNumber) == [2])
+    #expect(restoredSeries.episodeProgressSummary(forSeason: 2).watchedThroughEpisode == 5)
+    #expect(restoredSeries.episodeProgressSummary(forSeason: 0).watchedThroughEpisode == 0)
+    #expect(restoredSeries.episodeProgress(forSeason: 2)?.updatedAt == referenceDate(day: 2))
+    #expect(restoredSeries.episodeProgress(forSeason: 1) == nil)
+}
+
+@Test func userEntryInfoRestoreFiltersEpisodeProgressForSeasonEntries() async throws {
+    let sourceSeries = AnimeEntry(name: "Series", type: .series, tmdbID: 41)
+    sourceSeries.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 3, now: referenceDate(day: 1))
+    sourceSeries.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 7, now: referenceDate(day: 2))
+    sourceSeries.setEpisodeProgress(seasonNumber: 0, watchedThroughEpisode: 1, now: referenceDate(day: 3))
+
+    let seasonEntry = AnimeEntry(
+        name: "Season 2",
+        type: .season(seasonNumber: 2, parentSeriesID: 41),
+        tmdbID: 42
+    )
+    seasonEntry.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 1, now: referenceDate(day: 4))
+
+    seasonEntry.updateUserInfo(from: UserEntryInfo(from: sourceSeries))
+
+    #expect(seasonEntry.orderedEpisodeProgresses.map(\.seasonNumber) == [2])
+    #expect(seasonEntry.episodeProgressSummary(forSeason: 2).watchedThroughEpisode == 7)
+    #expect(seasonEntry.episodeProgress(forSeason: 2)?.updatedAt == referenceDate(day: 2))
+}
+
+@Test func userEntryInfoDecodingDefaultsMissingEpisodeProgressesToEmpty() throws {
+    let entry = AnimeEntry.template(id: 51)
+    var payload = try #require(
+        JSONSerialization.jsonObject(
+            with: try JSONEncoder().encode(UserEntryInfo(from: entry))
+        ) as? [String: Any]
+    )
+    payload.removeValue(forKey: "episodeProgresses")
+
+    let decoded = try JSONDecoder().decode(
+        UserEntryInfo.self,
+        from: JSONSerialization.data(withJSONObject: payload)
+    )
+
+    #expect(decoded.episodeProgresses.isEmpty)
+}
+
+@Test func episodeProgressIgnoresSpecials() async throws {
+    let entry = AnimeEntry(name: "Series", type: .series, tmdbID: 21)
+
+    entry.setEpisodeProgress(seasonNumber: 0, watchedThroughEpisode: 1)
+    entry.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 4)
+    entry.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 3)
+
+    #expect(entry.orderedEpisodeProgresses.map(\.seasonNumber) == [1, 2])
+    #expect(entry.episodeProgressSeasonOptions == [1, 2])
+    #expect(entry.episodeProgressSummary(forSeason: 0).watchedThroughEpisode == 0)
+}
+
+@Test func movieEpisodeProgressIsIgnored() async throws {
+    let movie = AnimeEntry.template()
+
+    movie.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 3)
+
+    #expect(movie.episodeProgresses.isEmpty)
+    #expect(movie.episodeProgressSeasonOptions.isEmpty)
+    #expect(movie.latestEpisodeProgressSummary == nil)
+}
+
+@Test func specialsSeasonEpisodeProgressIsIgnored() async throws {
+    let specials = AnimeEntry(
+        name: "Specials",
+        type: .season(seasonNumber: 0, parentSeriesID: 99),
+        tmdbID: 100
+    )
+
+    specials.setEpisodeProgress(seasonNumber: 0, watchedThroughEpisode: 3)
+
+    #expect(specials.episodeProgresses.isEmpty)
+    #expect(specials.episodeProgressSeasonOptions.isEmpty)
+    #expect(specials.latestEpisodeProgressSummary == nil)
+}
+
+@Test func episodeProgressDoesNotSynchronizeWatchStatus() async throws {
+    let entry = AnimeEntry(
+        name: "Season",
+        type: .season(seasonNumber: 1, parentSeriesID: 31),
+        tmdbID: 32,
+        detail: AnimeEntryDetail(language: "en-US", title: "Season", episodeCount: 3)
+    )
+
+    entry.setWatchStatus(.planToWatch)
+    entry.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 3)
+    #expect(entry.watchStatus == .planToWatch)
+
+    entry.setWatchStatus(.watched)
+    #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 3)
+}
+
+@Test func episodeProgressCompletionPromptRequiresWatchingAndKnownCompletion() async throws {
+    let season = AnimeEntry(
+        name: "Season",
+        type: .season(seasonNumber: 1, parentSeriesID: 61),
+        tmdbID: 62,
+        detail: AnimeEntryDetail(language: "en-US", title: "Season", episodeCount: 3)
+    )
+
+    season.setWatchStatus(.watching)
+    season.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 3)
+    #expect(
+        season.episodeProgressCompletionPrompt(forSeason: 1, previousWatchedThroughEpisode: 2)
+            == .seasonWatched
+    )
+
+    season.setWatchStatus(.planToWatch)
+    #expect(
+        season.episodeProgressCompletionPrompt(forSeason: 1, previousWatchedThroughEpisode: 2)
+            == nil
+    )
+
+    let unknownCountSeries = AnimeEntry(name: "Series", type: .series, tmdbID: 63)
+    unknownCountSeries.setWatchStatus(.watching)
+    unknownCountSeries.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 5)
+    #expect(
+        unknownCountSeries.episodeProgressCompletionPrompt(
+            forSeason: 1,
+            previousWatchedThroughEpisode: 4
+        ) == nil
+    )
+}
+
+@Test func seriesEpisodeProgressCompletionPromptRequiresAllNumberedSeasons() async throws {
+    let series = AnimeEntry(name: "Series", type: .series, tmdbID: 71)
+    let firstSeason = AnimeEntry(
+        name: "Season 1",
+        type: .season(seasonNumber: 1, parentSeriesID: 71),
+        tmdbID: 72,
+        detail: AnimeEntryDetail(language: "en-US", title: "Season 1", episodeCount: 12)
+    )
+    let secondSeason = AnimeEntry(
+        name: "Season 2",
+        type: .season(seasonNumber: 2, parentSeriesID: 71),
+        tmdbID: 73,
+        detail: AnimeEntryDetail(language: "en-US", title: "Season 2", episodeCount: 10)
+    )
+
+    firstSeason.parentSeriesEntry = series
+    secondSeason.parentSeriesEntry = series
+    series.childSeasonEntries = [firstSeason, secondSeason]
+    series.setWatchStatus(.watching)
+
+    series.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 12)
+    series.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 9)
+    #expect(!series.areAllNumberedEpisodeProgressSeasonsComplete)
+    #expect(
+        series.episodeProgressCompletionPrompt(forSeason: 1, previousWatchedThroughEpisode: 11)
+            == nil
+    )
+
+    series.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 10)
+    #expect(series.areAllNumberedEpisodeProgressSeasonsComplete)
+    #expect(
+        series.episodeProgressCompletionPrompt(forSeason: 2, previousWatchedThroughEpisode: 9)
+            == .seriesWatched
+    )
+}
+
+@Test func episodeProgressAllowsUnknownCountsAndClampsKnownSeriesChildren() async throws {
+    let series = AnimeEntry(name: "Series", type: .series, tmdbID: 41)
+    series.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 50)
+    #expect(series.episodeProgressSummary(forSeason: 2).watchedThroughEpisode == 50)
+    #expect(series.episodeProgressSummary(forSeason: 2).episodeCount == nil)
+
+    let childSeason = AnimeEntry(
+        name: "Season 2",
+        type: .season(seasonNumber: 2, parentSeriesID: 41),
+        tmdbID: 42,
+        detail: AnimeEntryDetail(language: "en-US", title: "Season 2", episodeCount: 12)
+    )
+    childSeason.parentSeriesEntry = series
+    series.childSeasonEntries = [childSeason]
+
+    series.setEpisodeProgress(seasonNumber: 2, watchedThroughEpisode: 50)
+    #expect(series.episodeProgressSummary(forSeason: 2).watchedThroughEpisode == 12)
+    #expect(series.episodeProgressSummary(forSeason: 2).episodeCount == 12)
+}
+
+@Test func episodeProgressClampsToListedEpisodesWhenEpisodeCountIsMissing() async throws {
+    let entry = AnimeEntry(
+        name: "Season",
+        type: .season(seasonNumber: 1, parentSeriesID: 51),
+        tmdbID: 52,
+        detail: AnimeEntryDetail(
+            language: "en-US",
+            title: "Season",
+            episodes: (1...5).map {
+                AnimeEntryEpisodeSummary(id: $0, episodeNumber: $0, title: "Episode \($0)")
+            }
+        )
+    )
+
+    entry.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 12)
+
+    #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 5)
+    #expect(entry.episodeProgressSummary(forSeason: 1).episodeCount == 5)
 }
 
 fileprivate func referenceDate(day: Int) -> Date {

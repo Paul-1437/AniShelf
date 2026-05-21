@@ -36,6 +36,7 @@ struct AnimeEntryCard: View {
             .overlay { posterTapSurface }
             .overlay(alignment: .topLeading) { statusIndicator }
             .overlay(alignment: .topTrailing) { favoriteIndicator }
+            .overlay(alignment: .bottom) { progressBar }
             .overlay(alignment: .bottomLeading) { scoreBadge }
             .overlay {
                 posterShape
@@ -89,6 +90,10 @@ struct AnimeEntryCard: View {
     private var scoreBadge: some View {
         LibraryScoreBadge(score: snapshot.score, style: .posterOverlay)
             .padding(14)
+    }
+
+    private var progressBar: some View {
+        LibraryPosterEpisodeProgressBar(fractionCompleted: snapshot.episodeProgressFraction)
     }
 
     private var favoriteIndicator: some View {

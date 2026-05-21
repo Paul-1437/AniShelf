@@ -24,10 +24,14 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
     let watchStatus: AnimeEntry.WatchStatus
     let score: Int?
     let isFavorite: Bool
+    let episodeProgressLabel: String?
+    let episodeProgressFraction: Double?
     let dateStarted: Date?
     let dateFinished: Date?
 
     init(entry: AnimeEntry) {
+        let progressSummary = Self.latestEpisodeProgressSummary(for: entry)
+
         id = entry.tmdbID
         posterURL = entry.posterURL
         title = entry.displayName
@@ -37,6 +41,8 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
         watchStatus = entry.watchStatus
         score = entry.score
         isFavorite = entry.favorite
+        episodeProgressLabel = Self.episodeProgressLabel(for: entry, summary: progressSummary)
+        episodeProgressFraction = Self.episodeProgressFraction(for: progressSummary)
         dateStarted = entry.dateStarted
         dateFinished = entry.dateFinished
     }
@@ -99,5 +105,52 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
 
     private static func episodeCountResource(_ count: Int) -> LocalizedStringResource {
         "\(count) episodes"
+    }
+
+    private static func latestEpisodeProgressSummary(
+        for entry: AnimeEntry
+    ) -> AnimeEntryEpisodeProgressSummary? {
+        guard entry.watchStatus == .watching else { return nil }
+
+        switch entry.type {
+        case .movie:
+            return nil
+        case .series, .season:
+            return entry.latestEpisodeProgressSummary
+        }
+    }
+
+    private static func episodeProgressLabel(
+        for entry: AnimeEntry,
+        summary: AnimeEntryEpisodeProgressSummary?
+    ) -> String? {
+        guard let summary else { return nil }
+
+        switch entry.type {
+        case .movie:
+            return nil
+        case .series:
+            if summary.seasonNumber == 0 {
+                return "SP\(summary.watchedThroughEpisode)"
+            }
+            return "S\(summary.seasonNumber)E\(summary.watchedThroughEpisode)"
+        case .season:
+            return "EP\(summary.watchedThroughEpisode)"
+        }
+    }
+
+    private static func episodeProgressFraction(
+        for summary: AnimeEntryEpisodeProgressSummary?
+    ) -> Double? {
+        guard
+            let summary,
+            let episodeCount = summary.episodeCount,
+            episodeCount > 0
+        else {
+            return nil
+        }
+
+        let rawFraction = Double(summary.watchedThroughEpisode) / Double(episodeCount)
+        return min(max(rawFraction, 0), 1)
     }
 }

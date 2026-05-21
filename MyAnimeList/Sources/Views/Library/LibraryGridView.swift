@@ -175,6 +175,7 @@ fileprivate struct LibraryGridItem: View {
             .overlay { posterImage }
             .overlay(alignment: .topLeading) { statusIndicator }
             .overlay(alignment: .topTrailing) { favoriteIndicator }
+            .overlay(alignment: .bottom) { progressBar }
             .overlay {
                 posterShape
                     .stroke(.white.opacity(0.08), lineWidth: 1)
@@ -215,6 +216,10 @@ fileprivate struct LibraryGridItem: View {
             shadowYOffset: 2
         )
         .padding(8)
+    }
+
+    private var progressBar: some View {
+        LibraryPosterEpisodeProgressBar(fractionCompleted: snapshot.episodeProgressFraction)
     }
 
     @ViewBuilder

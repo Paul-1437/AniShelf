@@ -17,6 +17,7 @@ struct EntryDetailView: View {
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) private var followsSystemLanguage: Bool =
         Language.followsSystemPreference()
     @AppStorage(.libraryScoringEnabled) private var scoringEnabled = true
+    @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
 
     let entry: AnimeEntry
     private let startInEditingMode: Bool
@@ -143,6 +144,23 @@ struct EntryDetailView: View {
             Button(EntryDetailL10n.cancel, role: .cancel) {}
         } message: {
             Text(EntryDetailL10n.siblingSeasonExistsMessage)
+        }
+        .alert(
+            EntryDetailL10n.markAsWatchedPromptTitle,
+            isPresented: isEpisodeProgressCompletionPromptPresented,
+            presenting: presentation.episodeProgressCompletionPrompt
+        ) { _ in
+            Button(EntryDetailL10n.markAsWatched) {
+                presentation.episodeProgressCompletionPrompt = nil
+                withAnimation(.default) {
+                    entry.setWatchStatus(.watched)
+                }
+            }
+            Button(EntryDetailL10n.notNow, role: .cancel) {
+                presentation.episodeProgressCompletionPrompt = nil
+            }
+        } message: { prompt in
+            Text(episodeProgressCompletionPromptMessage(for: prompt))
         }
         .task(id: "\(entry.tmdbID)-\(currentLanguage.rawValue)") {
             await model.load(for: entry, language: currentLanguage, dataHandler: dataHandler)
@@ -403,6 +421,8 @@ struct EntryDetailView: View {
         EntryDetailTrackingSection(
             entry: entry,
             scoringEnabled: scoringEnabled,
+            episodeProgressTrackingEnabled: episodeProgressTrackingEnabled,
+            onEpisodeProgressCompletionSuggested: handleEpisodeProgressCompletionSuggestion,
             isEditingDetails: $isEditingDetails
         )
         .id(EntryDetailScrollTarget.editingSection)
@@ -503,8 +523,19 @@ struct EntryDetailView: View {
         entry.userInfoHasChanges(comparedTo: originalUserInfo)
     }
 
+    private var isEpisodeProgressCompletionPromptPresented: Binding<Bool> {
+        Binding(
+            get: { presentation.episodeProgressCompletionPrompt != nil },
+            set: { isPresented in
+                if !isPresented {
+                    presentation.episodeProgressCompletionPrompt = nil
+                }
+            }
+        )
+    }
+
     private var shouldConfirmBeforeSaving: Bool {
-        // Onlt non-incremetal note changes require confirmation.
+        // Only non-incremental note changes require confirmation.
         !entry.notes.hasPrefix(originalUserInfo.notes)
     }
 
@@ -513,6 +544,23 @@ struct EntryDetailView: View {
             saveUserEdits()
         }
         dismiss()
+    }
+
+    private func handleEpisodeProgressCompletionSuggestion(
+        _ prompt: AnimeEntryEpisodeProgressCompletionPrompt
+    ) {
+        presentation.episodeProgressCompletionPrompt = prompt
+    }
+
+    private func episodeProgressCompletionPromptMessage(
+        for prompt: AnimeEntryEpisodeProgressCompletionPrompt
+    ) -> LocalizedStringResource {
+        switch prompt {
+        case .seasonWatched:
+            EntryDetailL10n.seasonEpisodeProgressFinishedMessage
+        case .seriesWatched:
+            EntryDetailL10n.seriesEpisodeProgressFinishedMessage
+        }
     }
 
     private var convertMenuTitle: LocalizedStringResource {

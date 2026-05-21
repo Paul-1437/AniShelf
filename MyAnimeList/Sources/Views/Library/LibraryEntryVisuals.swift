@@ -125,6 +125,137 @@ struct LibraryScoreBadge: View {
     }
 }
 
+struct LibraryEpisodeProgressBadge: View {
+    @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    let label: String?
+    let fractionCompleted: Double?
+
+    var body: some View {
+        if episodeProgressTrackingEnabled, let label, !label.isEmpty {
+            HStack(spacing: 5) {
+                Image(systemName: "play.rectangle.fill")
+                    .font(LibraryWatchStatusBadge.iconFont)
+                    .symbolRenderingMode(.hierarchical)
+                Text(label)
+                    .font(LibraryWatchStatusBadge.textFont)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+            }
+            .foregroundStyle(progressTint)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background {
+                progressBackground
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Episode progress \(label)"))
+        }
+    }
+
+    private var progressBackground: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(progressTint.opacity(colorScheme == .dark ? 0.12 : 0.08))
+
+                if let fillWidth = fillWidth(for: geometry.size.width) {
+                    Capsule(style: .continuous)
+                        .fill(fillGradient)
+                        .frame(width: fillWidth)
+                }
+            }
+            .clipShape(Capsule(style: .continuous))
+        }
+    }
+
+    private var clampedFractionCompleted: Double? {
+        fractionCompleted.map { min(max($0, 0), 1) }
+    }
+
+    private func fillWidth(for totalWidth: CGFloat) -> CGFloat? {
+        guard let clampedFractionCompleted, clampedFractionCompleted > 0 else { return nil }
+        return min(totalWidth, max(totalWidth * clampedFractionCompleted, 18))
+    }
+
+    private var progressTint: Color {
+        .cyan
+    }
+
+    private var fillGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                // progressTint.opacity(colorScheme == .dark ? 0.24 : 0.18),
+                // progressTint.opacity(colorScheme == .dark ? 0.14 : 0.1)
+                progressTint.opacity(0.24),
+                progressTint.opacity(0.14)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+}
+
+struct LibraryPosterEpisodeProgressBar: View {
+    @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
+
+    let fractionCompleted: Double?
+
+    var body: some View {
+        if episodeProgressTrackingEnabled, let clampedFractionCompleted {
+            LibraryEpisodeProgressTrack(fractionCompleted: clampedFractionCompleted)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var clampedFractionCompleted: Double? {
+        fractionCompleted.map { min(max($0, 0), 1) }
+    }
+}
+
+fileprivate struct LibraryEpisodeProgressTrack: View {
+    let fractionCompleted: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            let horizontalInset: CGFloat = 8
+            let availableWidth = max(geometry.size.width - (horizontalInset * 2), 0)
+            let fillWidth = min(
+                availableWidth,
+                max(availableWidth * fractionCompleted, 18)
+            )
+
+            ZStack(alignment: .bottomLeading) {
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        .black.opacity(0.08),
+                        .black.opacity(0.26)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                Capsule(style: .continuous)
+                    .fill(progressFillColor)
+                    .frame(width: fillWidth, height: 6)
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 1)
+                    .padding(.leading, horizontalInset)
+                    .padding(.bottom, 8)
+            }
+        }
+    }
+
+    private var progressFillColor: Color {
+        Color(red: 0.98, green: 0.56, blue: 0.16)
+    }
+}
+
 struct LibraryFavoriteSymbol: View {
     let isFavorite: Bool
     var font: Font

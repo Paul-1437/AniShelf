@@ -23,6 +23,7 @@ extension String {
     static let entryDetailCharactersExpandedByDefault = "EntryDetailCharactersExpandedByDefault"
     static let entryDetailStaffExpandedByDefault = "EntryDetailStaffExpandedByDefault"
     static let libraryScoringEnabled = "LibraryScoringEnabled"
+    static let episodeProgressTrackingEnabled = "EpisodeProgressTrackingEnabled"
     static let libraryHideDroppedByDefault = "LibraryHideDroppedByDefault"
     static let libraryDefaultWatchStatus = "LibraryDefaultWatchStatus"
     static let libraryDefaultFilters = "LibraryDefaultFilters"
@@ -45,6 +46,7 @@ extension String {
         .entryDetailCharactersExpandedByDefault,
         .entryDetailStaffExpandedByDefault,
         .libraryScoringEnabled,
+        .episodeProgressTrackingEnabled,
         .libraryHideDroppedByDefault,
         .libraryDefaultWatchStatus,
         .libraryDefaultFilters,
