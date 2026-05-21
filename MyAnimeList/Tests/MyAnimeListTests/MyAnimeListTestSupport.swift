@@ -75,16 +75,6 @@ func makeImagesConfiguration() -> ImagesConfiguration {
     )
 }
 
-func temporaryStoreURL(name: String) -> URL {
-    let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("AniShelfTests-\(name)-\(UUID().uuidString)", isDirectory: true)
-    try? FileManager.default.createDirectory(
-        at: directory,
-        withIntermediateDirectories: true
-    )
-    return directory.appendingPathComponent("store.sqlite")
-}
-
 @MainActor
 func makeWhatsNewController(
     defaults: UserDefaults,

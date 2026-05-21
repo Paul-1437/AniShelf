@@ -50,7 +50,7 @@
 			membershipExceptions = (
 				Resources/Info.plist,
 				Tests/MyAnimeListTests/EntryDetailViewModelTests.swift,
-				Tests/MyAnimeListTests/InfoFetcherAndMigrationTests.swift,
+				Tests/MyAnimeListTests/InfoFetcherAndLibraryTests.swift,
 				Tests/MyAnimeListTests/LibraryExportManagerTests.swift,
 				Tests/MyAnimeListTests/LibraryPreferencesAndActionsTests.swift,
 				Tests/MyAnimeListTests/LibrarySortingAndDeletionTests.swift,
@@ -67,7 +67,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Tests/MyAnimeListTests/EntryDetailViewModelTests.swift,
-				Tests/MyAnimeListTests/InfoFetcherAndMigrationTests.swift,
+				Tests/MyAnimeListTests/InfoFetcherAndLibraryTests.swift,
 				Tests/MyAnimeListTests/LibraryExportManagerTests.swift,
 				Tests/MyAnimeListTests/LibraryPreferencesAndActionsTests.swift,
 				Tests/MyAnimeListTests/LibrarySortingAndDeletionTests.swift,
