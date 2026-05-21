@@ -12,9 +12,14 @@ typealias WatchedStatus = AnimeEntry.WatchStatus
 
 struct AnimeEntryWatchedStatusPicker: View {
     var entry: AnimeEntry
+    let onStatusSelected: (WatchedStatus) -> Void
 
-    init(for entry: AnimeEntry) {
+    init(
+        for entry: AnimeEntry,
+        onStatusSelected: @escaping (WatchedStatus) -> Void
+    ) {
         self.entry = entry
+        self.onStatusSelected = onStatusSelected
     }
 
     private var activeStatusBinding: Binding<WatchedStatus> {
@@ -28,7 +33,7 @@ struct AnimeEntryWatchedStatusPicker: View {
                 }
             },
             set: {
-                entry.setWatchStatus($0)
+                onStatusSelected($0)
             })
     }
 
@@ -65,7 +70,6 @@ struct AnimeEntryDatePickers: View {
             set: {
                 guard !isLocked else { return }
                 entry.dateStarted = $0
-                entry.normalizeTrackingDates()
             })
     }
 
@@ -77,7 +81,6 @@ struct AnimeEntryDatePickers: View {
             set: {
                 guard !isLocked else { return }
                 entry.dateFinished = $0
-                entry.setWatchStatus(.watched)
             })
     }
 
@@ -94,11 +97,13 @@ struct AnimeEntryDatePickers: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
                 Image(systemName: "ellipsis")
                     .alignmentGuide(VerticalAlignment.center) { d in
                         labelsHidden ? d[VerticalAlignment.center] : -6
                     }
                     .foregroundStyle(.secondary)
+
                 DatePicker(
                     selection: dateFinishedBinding,
                     in: (entry.dateStarted ?? .now)...Date.distantFuture,
@@ -108,6 +113,7 @@ struct AnimeEntryDatePickers: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
                 Spacer()
             }
             .datePickerStyle(.vertical(labelsHidden: labelsHidden))

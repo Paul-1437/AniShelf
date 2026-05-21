@@ -23,7 +23,7 @@ struct LibraryExportManagerTests {
             dateSaved: utcDate("2026-05-01T10:15:30Z")
         )
         movie.onAirDate = utcDate("2024-04-05T00:00:00Z")
-        movie.setWatchStatus(.watched, now: utcDate("2026-05-03T11:00:00Z"))
+        movie.setWatchStatus(.watched)
         movie.setScore(5)
         movie.favorite = true
         movie.notes = "Loved it."
@@ -38,7 +38,7 @@ struct LibraryExportManagerTests {
         )
         season.onAirDate = utcDate("2025-01-10T00:00:00Z")
         season.parentSeriesEntry = AnimeEntry(name: "Parent Series", type: .series, tmdbID: 202)
-        season.setWatchStatus(.watching, now: utcDate("2026-05-04T08:30:00Z"))
+        season.setWatchStatus(.watching)
         season.setScore(3)
 
         let manager = LibraryExportManager(exportDate: utcDate("2026-05-09T12:00:00Z"))

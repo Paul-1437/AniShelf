@@ -152,15 +152,30 @@ struct EntryDetailView: View {
         ) { _ in
             Button(EntryDetailL10n.markAsWatched) {
                 presentation.episodeProgressCompletionPrompt = nil
-                withAnimation(.default) {
-                    entry.setWatchStatus(.watched)
-                }
+                requestWatchStatusChange(.watched)
             }
             Button(EntryDetailL10n.notNow, role: .cancel) {
                 presentation.episodeProgressCompletionPrompt = nil
             }
         } message: { prompt in
             Text(episodeProgressCompletionPromptMessage(for: prompt))
+        }
+        .alert(
+            EntryDetailL10n.updateDatesPromptTitle,
+            isPresented: isDateUpdateSuggestionPresented,
+            presenting: presentation.dateUpdateSuggestion
+        ) { suggestion in
+            Button(EntryDetailL10n.dateSuggestionActionTitle(for: suggestion)) {
+                presentation.dateUpdateSuggestion = nil
+                withAnimation(.default) {
+                    entry.applyDateUpdateSuggestion(suggestion)
+                }
+            }
+            Button(EntryDetailL10n.later, role: .cancel) {
+                presentation.dateUpdateSuggestion = nil
+            }
+        } message: { suggestion in
+            Text(EntryDetailL10n.dateSuggestionMessage(for: suggestion))
         }
         .task(id: "\(entry.tmdbID)-\(currentLanguage.rawValue)") {
             await model.load(for: entry, language: currentLanguage, dataHandler: dataHandler)
@@ -422,6 +437,7 @@ struct EntryDetailView: View {
             entry: entry,
             scoringEnabled: scoringEnabled,
             episodeProgressTrackingEnabled: episodeProgressTrackingEnabled,
+            onWatchStatusSelected: requestWatchStatusChange,
             onEpisodeProgressCompletionSuggested: handleEpisodeProgressCompletionSuggestion,
             isEditingDetails: $isEditingDetails
         )
@@ -477,13 +493,7 @@ struct EntryDetailView: View {
     }
 
     private func toggleDroppedStatus() {
-        withAnimation {
-            if entry.watchStatus == .dropped {
-                entry.setWatchStatus(.watching)
-            } else {
-                entry.setWatchStatus(.dropped)
-            }
-        }
+        requestWatchStatusChange(entry.watchStatus == .dropped ? .watching : .dropped)
     }
 
     private var dropActionTitle: LocalizedStringResource {
@@ -534,6 +544,17 @@ struct EntryDetailView: View {
         )
     }
 
+    private var isDateUpdateSuggestionPresented: Binding<Bool> {
+        Binding(
+            get: { presentation.dateUpdateSuggestion != nil },
+            set: { isPresented in
+                if !isPresented {
+                    presentation.dateUpdateSuggestion = nil
+                }
+            }
+        )
+    }
+
     private var shouldConfirmBeforeSaving: Bool {
         // Only non-incremental note changes require confirmation.
         !entry.notes.hasPrefix(originalUserInfo.notes)
@@ -544,6 +565,15 @@ struct EntryDetailView: View {
             saveUserEdits()
         }
         dismiss()
+    }
+
+    private func requestWatchStatusChange(_ status: AnimeEntry.WatchStatus) {
+        guard entry.watchStatus != status else { return }
+
+        withAnimation(.default) {
+            entry.setWatchStatus(status)
+        }
+        presentation.dateUpdateSuggestion = entry.dateUpdateSuggestion(forTargetStatus: status)
     }
 
     private func handleEpisodeProgressCompletionSuggestion(

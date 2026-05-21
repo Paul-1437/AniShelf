@@ -34,7 +34,7 @@ public struct UserEntryInfo: Equatable, Codable {
     /// Date marked finished.
     public var dateFinished: Date?
 
-    /// Whether status changes should automatically manage tracking dates for this entry.
+    /// Whether date controls are shown for this entry.
     public var isDateTrackingEnabled: Bool
 
     /// User's optional score for this entry.
@@ -243,31 +243,16 @@ extension UserEntryInfo: CustomStringConvertible {
 extension AnimeEntry {
     public static let validScoreRange = 1...5
 
-    public func setDateTrackingEnabled(_ isEnabled: Bool, now: Date = .now) {
+    public func setDateTrackingEnabled(_ isEnabled: Bool) {
         isDateTrackingEnabled = isEnabled
-        guard isEnabled else { return }
-        normalizeTrackingDates(now: now)
     }
 
-    public func setWatchStatus(_ status: WatchStatus, now: Date = .now) {
+    public func setWatchStatus(_ status: WatchStatus) {
         watchStatus = status
-        guard isDateTrackingEnabled else { return }
-        normalizeTrackingDates(now: now)
     }
 
     public func setScore(_ score: Int?) {
         self.score = normalizedEntryScore(score)
-    }
-
-    public func normalizeTrackingDates(now: Date = .now) {
-        guard watchStatus != .dropped else { return }
-        let normalizedDates = watchStatus.normalizedDates(
-            dateStarted: dateStarted,
-            dateFinished: dateFinished,
-            now: now
-        )
-        dateStarted = normalizedDates.dateStarted
-        dateFinished = normalizedDates.dateFinished
     }
 
     public func updateUserInfo(from userInfo: UserEntryInfo) {
@@ -288,8 +273,6 @@ extension AnimeEntry {
                 now: progress.updatedAt
             )
         }
-        guard isDateTrackingEnabled else { return }
-        normalizeTrackingDates()
     }
 
     private func filteredEpisodeProgresses(from userInfo: UserEntryInfo) -> [UserEntryInfo.EpisodeProgressSnapshot] {
@@ -301,36 +284,6 @@ extension AnimeEntry {
         case .season(let seasonNumber, _):
             guard seasonNumber > 0 else { return [] }
             return userInfo.episodeProgresses.filter { $0.seasonNumber == seasonNumber }
-        }
-    }
-}
-
-extension AnimeEntry.WatchStatus {
-    public func normalizedDates(
-        dateStarted: Date?,
-        dateFinished: Date?,
-        now: Date = .now
-    ) -> (dateStarted: Date?, dateFinished: Date?) {
-        switch self {
-        case .planToWatch:
-            return (nil, nil)
-        case .watching:
-            return (dateStarted ?? now, nil)
-        case .watched:
-            let finished = dateFinished ?? dateStarted ?? now
-            let started = min(dateStarted ?? finished, finished)
-            return (started, finished)
-        case .dropped:
-            switch (dateStarted, dateFinished) {
-            case (nil, nil):
-                return (nil, nil)
-            case (.some(let started), nil):
-                return (started, nil)
-            case (nil, .some(let finished)):
-                return (finished, finished)
-            case (.some(let started), .some(let finished)):
-                return (started, max(started, finished))
-            }
         }
     }
 }

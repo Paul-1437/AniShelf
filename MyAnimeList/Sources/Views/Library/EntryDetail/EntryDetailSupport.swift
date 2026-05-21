@@ -5,6 +5,7 @@
 //  Created by OpenAI Codex on 2026/4/4.
 //
 
+import DataProvider
 import SwiftUI
 
 enum EntryDetailL10n {
@@ -49,6 +50,16 @@ enum EntryDetailL10n {
     static let undrop: LocalizedStringResource = "Undrop"
     static let markAsWatched: LocalizedStringResource = "Mark as Watched"
     static let markAsWatchedPromptTitle: LocalizedStringResource = "Mark as Watched?"
+    static let updateDatesPromptTitle: LocalizedStringResource = "Update Dates?"
+    static let later: LocalizedStringResource = "Later"
+    static let setToNow: LocalizedStringResource = "Set to Now"
+    static let clearDates: LocalizedStringResource = "Clear Dates"
+    static let planToWatchDateSuggestionMessage: LocalizedStringResource =
+        "You're setting this entry to Planned. Clear all tracked dates?"
+    static let watchingDateSuggestionMessage: LocalizedStringResource =
+        "You're setting this entry to Watching. Set the start date to now?"
+    static let watchedDateSuggestionMessage: LocalizedStringResource =
+        "You're setting this entry to Watched. Set the finish date to now?"
     static let seasonEpisodeProgressFinishedMessage: LocalizedStringResource =
         "You've watched through all episodes in this season."
     static let seriesEpisodeProgressFinishedMessage: LocalizedStringResource =
@@ -80,10 +91,37 @@ struct EntryDetailPresentationState {
     var showSeasonPicker = false
     var showSiblingSeasonWarning = false
     var episodeProgressCompletionPrompt: AnimeEntryEpisodeProgressCompletionPrompt?
+    var dateUpdateSuggestion: AnimeEntryDateUpdateSuggestion?
 }
 
 struct EntryDetailConversionState {
     var inProgress = false
     var isFetchingSeasons = false
     var seasonNumberOptions: [Int] = []
+}
+
+extension EntryDetailL10n {
+    static func dateSuggestionMessage(
+        for suggestion: AnimeEntryDateUpdateSuggestion
+    ) -> LocalizedStringResource {
+        switch suggestion {
+        case .clearAllDates:
+            planToWatchDateSuggestionMessage
+        case .setStartDateToNow:
+            watchingDateSuggestionMessage
+        case .setFinishDateToNow:
+            watchedDateSuggestionMessage
+        }
+    }
+
+    static func dateSuggestionActionTitle(
+        for suggestion: AnimeEntryDateUpdateSuggestion
+    ) -> LocalizedStringResource {
+        switch suggestion {
+        case .clearAllDates:
+            clearDates
+        case .setStartDateToNow, .setFinishDateToNow:
+            setToNow
+        }
+    }
 }

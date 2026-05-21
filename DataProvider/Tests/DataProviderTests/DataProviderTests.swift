@@ -3,37 +3,37 @@ import Testing
 
 @testable import DataProvider
 
-@Test func watchedStatusNormalizesMissingDates() async throws {
+@Test func watchedStatusDoesNotBackfillMissingDates() async throws {
     let entry = AnimeEntry.template()
 
     entry.dateStarted = nil
     entry.dateFinished = nil
-    entry.setWatchStatus(.watched, now: referenceDate(day: 10))
+    entry.setWatchStatus(.watched)
 
-    #expect(entry.dateStarted == referenceDate(day: 10))
-    #expect(entry.dateFinished == referenceDate(day: 10))
-}
-
-@Test func watchingStatusSetsStartDateWhenDateTrackingIsEnabled() async throws {
-    let entry = AnimeEntry.template()
-
-    entry.dateStarted = nil
-    entry.dateFinished = nil
-    entry.setWatchStatus(.watching, now: referenceDate(day: 10))
-
-    #expect(entry.dateStarted == referenceDate(day: 10))
+    #expect(entry.dateStarted == nil)
     #expect(entry.dateFinished == nil)
 }
 
-@Test func planToWatchClearsTrackingDates() async throws {
+@Test func watchingStatusDoesNotBackfillStartDate() async throws {
+    let entry = AnimeEntry.template()
+
+    entry.dateStarted = nil
+    entry.dateFinished = nil
+    entry.setWatchStatus(.watching)
+
+    #expect(entry.dateStarted == nil)
+    #expect(entry.dateFinished == nil)
+}
+
+@Test func planToWatchPreservesExistingTrackingDates() async throws {
     let entry = AnimeEntry.template()
 
     entry.dateStarted = referenceDate(day: 3)
     entry.dateFinished = referenceDate(day: 7)
-    entry.setWatchStatus(.planToWatch, now: referenceDate(day: 10))
+    entry.setWatchStatus(.planToWatch)
 
-    #expect(entry.dateStarted == nil)
-    #expect(entry.dateFinished == nil)
+    #expect(entry.dateStarted == referenceDate(day: 3))
+    #expect(entry.dateFinished == referenceDate(day: 7))
 }
 
 @Test func statusChangesDoNotMutateDatesWhenDateTrackingIsDisabled() async throws {
@@ -42,20 +42,19 @@ import Testing
     entry.isDateTrackingEnabled = false
     entry.dateStarted = nil
     entry.dateFinished = nil
-    entry.setWatchStatus(.watched, now: referenceDate(day: 10))
+    entry.setWatchStatus(.watched)
 
     #expect(entry.watchStatus == .watched)
     #expect(entry.dateStarted == nil)
     #expect(entry.dateFinished == nil)
 }
 
-@Test func disabledDateTrackingPreservesExistingDatesAcrossStatusChanges() async throws {
+@Test func statusChangesDoNotMutateExistingDatesWhenDateTrackingIsEnabled() async throws {
     let entry = AnimeEntry.template()
 
-    entry.isDateTrackingEnabled = false
     entry.dateStarted = referenceDate(day: 3)
     entry.dateFinished = referenceDate(day: 7)
-    entry.setWatchStatus(.planToWatch, now: referenceDate(day: 10))
+    entry.setWatchStatus(.planToWatch)
 
     #expect(entry.watchStatus == .planToWatch)
     #expect(entry.dateStarted == referenceDate(day: 3))
@@ -67,20 +66,37 @@ import Testing
 
     entry.dateStarted = referenceDate(day: 3)
     entry.dateFinished = nil
-    entry.setWatchStatus(.dropped, now: referenceDate(day: 10))
+    entry.setWatchStatus(.dropped)
 
     #expect(entry.dateStarted == referenceDate(day: 3))
     #expect(entry.dateFinished == nil)
 }
 
-@Test func droppedStatusBackfillsMissingStartDateFromFinishedDate() async throws {
+@Test func droppedStatusPreservesFinishedDateWithoutBackfill() async throws {
     let entry = AnimeEntry.template()
 
     entry.dateStarted = nil
     entry.dateFinished = referenceDate(day: 7)
-    entry.setWatchStatus(.dropped, now: referenceDate(day: 10))
+    entry.setWatchStatus(.dropped)
 
-    #expect(entry.dateStarted == referenceDate(day: 7))
+    #expect(entry.dateStarted == nil)
+    #expect(entry.dateFinished == referenceDate(day: 7))
+}
+
+@Test func dateTrackingToggleDoesNotNormalizeExistingDates() async throws {
+    let entry = AnimeEntry.template()
+
+    entry.dateStarted = referenceDate(day: 3)
+    entry.dateFinished = referenceDate(day: 7)
+
+    entry.setDateTrackingEnabled(false)
+    #expect(!entry.isDateTrackingEnabled)
+    #expect(entry.dateStarted == referenceDate(day: 3))
+    #expect(entry.dateFinished == referenceDate(day: 7))
+
+    entry.setDateTrackingEnabled(true)
+    #expect(entry.isDateTrackingEnabled)
+    #expect(entry.dateStarted == referenceDate(day: 3))
     #expect(entry.dateFinished == referenceDate(day: 7))
 }
 

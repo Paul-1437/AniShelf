@@ -311,7 +311,7 @@ struct LibraryPreferencesAndActionsTests {
 
         #expect(hiddenParent.onDisplay)
         #expect(hiddenParent.watchStatus == .watching)
-        #expect(hiddenParent.dateStarted != nil)
+        #expect(hiddenParent.dateStarted == nil)
         #expect(hiddenParent.detail?.runtimeMinutes == 24)
         #expect(hiddenParent.detail?.episodeCount == 28)
         #expect(hiddenParent.name == "Frieren: Beyond Journey's End")

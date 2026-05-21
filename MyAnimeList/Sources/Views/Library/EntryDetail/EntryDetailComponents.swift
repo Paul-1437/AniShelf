@@ -196,6 +196,7 @@ struct EntryDetailTrackingSection: View {
     let entry: AnimeEntry
     let scoringEnabled: Bool
     let episodeProgressTrackingEnabled: Bool
+    let onWatchStatusSelected: (AnimeEntry.WatchStatus) -> Void
     let onEpisodeProgressCompletionSuggested: (AnimeEntryEpisodeProgressCompletionPrompt) -> Void
     @Binding var isEditingDetails: Bool
 
@@ -214,6 +215,7 @@ struct EntryDetailTrackingSection: View {
                         EntryDetailTrackingEditor(
                             entry: entry,
                             episodeProgressTrackingEnabled: episodeProgressTrackingEnabled,
+                            onWatchStatusSelected: onWatchStatusSelected,
                             onEpisodeProgressCompletionSuggested: onEpisodeProgressCompletionSuggested
                         )
                     }
@@ -229,6 +231,7 @@ struct EntryDetailTrackingSection: View {
                     EntryDetailTrackingEditor(
                         entry: entry,
                         episodeProgressTrackingEnabled: episodeProgressTrackingEnabled,
+                        onWatchStatusSelected: onWatchStatusSelected,
                         onEpisodeProgressCompletionSuggested: onEpisodeProgressCompletionSuggested
                     )
                 }
@@ -240,6 +243,7 @@ struct EntryDetailTrackingSection: View {
 fileprivate struct EntryDetailTrackingEditor: View {
     let entry: AnimeEntry
     let episodeProgressTrackingEnabled: Bool
+    let onWatchStatusSelected: (AnimeEntry.WatchStatus) -> Void
     let onEpisodeProgressCompletionSuggested: (AnimeEntryEpisodeProgressCompletionPrompt) -> Void
 
     private var dateTrackingButtonLabel: LocalizedStringResource {
@@ -267,7 +271,10 @@ fileprivate struct EntryDetailTrackingEditor: View {
                     }
                     .buttonStyle(.plain)
                 }
-                AnimeEntryWatchedStatusPicker(for: entry)
+                AnimeEntryWatchedStatusPicker(
+                    for: entry,
+                    onStatusSelected: onWatchStatusSelected
+                )
                 .pickerStyle(.segmented)
 
                 if entry.isDateTrackingEnabled {

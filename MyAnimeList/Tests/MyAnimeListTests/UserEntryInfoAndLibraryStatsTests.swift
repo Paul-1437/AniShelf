@@ -39,8 +39,8 @@ struct UserEntryInfoAndLibraryStatsTests {
         LibraryBatchAction.dateTracking(true).apply(to: entries)
         #expect(first.isDateTrackingEnabled)
         #expect(second.isDateTrackingEnabled)
-        #expect(first.dateStarted != nil)
-        #expect(second.dateFinished != nil)
+        #expect(first.dateStarted == nil)
+        #expect(second.dateFinished == nil)
 
         LibraryBatchAction.score(5).apply(to: entries)
         #expect(first.score == 5)
@@ -165,29 +165,73 @@ struct UserEntryInfoAndLibraryStatsTests {
         #expect(!entry.userInfoHasChanges(comparedTo: originalUserInfo))
     }
 
-    @Test func testReEnablingDateTrackingNormalizesCurrentWatchStatus() {
+    @Test func testDateTrackingTogglePreservesCurrentDates() {
         let watching = AnimeEntry.template(id: 211)
         watching.setDateTrackingEnabled(false)
-        watching.setWatchStatus(.watching, now: referenceDate(year: 2026, month: 5, day: 9))
-        watching.setDateTrackingEnabled(true, now: referenceDate(year: 2026, month: 5, day: 10))
-        #expect(watching.dateStarted == referenceDate(year: 2026, month: 5, day: 10))
+        watching.setWatchStatus(.watching)
+        watching.dateStarted = referenceDate(year: 2026, month: 5, day: 8)
+        watching.setDateTrackingEnabled(true)
+        #expect(watching.dateStarted == referenceDate(year: 2026, month: 5, day: 8))
         #expect(watching.dateFinished == nil)
 
         let watched = AnimeEntry.template(id: 212)
         watched.setDateTrackingEnabled(false)
-        watched.setWatchStatus(.watched, now: referenceDate(year: 2026, month: 5, day: 9))
-        watched.setDateTrackingEnabled(true, now: referenceDate(year: 2026, month: 5, day: 10))
-        #expect(watched.dateStarted == referenceDate(year: 2026, month: 5, day: 10))
-        #expect(watched.dateFinished == referenceDate(year: 2026, month: 5, day: 10))
+        watched.setWatchStatus(.watched)
+        watched.dateFinished = referenceDate(year: 2026, month: 5, day: 11)
+        watched.setDateTrackingEnabled(true)
+        #expect(watched.dateStarted == nil)
+        #expect(watched.dateFinished == referenceDate(year: 2026, month: 5, day: 11))
 
         let planned = AnimeEntry.template(id: 213)
         planned.setDateTrackingEnabled(false)
         planned.dateStarted = referenceDate(year: 2026, month: 5, day: 3)
         planned.dateFinished = referenceDate(year: 2026, month: 5, day: 7)
-        planned.setWatchStatus(.planToWatch, now: referenceDate(year: 2026, month: 5, day: 9))
-        planned.setDateTrackingEnabled(true, now: referenceDate(year: 2026, month: 5, day: 10))
-        #expect(planned.dateStarted == nil)
-        #expect(planned.dateFinished == nil)
+        planned.setWatchStatus(.planToWatch)
+        planned.setDateTrackingEnabled(true)
+        #expect(planned.dateStarted == referenceDate(year: 2026, month: 5, day: 3))
+        #expect(planned.dateFinished == referenceDate(year: 2026, month: 5, day: 7))
+    }
+
+    @Test func testDateUpdateSuggestionsFollowRedesignRules() {
+        let planned = AnimeEntry.template(id: 214)
+        #expect(planned.dateUpdateSuggestion(forTargetStatus: .planToWatch) == nil)
+        planned.dateStarted = referenceDate(year: 2026, month: 5, day: 3)
+        #expect(planned.dateUpdateSuggestion(forTargetStatus: .planToWatch) == .clearAllDates)
+
+        let watching = AnimeEntry.template(id: 215)
+        #expect(watching.dateUpdateSuggestion(forTargetStatus: .watching) == .setStartDateToNow)
+        watching.dateStarted = referenceDate(year: 2026, month: 5, day: 4)
+        #expect(watching.dateUpdateSuggestion(forTargetStatus: .watching) == nil)
+
+        let watched = AnimeEntry.template(id: 216)
+        #expect(watched.dateUpdateSuggestion(forTargetStatus: .watched) == .setFinishDateToNow)
+        watched.dateFinished = referenceDate(year: 2026, month: 5, day: 5)
+        #expect(watched.dateUpdateSuggestion(forTargetStatus: .watched) == nil)
+        #expect(watched.dateUpdateSuggestion(forTargetStatus: .dropped) == nil)
+    }
+
+    @Test func testApplyingDateUpdateSuggestionsOnlyTouchesSuggestedFields() {
+        let entry = AnimeEntry.template(id: 217)
+        entry.dateStarted = referenceDate(year: 2026, month: 5, day: 3)
+        entry.dateFinished = referenceDate(year: 2026, month: 5, day: 7)
+
+        entry.applyDateUpdateSuggestion(
+            .setStartDateToNow,
+            now: referenceDate(year: 2026, month: 5, day: 10)
+        )
+        #expect(entry.dateStarted == referenceDate(year: 2026, month: 5, day: 10))
+        #expect(entry.dateFinished == referenceDate(year: 2026, month: 5, day: 7))
+
+        entry.applyDateUpdateSuggestion(
+            .setFinishDateToNow,
+            now: referenceDate(year: 2026, month: 5, day: 11)
+        )
+        #expect(entry.dateStarted == referenceDate(year: 2026, month: 5, day: 10))
+        #expect(entry.dateFinished == referenceDate(year: 2026, month: 5, day: 11))
+
+        entry.applyDateUpdateSuggestion(.clearAllDates)
+        #expect(entry.dateStarted == nil)
+        #expect(entry.dateFinished == nil)
     }
 
     @Test func testEntryScoreNormalizationRejectsOutOfRangeValues() throws {
@@ -243,7 +287,7 @@ struct UserEntryInfoAndLibraryStatsTests {
             detail: AnimeEntryDetail(language: "en", title: "Movie", runtimeMinutes: 100),
             dateSaved: referenceDate(year: 2026, month: 1, day: 3)
         )
-        movie.setWatchStatus(.watched, now: referenceDate(year: 2026, month: 1, day: 3))
+        movie.setWatchStatus(.watched)
         movie.favorite = true
         movie.notes = "Worth rewatching"
         movie.usingCustomPoster = true
@@ -260,14 +304,14 @@ struct UserEntryInfoAndLibraryStatsTests {
             ),
             dateSaved: referenceDate(year: 2026, month: 2, day: 8)
         )
-        series.setWatchStatus(.watching, now: referenceDate(year: 2026, month: 2, day: 8))
+        series.setWatchStatus(.watching)
 
         let season = AnimeEntry(
             name: "Season",
             type: .season(seasonNumber: 1, parentSeriesID: 2),
             tmdbID: 3
         )
-        season.setWatchStatus(.dropped, now: referenceDate(year: 2026, month: 2, day: 8))
+        season.setWatchStatus(.dropped)
 
         let stats = LibraryProfileStats(entries: [movie, series, season])
 

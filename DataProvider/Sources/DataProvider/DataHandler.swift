@@ -49,16 +49,15 @@ public final class DataHandler {
         entry.setWatchStatus(.planToWatch)
     }
 
-    /// Marks an anime entry as currently watching, setting the start date to now when date tracking is enabled.
+    /// Marks an anime entry as currently watching.
     /// - Parameter entry: The entry to update.
     public func markEntryAsWatching(_ entry: AnimeEntry) {
         logger.debug("Marking entry as watching: \(entry.tmdbID), name: \(entry.name)")
         entry.setWatchStatus(.watching)
     }
 
-    /// Marks an anime entry as watched, setting the finish date to now when date tracking is enabled.
+    /// Marks an anime entry as watched.
     /// - Parameter entry: The entry to update.
-    /// - Note: If date tracking is enabled and the entry hasn't been marked as currently watching yet, `dateStarted` will also be set to `.now`.
     public func markEntryAsWatched(_ entry: AnimeEntry) {
         logger.debug("Marking entry as watched: \(entry.tmdbID), name: \(entry.name)")
         entry.setWatchStatus(.watched)
