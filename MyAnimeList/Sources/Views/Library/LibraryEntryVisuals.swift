@@ -199,17 +199,47 @@ struct LibraryEpisodeProgressBadge: View {
 }
 
 struct LibraryPosterEpisodeProgressBar: View {
+    enum Style {
+        case compact
+        case regular
+
+        var containerHeight: CGFloat {
+            switch self {
+            case .compact: 14
+            case .regular: 18
+            }
+        }
+
+        var barHeight: CGFloat {
+            switch self {
+            case .compact: 4
+            case .regular: 6
+            }
+        }
+
+        var fadeHeight: CGFloat {
+            switch self {
+            case .compact: 14
+            case .regular: 18
+            }
+        }
+    }
+
     @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
 
     let fractionCompleted: Double?
+    var style: Style = .regular
 
     var body: some View {
         if episodeProgressTrackingEnabled, let clampedFractionCompleted {
-            LibraryEpisodeProgressTrack(fractionCompleted: clampedFractionCompleted)
-                .frame(maxWidth: .infinity)
-                .frame(height: 16)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            LibraryEpisodeProgressTrack(
+                fractionCompleted: clampedFractionCompleted,
+                style: style
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: style.containerHeight)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 
@@ -220,9 +250,8 @@ struct LibraryPosterEpisodeProgressBar: View {
 
 fileprivate struct LibraryEpisodeProgressTrack: View {
     let fractionCompleted: Double
+    let style: LibraryPosterEpisodeProgressBar.Style
     private let minimumFillWidth: CGFloat = 14
-    private let barHeight: CGFloat = 5
-    private let fadeHeight: CGFloat = 16
 
     var body: some View {
         GeometryReader { geometry in
@@ -242,12 +271,12 @@ fileprivate struct LibraryEpisodeProgressTrack: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: fadeHeight)
+                .frame(height: style.fadeHeight)
                 .frame(maxHeight: .infinity, alignment: .bottom)
 
                 Capsule(style: .continuous)
                     .fill(progressFill)
-                    .frame(width: fillWidth, height: barHeight)
+                    .frame(width: fillWidth, height: style.barHeight)
             }
         }
     }

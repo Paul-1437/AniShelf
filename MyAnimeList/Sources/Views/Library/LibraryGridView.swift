@@ -219,7 +219,10 @@ fileprivate struct LibraryGridItem: View {
     }
 
     private var progressBar: some View {
-        LibraryPosterEpisodeProgressBar(fractionCompleted: snapshot.episodeProgressFraction)
+        LibraryPosterEpisodeProgressBar(
+            fractionCompleted: snapshot.episodeProgressFraction,
+            style: .compact
+        )
     }
 
     @ViewBuilder
