@@ -430,7 +430,7 @@ struct LibraryProfileSettingsCard: View {
         VStack(alignment: .leading, spacing: 10) {
             LibraryProfileSettingHeader(
                 title: "TMDb Connection",
-                subtitle: "AniShelf uses the relay by default when direct TMDb access is unstable.",
+                subtitle: "Turn this on if direct TMDb access is unstable on your network.",
                 systemImage: "network",
                 tint: .cyan
             )
@@ -439,7 +439,7 @@ struct LibraryProfileSettingsCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Use TMDb Proxy")
                         .font(.subheadline.weight(.semibold))
-                    Text("Turn this off if you already use a VPN or direct TMDb access is faster.")
+                    Text("Turn this off if you use a VPN or another proxy.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -138,7 +138,7 @@ struct EntryDetailTrackingSection: View {
     }
 }
 
-private struct EntryDetailTrackingEditor: View {
+fileprivate struct EntryDetailTrackingEditor: View {
     @Bindable var entry: AnimeEntry
     let episodeProgressTrackingEnabled: Bool
     let onWatchStatusSelected: (AnimeEntry.WatchStatus) -> Void
@@ -240,7 +240,7 @@ private struct EntryDetailTrackingEditor: View {
     }
 }
 
-private struct EntryEpisodeProgressControl: View {
+fileprivate struct EntryEpisodeProgressControl: View {
     // The displayed episode count cannot be derived from persisted progress alone.
     // During a drag we need to show the in-flight slider value, and after release we
     // need to keep showing the committed value until `entry` catches up asynchronously.
@@ -343,7 +343,7 @@ private struct EntryEpisodeProgressControl: View {
                             Text("\(displayedEpisode)")
                                 .font(.system(size: 30, weight: .bold, design: .rounded))
                                 .monospacedDigit()
-                                .contentTransition(.numericText())
+                                .contentTransition(.numericText(value: Double(displayedEpisode)))
 
                             if let episodeCount = summary.episodeCount {
                                 Text(verbatim: "/\(episodeCount)")

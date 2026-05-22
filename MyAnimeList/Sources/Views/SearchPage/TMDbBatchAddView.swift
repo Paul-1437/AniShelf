@@ -150,6 +150,7 @@ struct TMDbBatchAddView: View {
                         Text(error.localizedDescription)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        tmdbProxyTip
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -473,6 +474,22 @@ struct TMDbBatchAddView: View {
         "Already in library."
     }
 
+    private var tmdbProxyTip: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(tmdbProxyNoticeResource)
+                .fixedSize(horizontal: false, vertical: true)
+
+            InfoTip(
+                title: tmdbProxyTipTitleResource,
+                message: tmdbProxyTipMessageResource,
+                width: 280
+            )
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+    }
+
     private var batchAddTitleResource: LocalizedStringResource {
         "Batch Add"
     }
@@ -567,5 +584,17 @@ struct TMDbBatchAddView: View {
 
     private var seasonsTitleResource: LocalizedStringResource {
         "Seasons"
+    }
+
+    private var tmdbProxyNoticeResource: LocalizedStringResource {
+        "Check if Use TMDb Proxy is turned off in Settings."
+    }
+
+    private var tmdbProxyTipTitleResource: LocalizedStringResource {
+        "TMDb Proxy troubleshooting"
+    }
+
+    private var tmdbProxyTipMessageResource: LocalizedStringResource {
+        "If you use a VPN or another network proxy, turning off Use TMDb Proxy in Settings may help."
     }
 }

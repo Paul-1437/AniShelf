@@ -586,6 +586,22 @@
         }
       }
     },
+    "If you use a VPN or another network proxy, turning off Use TMDb Proxy in Settings may help." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPNやほかのネットワークプロキシを使っている場合は、設定で「TMDbプロキシを使用」をオフにすると改善することがあります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果你在使用VPN或其他网络代理，关闭“设置”中的“使用TMDb代理”后，问题可能会改善。"
+          }
+        }
+      }
+    },
     "AniShelf keeps watch status, dates, and quick notes together so your collection stays useful over time." : {
       "localizations" : {
         "ja" : {
@@ -634,18 +650,18 @@
         }
       }
     },
-    "AniShelf uses the relay by default when direct TMDb access is unstable." : {
+    "Turn this on if direct TMDb access is unstable on your network." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TMDbへの直接接続が不安定な場合に備え、AniShelfは標準で中継を使用します。"
+            "value" : "TMDbへの直接接続がネットワーク上で不安定な場合は、これをオンにしてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AniShelf默认使用中继，以应对TMDb直连不稳定的情况。"
+            "value" : "如果你的网络直连TMDb不稳定，可以打开此选项。"
           }
         }
       }
@@ -3726,6 +3742,22 @@
         }
       }
     },
+    "Planned Runtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴予定の再生時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想看时长"
+          }
+        }
+      }
+    },
     "Please backup the current library before proceeding." : {
       "localizations" : {
         "ja" : {
@@ -4833,6 +4865,22 @@
         }
       }
     },
+    "Tap to cycle runtime statistics." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップして再生時間の統計を切り替えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点以切换时长统计。"
+          }
+        }
+      }
+    },
     "The current release note stays available from Settings whenever this version includes one." : {
       "localizations" : {
         "ja" : {
@@ -5073,6 +5121,22 @@
         }
       }
     },
+    "TMDb Proxy troubleshooting" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDbプロキシのトラブルシューティング"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb代理排查"
+          }
+        }
+      }
+    },
     "TMDb Proxy Updated" : {
       "localizations" : {
         "ja" : {
@@ -5169,18 +5233,18 @@
         }
       }
     },
-    "Turn this off if you already use a VPN or direct TMDb access is faster." : {
+    "Turn this off if you use a VPN or another proxy." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "VPNを常用している場合やTMDbへの直接接続の方が速い場合はオフにしてください。"
+            "value" : "VPNやほかのプロキシを使っている場合はオフにしてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如果你已长期使用代理，或直连TMDb更快，可以关闭此选项。"
+            "value" : "如果你在使用VPN或其他代理，请关闭此选项。"
           }
         }
       }
@@ -5415,6 +5479,22 @@
         }
       }
     },
+    "Check if Use TMDb Proxy is turned off in Settings." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定で「TMDbプロキシを使用」がオフになっているか確認してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查一下设置里的“使用TMDb代理”是不是已经关闭。"
+          }
+        }
+      }
+    },
     "User Info" : {
       "localizations" : {
         "ja" : {
@@ -5523,6 +5603,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已看完"
+          }
+        }
+      }
+    },
+    "Watched Runtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視聴済みの再生時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已看时长"
           }
         }
       }

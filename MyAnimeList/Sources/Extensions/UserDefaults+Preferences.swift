@@ -17,7 +17,7 @@ extension UserDefaults {
     }
 
     var usesTMDbRelayServer: Bool {
-        bool(forKey: .useTMDbRelayServer, defaultValue: true)
+        bool(forKey: .useTMDbRelayServer, defaultValue: false)
     }
 
     var isLibraryScoringEnabled: Bool {

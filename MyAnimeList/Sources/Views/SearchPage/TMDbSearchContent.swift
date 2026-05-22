@@ -34,11 +34,14 @@ struct TMDbSearchContent: View {
                 VStack {
                     Button("Reload", systemImage: "arrow.clockwise.circle", action: onRetry)
                         .padding(.bottom)
-                    Text("An error occurred while loading results.")
-                    Text("Check your internet connection.")
-                        .padding(.bottom)
-                    Text("Error: \(error.localizedDescription)")
-                        .font(.caption)
+                    Group {
+                        Text("An error occurred while loading results.")
+                        Text("Check your internet connection.")
+                        Text("Error: \(error.localizedDescription)")
+                    }
+                    .font(.footnote)
+                    tmdbProxyTip
+                        .padding(.top, 4)
                 }
                 .multilineTextAlignment(.center)
                 Spacer()
@@ -75,6 +78,33 @@ struct TMDbSearchContent: View {
     }
 
     private var alreadyAddedMessage: LocalizedStringKey { "Already in library." }
+
+    private var tmdbProxyTip: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(tmdbProxyNoticeResource)
+                .font(.caption2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            InfoTip(
+                title: tmdbProxyTipTitleResource,
+                message: tmdbProxyTipMessageResource,
+                iconFont: .caption2
+            )
+        }
+        .foregroundStyle(.secondary)
+    }
+
+    private var tmdbProxyNoticeResource: LocalizedStringResource {
+        "Check if Use TMDb Proxy is turned off in Settings."
+    }
+
+    private var tmdbProxyTipTitleResource: LocalizedStringResource {
+        "TMDb Proxy troubleshooting"
+    }
+
+    private var tmdbProxyTipMessageResource: LocalizedStringResource {
+        "If you use a VPN or another network proxy, turning off Use TMDb Proxy in Settings may help."
+    }
 
     @ViewBuilder private var seriesResults: some View {
         if !tmdbSearchService.seriesResults.isEmpty {

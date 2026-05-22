@@ -26,7 +26,7 @@ struct LibraryProfileSettingsView: View {
     private var entryDetailStaffExpandedByDefault = false
     @AppStorage(.libraryScoringEnabled) private var scoringEnabled = true
     @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
-    @AppStorage(.useTMDbRelayServer) private var useTMDbRelayServer = true
+    @AppStorage(.useTMDbRelayServer) private var useTMDbRelayServer = false
 
     @State private var changeAPIKey = false
     @State private var showCacheAlert = false
