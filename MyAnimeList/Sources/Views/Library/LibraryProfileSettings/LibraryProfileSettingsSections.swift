@@ -163,6 +163,7 @@ struct LibraryProfileSettingsCard: View {
     let onCheckMetadataCacheSize: () -> Void
     let onRefreshInfos: () -> Void
     let onPrefetchImages: () -> Void
+    let onShowSupport: () -> Void
     let whatsNewVersion: String?
     let onShowWhatsNew: () -> Void
     let onShowAbout: () -> Void
@@ -487,6 +488,14 @@ struct LibraryProfileSettingsCard: View {
                 )
                 LibraryProfileActionDivider()
             }
+            LibraryProfileActionRow(
+                title: "Support AniShelf",
+                subtitle: "Optional tip jar. No features are unlocked.",
+                systemImage: "heart.circle",
+                tint: LibraryProfileMaintenancePalette.support,
+                action: onShowSupport
+            )
+            LibraryProfileActionDivider()
             LibraryProfileActionRow(
                 title: "About AniShelf",
                 subtitle: "Version, links, and credits.",

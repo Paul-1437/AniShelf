@@ -117,7 +117,7 @@ struct LibraryExportManagerTests {
         let url = try manager.createExport(for: [entry], format: .excel)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let archive = try #require(Archive(url: url, accessMode: .read))
+        let archive = try Archive(url: url, accessMode: .read)
         let worksheetEntry = try #require(archive["xl/worksheets/sheet1.xml"])
         let worksheetXML = try archive.stringContents(of: worksheetEntry)
 

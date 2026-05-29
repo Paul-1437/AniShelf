@@ -345,7 +345,10 @@ final class LibraryExportManager {
     }
 
     private func writeExcelWorkbook(for payload: LibraryExportPayload, to url: URL) throws {
-        guard let archive = Archive(url: url, accessMode: .create) else {
+        let archive: Archive
+        do {
+            archive = try Archive(url: url, accessMode: .create)
+        } catch {
             throw LibraryExportError.archiveCreationFailed
         }
 

@@ -200,6 +200,38 @@
         }
       }
     },
+    "A big show of support" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きなサポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大力支持"
+          }
+        }
+      }
+    },
+    "A generous coffee" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "気前のいいコーヒー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一杯咖啡"
+          }
+        }
+      }
+    },
     "A native anime tracker built around your own library." : {
       "localizations" : {
         "ja" : {
@@ -212,6 +244,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的iOS原生动漫书架。"
+          }
+        }
+      }
+    },
+    "A small thank-you" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ちょっとしたお礼"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小小感谢"
           }
         }
       }
@@ -886,6 +934,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "内置版本说明"
+          }
+        }
+      }
+    },
+    "Buy me a coffee" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buy me a coffee"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buy me a coffee"
           }
         }
       }
@@ -2727,13 +2791,13 @@
       "localizations" : {
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "更新が完了するまで、このページを開いたままにしてください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "刷新完成前请保持此页面打开。"
           }
         }
@@ -2930,6 +2994,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在加载海报…"
+          }
+        }
+      }
+    },
+    "Loading support options from the App Store..." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store からサポートオプションを読み込んでいます…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在从 App Store 加载支持选项…"
           }
         }
       }
@@ -3581,6 +3661,38 @@
         }
       }
     },
+    "Optional support for AniShelf if the app has been useful to you." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf がお役に立てたなら、任意でサポートいただけます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 AniShelf 对你有所帮助，欢迎选择支持。"
+          }
+        }
+      }
+    },
+    "Optional tip jar. No features are unlocked." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意のチップです。機能はアンロックされません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选打赏，不解锁任何功能。"
+          }
+        }
+      }
+    },
     "Organizing Library..." : {
       "localizations" : {
         "ja" : {
@@ -3887,6 +3999,38 @@
         }
       }
     },
+    "Purchase pending approval." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入は承認待ちです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买待审批。"
+          }
+        }
+      }
+    },
+    "Purchase problem" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入の問題"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买问题"
+          }
+        }
+      }
+    },
     "Ratings are now shown directly in List and Gallery views." : {
       "localizations" : {
         "ja" : {
@@ -4003,19 +4147,19 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Refreshed %1$lld entries and fetched %2$lld images."
           }
         },
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$lld 件の情報を更新し、%2$lld 件の画像を取得しました"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "已刷新 %1$lld 条信息，并获取 %2$lld 张图片"
           }
         }
@@ -4047,19 +4191,19 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Refreshed %1$lld entries, failed %2$lld. Fetched %3$lld images, failed %4$lld."
           }
         },
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$lld 件の情報を更新しましたが、%2$lld 件は失敗しました。%3$lld 件の画像を取得しましたが、%4$lld 件は失敗しました"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "已刷新 %1$lld 条信息，%2$lld 条失败。已获取 %3$lld 张图片，%4$lld 张失败"
           }
         }
@@ -4069,19 +4213,19 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Refreshed %1$lld entries, failed %2$lld. Fetched %3$lld images."
           }
         },
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$lld 件の情報を更新しましたが、%2$lld 件は失敗しました。%3$lld 件の画像を取得しました"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "已刷新 %1$lld 条信息，%2$lld 条失败。已获取 %3$lld 张图片"
           }
         }
@@ -4091,19 +4235,19 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Refreshed %1$lld entries. Fetched %2$lld images, failed %3$lld."
           }
         },
         "ja" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "%1$lld 件の情報を更新しました。%2$lld 件の画像を取得しましたが、%3$lld 件は失敗しました"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "已刷新 %1$lld 条信息。已获取 %2$lld 张图片，%3$lld 张失败"
           }
         }
@@ -4799,6 +4943,22 @@
         }
       }
     },
+    "Some support options are not ready yet. Please try again after App Store Connect finishes syncing." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のサポートオプションはまだ準備できていません。App Store Connect の同期が完了してからもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分支持选项尚未准备好，请等待 App Store Connect 同步完成后再试。"
+          }
+        }
+      }
+    },
     "Sort" : {
       "localizations" : {
         "ja" : {
@@ -4913,6 +5073,54 @@
         }
       }
     },
+    "Support AniShelf" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf をサポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持 AniShelf"
+          }
+        }
+      }
+    },
+    "Support Options" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポートオプション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持选项"
+          }
+        }
+      }
+    },
+    "Support products are temporarily unavailable. Please try again in a moment." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サポート商品は一時的にご利用いただけません。少し後でもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持商品暂时不可用，请稍后再试。"
+          }
+        }
+      }
+    },
     "Switch Poster" : {
       "localizations" : {
         "ja" : {
@@ -4961,6 +5169,70 @@
         }
       }
     },
+    "Thank you!" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ありがとうございます！"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "谢谢你！"
+          }
+        }
+      }
+    },
+    "Thanks for supporting AniShelf." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf をサポートしてくださり、ありがとうございます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感谢你的支持！"
+          }
+        }
+      }
+    },
+    "The App Store could not verify the purchase." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store が購入を確認できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store 无法验证此次购买。"
+          }
+        }
+      }
+    },
+    "The App Store returned an unknown purchase state." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store が不明な購入状態を返しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store 返回了未知的购买状态。"
+          }
+        }
+      }
+    },
     "The current release note stays available from Settings whenever this version includes one." : {
       "localizations" : {
         "ja" : {
@@ -4989,6 +5261,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "资料库为空。"
+          }
+        }
+      }
+    },
+    "These are optional tips that unlock no features, content, or services. All purchases are processed by the App Store." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらは任意のチップで、機能・コンテンツ・サービスはアンロックされません。購入はすべて App Store を通じて処理されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是可选打赏，不会解锁任何功能、内容或服务。所有购买均由 App Store 处理。"
           }
         }
       }
@@ -5362,6 +5650,22 @@
         }
       }
     },
+    "Try Again" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試行"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        }
+      }
+    },
     "Turn this off if you use a VPN or another proxy." : {
       "localizations" : {
         "ja" : {
@@ -5454,6 +5758,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "TV动画候选"
+          }
+        }
+      }
+    },
+    "Unable to complete the purchase right now." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在、購入を完了できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前无法完成购买。"
+          }
+        }
+      }
+    },
+    "Unable to find this support option right now." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在、このサポートオプションが見つかりません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前找不到此支持选项。"
           }
         }
       }

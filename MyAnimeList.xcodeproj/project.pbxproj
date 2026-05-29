@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		9F1BC6CA2E7F024E00221B77 /* AlertToast in Frameworks */ = {isa = PBXBuildFile; productRef = 9F1BC6C92E7F024E00221B77 /* AlertToast */; };
 		9F1BC6CD2E7F028100221B77 /* AlertToast in Frameworks */ = {isa = PBXBuildFile; productRef = 9F1BC6CC2E7F028100221B77 /* AlertToast */; };
+		9F4164E12FCA044600934B66 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9F4164E02FCA044600934B66 /* StoreKit.framework */; };
 		9F6845BF2E7E4CFE007FC6CF /* AlertToast in Frameworks */ = {isa = PBXBuildFile; productRef = 9F6845BE2E7E4CFE007FC6CF /* AlertToast */; };
 		9F720B892E584AD400C23949 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 9F720B882E584AD400C23949 /* ZIPFoundation */; };
 		9F8D665F2D05609200CF355D /* TMDb in Frameworks */ = {isa = PBXBuildFile; productRef = 9F8D665E2D05609200CF355D /* TMDb */; };
@@ -38,6 +39,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		9F4164E02FCA044600934B66 /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
 		9F8D66302D055FEF00CF355D /* MyAnimeList.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyAnimeList.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F8D66402D055FF000CF355D /* MyAnimeListTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAnimeListTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F8D664A2D055FF000CF355D /* MyAnimeListUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyAnimeListUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,6 +111,7 @@
 				9F93FC222DE202E10071FB56 /* DataProvider in Frameworks */,
 				9F1BC6CD2E7F028100221B77 /* AlertToast in Frameworks */,
 				9FB6FEF12D8FCE5A00B423D0 /* Kingfisher in Frameworks */,
+				9F4164E12FCA044600934B66 /* StoreKit.framework in Frameworks */,
 				9F1BC6CA2E7F024E00221B77 /* AlertToast in Frameworks */,
 				9FFCB76E2EC896520088FF36 /* Collections in Frameworks */,
 				9F6845BF2E7E4CFE007FC6CF /* AlertToast in Frameworks */,
@@ -160,6 +163,7 @@
 		9F93FC202DE202D80071FB56 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				9F4164E02FCA044600934B66 /* StoreKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";

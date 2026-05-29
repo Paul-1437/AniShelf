@@ -30,7 +30,6 @@ struct LibraryProfileSettingsView: View {
     private var posterProgressBarOverlayEnabled = true
     @AppStorage(.useTMDbRelayServer) private var useTMDbRelayServer = false
 
-    @State private var changeAPIKey = false
     @State private var showCacheAlert = false
     @State private var showClearAllAlert = false
     @State private var exportError: Error?
@@ -43,7 +42,7 @@ struct LibraryProfileSettingsView: View {
     @State private var showRefreshInfoOnLanguageUpdateAlert = false
     @State private var showRefreshInfoAlert = false
     @State private var showTMDbRelayRestartAlert = false
-    @State private var showAboutSheet = false
+    @State private var presentationState = LibraryProfileSettingsPresentationState()
     @State private var cacheSizeResult: Result<UInt, KingfisherError>?
     @State private var appeared = false
     @State private var restoreCompleted = false
@@ -185,15 +184,8 @@ struct LibraryProfileSettingsView: View {
             allowedContentTypes: [.mallib],
             onCompletion: handleFileImport
         )
-        .sheet(isPresented: $changeAPIKey) {
-            TMDbAPIConfigurator()
-                .presentationDetents([.fraction(0.65), .large])
-        }
-        .sheet(isPresented: $showAboutSheet) {
-            NavigationStack {
-                AboutAniShelfSheet()
-            }
-            .presentationDetents([.fraction(0.85), .large])
+        .sheet(item: presentedSheetBinding) { sheet in
+            sheetView(for: sheet)
         }
     }
 
@@ -238,6 +230,7 @@ struct LibraryProfileSettingsView: View {
             onCheckMetadataCacheSize: checkMetadataCacheSize,
             onRefreshInfos: requestRefreshInfos,
             onPrefetchImages: { actions.prefetchAllImages() },
+            onShowSupport: presentSupportSheet,
             whatsNewVersion: whatsNew.currentEntry?.version,
             onShowWhatsNew: presentWhatsNewSheet,
             onShowAbout: presentAboutSheet,
@@ -331,7 +324,7 @@ struct LibraryProfileSettingsView: View {
     }
 
     private func requestAPIKeySheet() {
-        changeAPIKey = true
+        presentationState.present(.changeAPIKey)
     }
 
     private func requestRestore() {
@@ -390,7 +383,11 @@ struct LibraryProfileSettingsView: View {
     }
 
     private func presentAboutSheet() {
-        showAboutSheet = true
+        presentationState.present(.about)
+    }
+
+    private func presentSupportSheet() {
+        presentationState.presentSupportSheet()
     }
 
     private func presentWhatsNewSheet() {
@@ -431,6 +428,32 @@ struct LibraryProfileSettingsView: View {
     ) -> Language {
         followsSystem ? .current : preferredLanguage
     }
+
+    private var presentedSheetBinding: Binding<LibraryProfileSettingsSheet?> {
+        Binding(
+            get: { presentationState.presentedSheet },
+            set: { presentationState.presentedSheet = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private func sheetView(for sheet: LibraryProfileSettingsSheet) -> some View {
+        switch sheet {
+        case .changeAPIKey:
+            TMDbAPIConfigurator()
+                .presentationDetents([.fraction(0.65), .large])
+        case .support:
+            NavigationStack {
+                SupportAniShelfSheet()
+            }
+            .presentationDetents([.fraction(0.72), .large])
+        case .about:
+            NavigationStack {
+                AboutAniShelfSheet()
+            }
+            .presentationDetents([.fraction(0.85), .large])
+        }
+    }
 }
 
 #Preview {
@@ -441,5 +464,6 @@ struct LibraryProfileSettingsView: View {
             DataProvider.forPreview.generateEntriesForPreview()
         }
         .environment(store)
+        .environment(SupportStore())
         .environment(WhatsNewController(currentVersion: "1.54"))
 }

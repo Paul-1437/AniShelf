@@ -132,9 +132,30 @@ enum LibraryProfileMaintenancePalette {
     static let cache = Color(red: 0.29, green: 0.77, blue: 0.90)
     static let refresh = Color(red: 0.45, green: 0.62, blue: 0.96)
     static let prefetch = Color(red: 0.33, green: 0.80, blue: 0.74)
+    static let support = Color(red: 0.98, green: 0.64, blue: 0.28)
     static let whatsNew = Color(red: 0.95, green: 0.62, blue: 0.33)
     static let about = Color(red: 0.58, green: 0.64, blue: 0.74)
     static let panel = Color(red: 0.42, green: 0.58, blue: 0.76)
+}
+
+enum LibraryProfileSettingsSheet: String, Identifiable {
+    case changeAPIKey
+    case support
+    case about
+
+    var id: String { rawValue }
+}
+
+struct LibraryProfileSettingsPresentationState: Equatable {
+    var presentedSheet: LibraryProfileSettingsSheet?
+
+    mutating func present(_ sheet: LibraryProfileSettingsSheet) {
+        presentedSheet = sheet
+    }
+
+    mutating func presentSupportSheet() {
+        present(.support)
+    }
 }
 
 extension AnimeEntry.WatchStatus {
