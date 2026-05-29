@@ -12,17 +12,18 @@ import os
 fileprivate let logger = Logger(subsystem: .bundleIdentifier, category: "PosterView")
 
 struct KFImageView: View {
+    private enum LoadState {
+        case loading
+        case loaded(UIImage)
+        case fallback
+    }
+
     let url: URL?
     let diskCacheExpiration: StorageExpiration
     let targetWidth: CGFloat?
     let animation: Animation?
     @Binding var imageLoaded: Bool
-    @State private var image: UIImage? = nil
-    @State private var loadedRequestID: String? = nil
-
-    private var missingImage: UIImage? {
-        UIImage(named: "missing-image-resource")
-    }
+    @State private var loadState: LoadState = .loading
 
     private var requestID: String {
         "\(url?.absoluteString ?? "nil")|\(targetWidth?.description ?? "nil")"
@@ -44,10 +45,13 @@ struct KFImageView: View {
 
     var body: some View {
         Group {
-            if let displayImage {
+            switch loadState {
+            case .loaded(let displayImage):
                 Image(uiImage: displayImage)
                     .resizable()
-            } else {
+            case .fallback:
+                fallbackImage
+            case .loading:
                 ProgressView()
                     .frame(minWidth: 100, minHeight: 100)
             }
@@ -55,32 +59,32 @@ struct KFImageView: View {
         .task(id: requestID) { await loadImage(requestID: requestID) }
     }
 
-    private var displayImage: UIImage? {
-        if url == nil {
-            return missingImage
-        }
+    private var fallbackImage: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color(.secondarySystemFill))
 
-        guard loadedRequestID == requestID else { return nil }
-        return image
+            Image(systemName: "photo.badge.exclamationmark")
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.secondary)
+                .font(.system(size: targetWidth == nil ? 28 : 48, weight: .regular))
+        }
     }
 
     @MainActor
     private func loadImage(requestID: String) async {
         guard let url else {
-            image = nil
-            loadedRequestID = nil
+            loadState = .fallback
             imageLoaded = false
             return
         }
 
-        image = nil
-        loadedRequestID = nil
+        loadState = .loading
         imageLoaded = false
 
         var kfRetrieveOptions: KingfisherOptionsInfo = [
             .cacheOriginalImage,
-            .diskCacheExpiration(diskCacheExpiration),
-            .onFailureImage(missingImage)
+            .diskCacheExpiration(diskCacheExpiration)
         ]
 
         if let targetWidth {
@@ -96,15 +100,13 @@ struct KFImageView: View {
             // Only animate if the image was fetched from network (not cached)
             let shouldAnimate = result.cacheType == .none
             withAnimation(shouldAnimate ? animation : nil) {
-                image = result.image
-                loadedRequestID = requestID
+                loadState = .loaded(result.image)
                 imageLoaded = true
             }
         } catch {
             guard !Task.isCancelled, requestID == self.requestID else { return }
             logger.warning("Error loading image: \(error)")
-            image = missingImage
-            loadedRequestID = requestID
+            loadState = .fallback
             imageLoaded = false
         }
     }

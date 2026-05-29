@@ -188,7 +188,7 @@ struct TMDbBatchAddView: View {
         case .input:
             TMDbProminentButton(
                 title: searchButtonTitleResource,
-                systemImage: "sparkle.magnifyingglass",
+                systemImage: "magnifyingglass",
                 iconPlacement: .leading,
                 isEnabled: canStartBatchSearch,
                 action: beginBatchSearch
