@@ -11,18 +11,25 @@ DEVICE_PROCESS_LAUNCH_ARGS ?=
 
 .PHONY: build
 build:
-	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) -destination 'generic/platform=iOS' build
+	@echo "Building $(SCHEME)..."
+	@set -o pipefail; NSUnbufferedIO=YES xcodebuild -quiet -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) -destination 'generic/platform=iOS' build 2>&1 | xcbeautify --disable-logging
+	@echo "Build completed."
 
 .PHONY: test
 test:
 	@[ -n "$(CONNECTED_IOS_DEVICE_ID)" ] || { echo "No connected iPhone found."; exit 1; }
 	@echo "Using device $(CONNECTED_IOS_DEVICE_ID)"
-	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) -destination "id=$(CONNECTED_IOS_DEVICE_ID)" test -only-testing:MyAnimeListTests
-	$(MAKE) test-dataprovider
+	@echo "Running MyAnimeList tests..."
+	@xcodebuild -quiet -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) -destination "id=$(CONNECTED_IOS_DEVICE_ID)" test -only-testing:MyAnimeListTests && echo "** TEST SUCCEEDED **"
+	@echo "MyAnimeList tests completed."
+	@$(MAKE) --no-print-directory test-dataprovider
+	@echo "All tests completed."
 
 .PHONY: test-dataprovider
 test-dataprovider:
-	swift test --package-path DataProvider
+	@echo "Running DataProvider tests..."
+	@set -o pipefail; swift test --quiet --package-path DataProvider 2>&1 | awk '$$0 != "CoreData: warning: Migration was completed by another client"'
+	@echo "DataProvider tests completed."
 
 .PHONY: clean
 clean:

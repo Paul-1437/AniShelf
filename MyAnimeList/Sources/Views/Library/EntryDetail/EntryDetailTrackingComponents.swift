@@ -552,7 +552,7 @@ fileprivate struct EntryEpisodeProgressControl: View {
         }
 
         withAnimation(progressAnimation) {
-            entry.updateEpisodeProgress(
+            _ = entry.updateEpisodeProgress(
                 seasonNumber: seasonNumber,
                 watchedThroughEpisode: clampedEpisode
             )
