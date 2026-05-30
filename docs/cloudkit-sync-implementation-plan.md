@@ -94,8 +94,10 @@ is not swept up in library backups or schema migrations.
 
 **Server change token** — stored in `UserDefaults` as an archived `Data` blob.
 `CKServerChangeToken` serialises to `Data` via `NSKeyedArchiver`. One token
-per custom zone (e.g. `AniShelfLibrary`). Advanced only after a successful
-import application.
+per custom zone and CloudKit session namespace. Namespace keys should combine
+the CloudKit container identifier with the current user's record ID, fetched
+automatically from CloudKit. Advanced only after a successful import
+application.
 
 **Dirty queue** — a JSON file in a dedicated subfolder under the app's
 Application Support directory, e.g.
@@ -207,8 +209,9 @@ Deliverables:
 - Use deterministic `CKRecord.ID(recordName:)` derived from sync identity.
 - Add record encode/decode for `LibraryEntrySyncSnapshot`.
 - Persist server change tokens in `UserDefaults` (as archived `Data`) outside
-  the mirrored SwiftData store, following the policy described in
-  **Sync State Persistence** above.
+  the mirrored SwiftData store, keyed by CloudKit container plus fetched user
+  record ID, following the policy described in **Sync State Persistence**
+  above.
 
 CloudKit record notes:
 
