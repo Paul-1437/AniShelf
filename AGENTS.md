@@ -10,6 +10,16 @@
 
 ## Code Style
 
+- When creating new source files, include the standard Xcode file comment header. Use the format below, attributing authorship to the agent on behalf of the user (replace `<username>` with the actual GitHub username if known, otherwise use the user's name):
+  ```
+  //
+  //  FileName.swift
+  //  AniShelf
+  //
+  //  Created by OpenAI Codex on behalf of <username>.
+  //
+  ```
+  Omit this header only when the user explicitly requests it.
 - Follow `swift-format` and keep edits aligned with existing project style.
 - Use `LocalizedStringResource` whenever possible for user-facing SwiftUI strings, including labels, helper text, and accessibility copy.
 
