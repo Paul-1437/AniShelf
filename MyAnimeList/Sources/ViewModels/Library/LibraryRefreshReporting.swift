@@ -2,7 +2,7 @@
 //  LibraryRefreshReporting.swift
 //  MyAnimeList
 //
-//  Created by OpenAI Codex on 2026/5/9.
+//  Created by OpenAI Codex on behalf of Samuel He on 2026/5/9.
 //
 
 import SwiftUI

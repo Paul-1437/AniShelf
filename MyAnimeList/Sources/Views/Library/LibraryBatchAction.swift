@@ -2,7 +2,7 @@
 //  LibraryBatchAction.swift
 //  MyAnimeList
 //
-//  Created by OpenAI Codex on 2026/5/15.
+//  Created by OpenAI Codex on behalf of Samuel He on 2026/5/15.
 //
 
 import DataProvider

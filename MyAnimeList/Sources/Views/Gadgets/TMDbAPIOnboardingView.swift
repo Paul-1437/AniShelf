@@ -2,7 +2,7 @@
 //  TMDbAPIOnboardingView.swift
 //  MyAnimeList
 //
-//  Created by OpenAI Codex on 2026/5/2.
+//  Created by OpenAI Codex on behalf of Samuel He on 2026/5/2.
 //
 
 import SwiftUI

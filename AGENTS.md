@@ -10,13 +10,13 @@
 
 ## Code Style
 
-- When creating new source files, include the standard Xcode file comment header. Use the format below, attributing authorship to the agent on behalf of the user (replace `<username>` with the actual GitHub username if known, otherwise use the user's name):
+- When creating new source files, include the standard Xcode file comment header. Use the format below, attributing authorship to the agent on behalf of the user (replace `<username>` with the actual GitHub username if known, otherwise use the user's name; use the real creation date in `YYYY/M/D` format):
   ```
   //
   //  FileName.swift
   //  AniShelf
   //
-  //  Created by OpenAI Codex on behalf of <username>.
+  //  Created by OpenAI Codex on behalf of <username> on YYYY/M/D.
   //
   ```
   Omit this header only when the user explicitly requests it.

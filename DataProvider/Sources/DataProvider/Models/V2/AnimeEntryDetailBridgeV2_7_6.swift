@@ -2,7 +2,7 @@
 //  AnimeEntryDetailBridgeV2_7_6.swift
 //  DataProvider
 //
-//  Created by OpenAI Codex on 2026/5/12.
+//  Created by OpenAI Codex on behalf of Samuel He on 2026/5/12.
 //
 
 import Foundation

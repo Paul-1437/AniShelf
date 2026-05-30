@@ -2,7 +2,7 @@
 //  SupportAniShelfSheet.swift
 //  MyAnimeList
 //
-//  Created by OpenAI Codex on 2026/5/30.
+//  Created by OpenAI Codex on behalf of Samuel He on 2026/5/30.
 //
 
 import SwiftUI

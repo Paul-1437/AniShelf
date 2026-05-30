@@ -2,7 +2,7 @@
 //  AnimeEntryTrackingControls.swift
 //  MyAnimeList
 //
-//  Created by OpenAI Codex on 2026/4/4.
+//  Created by OpenAI Codex on behalf of Samuel He on 2026/4/4.
 //
 
 import DataProvider
