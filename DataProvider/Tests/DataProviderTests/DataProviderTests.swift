@@ -257,7 +257,7 @@ import Testing
     #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 10)
 
     entry.clearEpisodeProgress(seasonNumber: 1)
-    #expect(entry.episodeProgresses?.isEmpty ?? true)
+    #expect(entry.episodeProgresses.isEmpty)
 }
 
 @Test func userEntryInfoRoundTripPreservesEpisodeProgress() async throws {
@@ -338,7 +338,7 @@ import Testing
 
     movie.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 3)
 
-    #expect(movie.episodeProgresses?.isEmpty ?? true)
+    #expect(movie.episodeProgresses.isEmpty)
     #expect(movie.episodeProgressSeasonOptions.isEmpty)
     #expect(movie.latestEpisodeProgressSummary == nil)
 }
@@ -352,7 +352,7 @@ import Testing
 
     specials.setEpisodeProgress(seasonNumber: 0, watchedThroughEpisode: 3)
 
-    #expect(specials.episodeProgresses?.isEmpty ?? true)
+    #expect(specials.episodeProgresses.isEmpty)
     #expect(specials.episodeProgressSeasonOptions.isEmpty)
     #expect(specials.latestEpisodeProgressSummary == nil)
 }

@@ -42,7 +42,7 @@ public struct AnimeEntryEpisodeProgressSummary: Equatable {
 
 extension AnimeEntry {
     public var orderedEpisodeProgresses: [AnimeEntryEpisodeProgress] {
-        (episodeProgresses ?? [])
+        episodeProgresses
             .filter { isTrackableEpisodeProgressSeason($0.seasonNumber) }
             .sorted { lhs, rhs in
                 if lhs.seasonNumber == rhs.seasonNumber {
@@ -87,9 +87,9 @@ extension AnimeEntry {
         case .season(let seasonNumber, _):
             return seasonNumber > 0 ? [seasonNumber] : []
         case .series:
-            let detailSeasons = detail?.seasons?.map(\.seasonNumber) ?? []
-            let savedSeasons = episodeProgresses?.map(\.seasonNumber) ?? []
-            let childSeasons = childSeasonEntries?.compactMap(\.seasonNumber) ?? []
+            let detailSeasons = detail?.seasons.map(\.seasonNumber) ?? []
+            let savedSeasons = episodeProgresses.map(\.seasonNumber)
+            let childSeasons = childSeasonEntries.compactMap(\.seasonNumber)
             let seasons = Set(detailSeasons + savedSeasons + childSeasons)
                 .filter { $0 > 0 }
             return seasons.sorted { lhs, rhs in
@@ -112,7 +112,7 @@ extension AnimeEntry {
         guard isTrackableEpisodeProgressSeason(normalizedEpisodeProgressSeason(seasonNumber)) else {
             return nil
         }
-        return episodeProgresses?.first {
+        return episodeProgresses.first {
             $0.seasonNumber == normalizedEpisodeProgressSeason(seasonNumber)
         }
     }
@@ -126,10 +126,10 @@ extension AnimeEntry {
         let episode = clampedEpisodeProgress(requestedEpisode, seasonNumber: seasonNumber)
 
         if episode <= 0 {
-            for progress in episodeProgresses ?? [] where progress.seasonNumber == seasonNumber {
+            for progress in episodeProgresses where progress.seasonNumber == seasonNumber {
                 modelContext?.delete(progress)
             }
-            episodeProgresses?.removeAll { $0.seasonNumber == seasonNumber }
+            episodeProgresses.removeAll { $0.seasonNumber == seasonNumber }
             return
         }
 
@@ -143,10 +143,7 @@ extension AnimeEntry {
                 updatedAt: now
             )
             progress.entry = self
-            if episodeProgresses == nil {
-                episodeProgresses = []
-            }
-            episodeProgresses?.append(progress)
+            episodeProgresses.append(progress)
         }
     }
 
@@ -201,7 +198,7 @@ extension AnimeEntry {
             return detail?.knownEpisodeProgressLimit
         case .series:
             guard seasonNumber != 0 else { return nil }
-            if let seasonLimit = detail?.seasons?.first(where: { $0.seasonNumber == seasonNumber })?
+            if let seasonLimit = detail?.seasons.first(where: { $0.seasonNumber == seasonNumber })?
                 .episodeCount,
                 seasonLimit > 0
             {
@@ -209,7 +206,7 @@ extension AnimeEntry {
             }
 
             if let childSeasonLimit =
-                childSeasonEntries?
+                childSeasonEntries
                 .first(where: { $0.seasonNumber == seasonNumber })?
                 .detail?
                 .knownEpisodeProgressLimit
@@ -217,7 +214,7 @@ extension AnimeEntry {
                 return childSeasonLimit
             }
 
-            let numberedSeasons = detail?.seasons?.filter { $0.seasonNumber != 0 } ?? []
+            let numberedSeasons = detail?.seasons.filter { $0.seasonNumber != 0 } ?? []
             if numberedSeasons.count == 1, numberedSeasons.first?.seasonNumber == seasonNumber {
                 return detail?.knownEpisodeProgressLimit
             }
@@ -273,7 +270,7 @@ extension AnimeEntryDetail {
             return episodeCount
         }
 
-        let listedEpisodeCount = episodes?.count ?? 0
+        let listedEpisodeCount = episodes.count
         return listedEpisodeCount > 0 ? listedEpisodeCount : nil
     }
 }

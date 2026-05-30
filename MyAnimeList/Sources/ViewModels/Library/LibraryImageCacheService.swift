@@ -131,10 +131,10 @@ enum LibraryImageCacheService {
 
         if let detail = entry.detail {
             urls.formUnion([detail.heroImageURL, detail.logoImageURL].compactMap(\.self))
-            urls.formUnion(detail.characters?.compactMap(\.profileURL) ?? [])
-            urls.formUnion(detail.staff?.compactMap(\.profileURL) ?? [])
-            urls.formUnion(detail.seasons?.compactMap(\.posterURL) ?? [])
-            urls.formUnion(detail.episodes?.compactMap(\.imageURL) ?? [])
+            urls.formUnion(detail.characters.compactMap(\.profileURL))
+            urls.formUnion(detail.staff.compactMap(\.profileURL))
+            urls.formUnion(detail.seasons.compactMap(\.posterURL))
+            urls.formUnion(detail.episodes.compactMap(\.imageURL))
         }
 
         return urls

@@ -14,7 +14,6 @@ struct LibraryProfileSettingsView: View {
 
     @Environment(LibraryStore.self) private var store
     @Environment(WhatsNewController.self) private var whatsNew
-    @Environment(CloudKitSyncMonitor.self) private var cloudKitSyncMonitor
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(.preferredAnimeInfoLanguage) private var preferredLanguage: Language = .english
@@ -156,12 +155,7 @@ struct LibraryProfileSettingsView: View {
             Button("Cancel", role: .cancel) {}
             Button("Confirm", role: .destructive, action: confirmRestore)
         } message: {
-            Text(
-                """
-                Please backup the current library before proceeding. Restored library data may sync \
-                to iCloud and affect AniShelf on your other devices.
-                """
-            )
+            Text("Please backup the current library before proceeding.")
         }
         .alert(
             "Metadata Cache Size",
@@ -228,7 +222,6 @@ struct LibraryProfileSettingsView: View {
             autoPrefetchImagesOnAddAndRestore: $store.autoPrefetchImagesOnAddAndRestore,
             useTMDbRelayServer: $useTMDbRelayServer,
             preferredLanguage: $preferredLanguage,
-            syncStatus: cloudKitSyncMonitor.status,
             restoreCompleted: restoreCompleted,
             createBackupItems: createBackupItems,
             onExportLibrary: exportLibrary,
@@ -473,5 +466,4 @@ struct LibraryProfileSettingsView: View {
         .environment(store)
         .environment(SupportStore())
         .environment(WhatsNewController(currentVersion: "1.54"))
-        .environment(CloudKitSyncMonitor())
 }

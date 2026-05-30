@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 /// The current schema version used by the data provider.
-public typealias CurrentSchema = SchemaV2_7_9
+public typealias CurrentSchema = SchemaV2_7_8
 
 /// The current anime entry type used by the data provider.
 public typealias AnimeEntry = CurrentSchema.AnimeEntry
@@ -25,8 +25,6 @@ public typealias AnimeEntryEpisodeProgress = CurrentSchema.AnimeEntryEpisodeProg
 let persistenStoreURL = URL.applicationSupportDirectory
     .appendingPathComponent("DataProvider")
     .appendingPathComponent("mal.store")
-
-fileprivate let cloudKitContainerIdentifier = "iCloud.com.samuelhe.MyAnimeList"
 
 /// A data provider for SwiftData model containers and data operations, stored in MainActor.
 @MainActor public final class DataProvider {
@@ -45,9 +43,6 @@ fileprivate let cloudKitContainerIdentifier = "iCloud.com.samuelhe.MyAnimeList"
     /// Whether this instance's data is stored in memory.
     public let inMemory: Bool
 
-    /// Whether this instance mirrors its persistent store through CloudKit.
-    public let cloudKitEnabled: Bool
-
     /// The URL of the persistent store used by the model container.
     public let url: URL
 
@@ -55,28 +50,17 @@ fileprivate let cloudKitContainerIdentifier = "iCloud.com.samuelhe.MyAnimeList"
     /// - Parameters:
     ///     - inMemory: If true, uses in-memory storage instead of persistent storage.
     ///     - url: The URL of the persistent store.
-    ///     - cloudKitEnabled: Overrides the default CloudKit behavior for persistent stores.
     /// - Important: This initializer will fatalError if the model container cannot be created.
     ///              This is intentional as the app cannot function without proper data storage.
-    public init(
-        inMemory: Bool = false,
-        url: URL = persistenStoreURL,
-        cloudKitEnabled: Bool? = nil
-    ) {
-        let shouldEnableCloudKit = cloudKitEnabled ?? (!inMemory && url == persistenStoreURL)
+    public init(inMemory: Bool = false, url: URL = persistenStoreURL) {
         // Data migration happens here
         let container: ModelContainer
         do {
-            container = try Self.createModelContainer(
-                inMemory: inMemory,
-                url: url,
-                cloudKitEnabled: shouldEnableCloudKit
-            )
+            container = try Self.createModelContainer(inMemory: inMemory, url: url)
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
         self.inMemory = inMemory
-        self.cloudKitEnabled = shouldEnableCloudKit
         self.sharedModelContainer = container
         self.dataHandler = .init(modelContainer: container)
         self.url = url
@@ -95,11 +79,7 @@ fileprivate let cloudKitContainerIdentifier = "iCloud.com.samuelhe.MyAnimeList"
     private func setupContainer() {
         // Data migration happens here
         do {
-            sharedModelContainer = try Self.createModelContainer(
-                inMemory: inMemory,
-                url: url,
-                cloudKitEnabled: cloudKitEnabled
-            )
+            sharedModelContainer = try Self.createModelContainer(inMemory: inMemory, url: url)
         } catch {
             fatalError("Could not create or reload ModelContainer: \(error)")
         }
@@ -108,26 +88,22 @@ fileprivate let cloudKitContainerIdentifier = "iCloud.com.samuelhe.MyAnimeList"
 
     private static func createModelContainer(
         inMemory: Bool = false,
-        url: URL,
-        cloudKitEnabled: Bool
+        url: URL
     ) throws -> ModelContainer {
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let modelConfiguration: ModelConfiguration
         if !inMemory {
-            if cloudKitEnabled {
-                modelConfiguration = ModelConfiguration(
-                    schema: schema,
-                    url: url,
-                    cloudKitDatabase: .private(cloudKitContainerIdentifier)
-                )
-            } else {
-                modelConfiguration = ModelConfiguration(
-                    schema: schema,
-                    url: url
-                )
-            }
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                url: url,
+                cloudKitDatabase: .none
+            )
         } else {
-            modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+            modelConfiguration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: inMemory,
+                cloudKitDatabase: .none
+            )
         }
 
         return try ModelContainer(
