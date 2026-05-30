@@ -518,7 +518,7 @@ struct UserEntryInfoAndLibraryStatsTests {
             updatedAt: referenceDate(year: 2026, month: 5, day: 13)
         )
         specialsProgress.entry = series
-        series.episodeProgresses.append(specialsProgress)
+        series.episodeProgresses?.append(specialsProgress)
 
         let snapshot = LibraryEntrySnapshot(entry: series)
         #expect(snapshot.episodeProgressLabel == "S2E5")
@@ -596,7 +596,7 @@ struct UserEntryInfoAndLibraryStatsTests {
         let specialsOnlySeries = AnimeEntry(name: "Specials", type: .series, tmdbID: 607)
         specialsOnlySeries.setEpisodeProgress(seasonNumber: 0, watchedThroughEpisode: 1)
         let specialsSnapshot = LibraryEntrySnapshot(entry: specialsOnlySeries)
-        #expect(specialsOnlySeries.episodeProgresses.isEmpty)
+        #expect(specialsOnlySeries.episodeProgresses?.isEmpty ?? true)
         #expect(specialsSnapshot.episodeProgressLabel == nil)
         #expect(specialsSnapshot.episodeProgressFraction == nil)
 
@@ -611,7 +611,7 @@ struct UserEntryInfoAndLibraryStatsTests {
 
         let movie = AnimeEntry.template(id: 603)
         movie.setEpisodeProgress(seasonNumber: 1, watchedThroughEpisode: 4)
-        #expect(movie.episodeProgresses.isEmpty)
+        #expect(movie.episodeProgresses?.isEmpty ?? true)
     }
 
     @Test func testLibraryEntrySnapshotHidesEpisodeProgressOutsideWatching() {

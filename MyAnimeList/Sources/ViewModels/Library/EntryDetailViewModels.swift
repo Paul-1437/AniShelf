@@ -237,7 +237,7 @@ final class EntryDetailViewModel {
             )
         }
 
-        return entry.parentSeriesEntry?.childSeasonEntries.contains(where: { $0.id != entry.id })
+        return entry.parentSeriesEntry?.childSeasonEntries?.contains(where: { $0.id != entry.id })
             ?? false
     }
 
@@ -365,7 +365,7 @@ final class EntryDetailViewModel {
             )
         }
         staffCards = Self.displayedStaffCards(from: detail.orderedStaff, language: language)
-        seasonCards = Self.orderedSeasonSummaries(detail.seasons).map {
+        seasonCards = Self.orderedSeasonSummaries(detail.seasons ?? []).map {
             EntryDetailSeasonCard(
                 id: $0.id,
                 seasonNumber: $0.seasonNumber,

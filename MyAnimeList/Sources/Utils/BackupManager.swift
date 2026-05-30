@@ -292,7 +292,7 @@ class BackupManager {
                 }
             }
 
-            let backupFolderURL = directoryURL.appendingPathComponent(dataStoreFolderName)
+            let backupFolderURL = try backupStoreFolderURL(in: directoryURL)
             try validateSwiftDataStore(at: backupFolderURL)
             let backupFiles = try fileManager.contentsOfDirectory(
                 at: backupFolderURL, includingPropertiesForKeys: nil)
@@ -322,6 +322,32 @@ class BackupManager {
                 reason: "Could not replace the database files. \(error.localizedDescription)")
         }
         try? fileManager.removeItem(at: rollbackDirectoryURL)
+    }
+
+    private func backupStoreFolderURL(in directoryURL: URL) throws -> URL {
+        let expectedURL = directoryURL.appendingPathComponent(dataStoreFolderName)
+        if fileManager.fileExists(atPath: expectedURL.path()) {
+            return expectedURL
+        }
+
+        let contents = try fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        )
+        for folderURL in contents {
+            let resourceValues = try folderURL.resourceValues(forKeys: [.isDirectoryKey])
+            guard resourceValues.isDirectory == true else {
+                continue
+            }
+            do {
+                try validateSwiftDataStore(at: folderURL)
+                return folderURL
+            } catch BackupError.swiftDataStoreInvalid {
+                continue
+            }
+        }
+
+        throw BackupError.swiftDataStoreInvalid
     }
 
     private func copyFiles(_ files: [URL], to directoryURL: URL) throws {

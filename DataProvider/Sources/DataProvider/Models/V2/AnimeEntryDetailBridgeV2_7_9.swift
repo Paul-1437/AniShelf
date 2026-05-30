@@ -78,42 +78,42 @@ extension SchemaV2_7_9.AnimeEntryDetail {
 
     private func replaceCharacters(with dtos: [AnimeEntryCharacterDTO]) {
         if let modelContext {
-            for character in characters {
+            for character in characters ?? [] {
                 modelContext.delete(character)
             }
         }
         characters = Self.makeCharacters(from: dtos)
-        characters.forEach { $0.detail = self }
+        characters?.forEach { $0.detail = self }
     }
 
     private func replaceStaff(with dtos: [AnimeEntryStaffDTO]) {
         if let modelContext {
-            for crewMember in staff {
+            for crewMember in staff ?? [] {
                 modelContext.delete(crewMember)
             }
         }
         staff = Self.makeStaff(from: dtos)
-        staff.forEach { $0.detail = self }
+        staff?.forEach { $0.detail = self }
     }
 
     private func replaceSeasons(with dtos: [AnimeEntrySeasonSummaryDTO]) {
         if let modelContext {
-            for season in seasons {
+            for season in seasons ?? [] {
                 modelContext.delete(season)
             }
         }
         seasons = dtos.map(SchemaV2_7_9.AnimeEntrySeasonSummary.init(from:))
-        seasons.forEach { $0.detail = self }
+        seasons?.forEach { $0.detail = self }
     }
 
     private func replaceEpisodes(with dtos: [AnimeEntryEpisodeSummaryDTO]) {
         if let modelContext {
-            for episode in episodes {
+            for episode in episodes ?? [] {
                 modelContext.delete(episode)
             }
         }
         episodes = Self.makeEpisodes(from: dtos)
-        episodes.forEach { $0.detail = self }
+        episodes?.forEach { $0.detail = self }
     }
 
     private static func makeCharacters(

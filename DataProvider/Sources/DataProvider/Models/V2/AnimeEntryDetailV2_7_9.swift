@@ -28,16 +28,16 @@ extension SchemaV2_7_9 {
         public var entry: AnimeEntry? = nil
 
         @Relationship(deleteRule: .cascade, inverse: \AnimeEntryCharacter.detail)
-        public var characters: [AnimeEntryCharacter] = []
+        public var characters: [AnimeEntryCharacter]? = []
 
         @Relationship(deleteRule: .cascade, inverse: \AnimeEntryStaff.detail)
-        public var staff: [AnimeEntryStaff] = []
+        public var staff: [AnimeEntryStaff]? = []
 
         @Relationship(deleteRule: .cascade, inverse: \AnimeEntrySeasonSummary.detail)
-        public var seasons: [AnimeEntrySeasonSummary] = []
+        public var seasons: [AnimeEntrySeasonSummary]? = []
 
         @Relationship(deleteRule: .cascade, inverse: \AnimeEntryEpisodeSummary.detail)
-        public var episodes: [AnimeEntryEpisodeSummary] = []
+        public var episodes: [AnimeEntryEpisodeSummary]? = []
 
         public init(
             language: String,

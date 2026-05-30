@@ -18,28 +18,19 @@ final class CloudKitSyncMonitor {
         case error(String)
     }
 
-    private let notificationCenter: NotificationCenter
-    private var observer: NSObjectProtocol?
+    private var observation: NotificationObservation?
 
     private(set) var status: Status = .idle
 
     init(notificationCenter: NotificationCenter = .default) {
-        self.notificationCenter = notificationCenter
-        observer = notificationCenter.addObserver(
+        self.observation = NotificationObservation(
+            notificationCenter: notificationCenter,
             forName: NSPersistentCloudKitContainer.eventChangedNotification,
-            object: nil,
-            queue: .main
         ) { [weak self] notification in
             let status = Self.status(from: notification)
             Task { @MainActor [weak self] in
                 self?.status = status
             }
-        }
-    }
-
-    deinit {
-        if let observer {
-            notificationCenter.removeObserver(observer)
         }
     }
 
@@ -67,5 +58,27 @@ final class CloudKitSyncMonitor {
         default:
             return .idle
         }
+    }
+}
+
+fileprivate final class NotificationObservation {
+    private let notificationCenter: NotificationCenter
+    private let observer: NSObjectProtocol
+
+    init(
+        notificationCenter: NotificationCenter,
+        forName name: Notification.Name,
+        using block: @escaping @Sendable (Notification) -> Void
+    ) {
+        self.notificationCenter = notificationCenter
+        observer = notificationCenter.addObserver(
+            forName: name,
+            object: nil,
+            queue: .main,
+            using: block)
+    }
+
+    deinit {
+        notificationCenter.removeObserver(observer)
     }
 }

@@ -64,7 +64,7 @@ extension SchemaV2_7_9 {
         public var department: String?
         public var profileURL: URL?
         @Relationship(deleteRule: .cascade, inverse: \AnimeEntryStaffJob.staff)
-        public var jobs: [AnimeEntryStaffJob] = []
+        public var jobs: [AnimeEntryStaffJob]? = []
         public var displayOrder: Int = 0
         public var detail: AnimeEntryDetail? = nil
 

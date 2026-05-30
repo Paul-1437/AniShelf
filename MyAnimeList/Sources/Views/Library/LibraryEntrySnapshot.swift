@@ -143,7 +143,7 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
 
     private static func seriesEpisodeProgressDisplay(for entry: AnimeEntry) -> EpisodeProgressDisplay {
         let seasonNumbers = Set(
-            (entry.detail?.seasons.map(\.seasonNumber) ?? []).filter { $0 > 0 }
+            (entry.detail?.seasons?.map(\.seasonNumber) ?? []).filter { $0 > 0 }
                 + entry.orderedEpisodeProgresses.map(\.seasonNumber)
         )
         .sorted()

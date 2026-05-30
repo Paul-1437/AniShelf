@@ -29,10 +29,10 @@ extension SchemaV2_7_9 {
         public var parentSeriesEntry: AnimeEntry? = nil
 
         @Relationship(inverse: \AnimeEntry.parentSeriesEntry)
-        public var childSeasonEntries: [AnimeEntry] = []
+        public var childSeasonEntries: [AnimeEntry]? = []
 
         @Relationship(deleteRule: .cascade, inverse: \AnimeEntryEpisodeProgress.entry)
-        public var episodeProgresses: [AnimeEntryEpisodeProgress] = []
+        public var episodeProgresses: [AnimeEntryEpisodeProgress]? = []
 
         public var onDisplay: Bool = true
         public var dateSaved: Date = Date.distantPast

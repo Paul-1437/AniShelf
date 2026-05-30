@@ -9,21 +9,21 @@ import Foundation
 
 extension SchemaV2_7_9.AnimeEntryDetail {
     public var orderedCharacters: [SchemaV2_7_9.AnimeEntryCharacter] {
-        characters.sorted {
+        (characters ?? []).sorted {
             if $0.displayOrder == $1.displayOrder { return $0.id < $1.id }
             return $0.displayOrder < $1.displayOrder
         }
     }
 
     public var orderedStaff: [SchemaV2_7_9.AnimeEntryStaff] {
-        staff.sorted {
+        (staff ?? []).sorted {
             if $0.displayOrder == $1.displayOrder { return $0.id < $1.id }
             return $0.displayOrder < $1.displayOrder
         }
     }
 
     public var orderedEpisodes: [SchemaV2_7_9.AnimeEntryEpisodeSummary] {
-        episodes.sorted {
+        (episodes ?? []).sorted {
             if $0.displayOrder == $1.displayOrder {
                 return $0.episodeNumber < $1.episodeNumber
             }
@@ -34,7 +34,7 @@ extension SchemaV2_7_9.AnimeEntryDetail {
 
 extension SchemaV2_7_9.AnimeEntryStaff {
     public var orderedJobs: [SchemaV2_7_9.AnimeEntryStaffJob] {
-        jobs.sorted {
+        (jobs ?? []).sorted {
             if $0.displayOrder == $1.displayOrder {
                 if $0.episodeCount == $1.episodeCount {
                     return $0.creditID < $1.creditID

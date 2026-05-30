@@ -55,6 +55,7 @@ fileprivate let cloudKitContainerIdentifier = "iCloud.com.samuelhe.MyAnimeList"
     /// - Parameters:
     ///     - inMemory: If true, uses in-memory storage instead of persistent storage.
     ///     - url: The URL of the persistent store.
+    ///     - cloudKitEnabled: Overrides the default CloudKit behavior for persistent stores.
     /// - Important: This initializer will fatalError if the model container cannot be created.
     ///              This is intentional as the app cannot function without proper data storage.
     public init(

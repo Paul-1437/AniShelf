@@ -181,7 +181,7 @@ struct MigrationTests {
         #expect(migratedDetail.orderedCharacters.map(\.id) == [101])
         #expect(migratedDetail.orderedStaff.map(\.id) == [201])
         #expect(migratedDetail.orderedStaff.first?.orderedJobs.map(\.creditID) == ["director"])
-        #expect(migratedDetail.seasons.map(\.episodeCount) == [28])
+        #expect(migratedDetail.seasons?.map(\.episodeCount) == [28])
         #expect(migratedDetail.orderedEpisodes.map(\.id) == [401])
     }
 
@@ -372,7 +372,7 @@ struct MigrationTests {
         #expect(migratedDetail.seasonCount == 1)
         #expect(migratedDetail.orderedCharacters.map(\.id) == [101])
         #expect(migratedDetail.orderedStaff.isEmpty)
-        #expect(migratedDetail.seasons.map(\.id) == [201])
+        #expect(migratedDetail.seasons?.map(\.id) == [201])
         #expect(migratedDetail.orderedEpisodes.map(\.id) == [301, 302])
     }
 
@@ -440,7 +440,7 @@ struct MigrationTests {
         #expect(migratedDetail.orderedCharacters.map(\.id).sorted() == [10, 20, 30])
         #expect(migratedDetail.orderedStaff.map(\.id).sorted() == [100, 200])
         #expect(migratedDetail.orderedEpisodes.map(\.id) == [1, 2])
-        #expect(migratedDetail.seasons.map(\.seasonNumber).sorted() == [1, 2])
+        #expect(migratedDetail.seasons?.map(\.seasonNumber).sorted() == [1, 2])
         #expect(migratedStaffByID[200]?.role == "Director")
         #expect(migratedStaffByID[100]?.department == "Writing")
         #expect(migratedDetail.orderedStaff.allSatisfy { $0.orderedJobs.isEmpty })
@@ -621,7 +621,7 @@ struct MigrationTests {
         #expect(migratedEntry.score == 4)
         #expect(migratedEntry.watchStatus == .dropped)
         #expect(migratedDetail.orderedCharacters.map(\.id) == [10, 20])
-        #expect(migratedDetail.seasons.map(\.seasonNumber).sorted() == [1, 2])
+        #expect(migratedDetail.seasons?.map(\.seasonNumber).sorted() == [1, 2])
         #expect(migratedDetail.orderedEpisodes.map(\.id) == [1, 2])
         #expect(migratedStaff.orderedJobs.map(\.creditID) == ["director", "music"])
         #expect(migratedStaff.orderedJobs.map(\.job) == ["Director", "Music"])
@@ -692,7 +692,7 @@ struct MigrationTests {
         let migratedProvider = DataProvider(url: storeURL)
         let migratedEntries = try migratedProvider.getAllModels(ofType: AnimeEntry.self)
         let migratedEntry = try #require(migratedEntries.first(where: { $0.tmdbID == 900001 }))
-        let migratedSeason = try #require(migratedEntry.detail?.seasons.first)
+        let migratedSeason = try #require(migratedEntry.detail?.seasons?.first)
 
         #expect(migratedSeason.seasonNumber == 1)
         #expect(migratedSeason.episodeCount == nil)

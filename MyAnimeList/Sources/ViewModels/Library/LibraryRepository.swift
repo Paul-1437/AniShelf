@@ -54,8 +54,10 @@ final class LibraryRepository {
             return lhs.onDisplay && !rhs.onDisplay
         }
 
-        if lhs.childSeasonEntries.count != rhs.childSeasonEntries.count {
-            return lhs.childSeasonEntries.count > rhs.childSeasonEntries.count
+        let lhsChildSeasonCount = lhs.childSeasonEntries?.count ?? 0
+        let rhsChildSeasonCount = rhs.childSeasonEntries?.count ?? 0
+        if lhsChildSeasonCount != rhsChildSeasonCount {
+            return lhsChildSeasonCount > rhsChildSeasonCount
         }
 
         if (lhs.detail != nil) != (rhs.detail != nil) {

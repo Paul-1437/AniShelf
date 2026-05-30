@@ -264,8 +264,8 @@ extension AnimeEntry {
         favorite = userInfo.favorite
         notes = userInfo.notes
         usingCustomPoster = userInfo.usingCustomPoster
-        episodeProgresses.forEach { modelContext?.delete($0) }
-        episodeProgresses.removeAll()
+        episodeProgresses?.forEach { modelContext?.delete($0) }
+        episodeProgresses = []
         for progress in filteredEpisodeProgresses(from: userInfo) {
             setEpisodeProgress(
                 seasonNumber: progress.seasonNumber,
