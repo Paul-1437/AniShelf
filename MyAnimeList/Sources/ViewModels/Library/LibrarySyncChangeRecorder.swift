@@ -88,11 +88,7 @@ final class LibrarySyncChangeRecorder {
 
     /// Rebuilds the in-memory clock baseline from the current store contents.
     func rebuildBaseline() {
-        let baseline = Self.makeBaseline(from: dataProvider)
-        lastSeenClocksByIdentifier = baseline
-        syncRecorderLogger.debug(
-            "operation=rebuildBaseline count=\(baseline.count, privacy: .public)"
-        )
+        lastSeenClocksByIdentifier = Self.makeBaseline(from: dataProvider)
     }
 
     /// Executes a synchronous operation without recording queue mutations.
@@ -125,12 +121,12 @@ final class LibrarySyncChangeRecorder {
             previousEntry = try dirtyQueueStore.setPendingDelete(pendingDelete)
         } catch {
             syncRecorderLogger.error(
-                "operation=recordDeletion result=queueWriteFailed identity=\(pendingDelete.identity.rawID, privacy: .private) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                "Failed to queue an iCloud sync delete for \(pendingDelete.identity.rawID, privacy: .private): \(error.localizedDescription, privacy: .private)"
             )
             throw error
         }
-        syncRecorderLogger.debug(
-            "operation=recordDeletion result=queued identity=\(pendingDelete.identity.rawID, privacy: .private) deletedAt=\(pendingDelete.tombstone.deletedAt, privacy: .public) previousEntryPresent=\(previousEntry != nil, privacy: .public)"
+        syncRecorderLogger.info(
+            "Queued iCloud sync delete for \(pendingDelete.identity.rawID, privacy: .private) at \(pendingDelete.tombstone.deletedAt, privacy: .public)."
         )
         return .init(identity: pendingDelete.identity, previousEntry: previousEntry)
     }
@@ -169,13 +165,15 @@ final class LibrarySyncChangeRecorder {
             try dirtyQueueStore.replaceEntries(Array(entriesByID.values))
         } catch {
             syncRecorderLogger.error(
-                "operation=recordDeletions result=queueWriteFailed count=\(tokens.count, privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                "Failed to queue \(tokens.count, privacy: .public) iCloud sync deletes: \(error.localizedDescription, privacy: .private)"
             )
             throw error
         }
-        syncRecorderLogger.debug(
-            "operation=recordDeletions result=queued count=\(tokens.count, privacy: .public)"
-        )
+        for entry in entries {
+            syncRecorderLogger.info(
+                "Queued iCloud sync delete for \(entry.syncIdentity.rawID, privacy: .private) at \(deletedAt, privacy: .public)."
+            )
+        }
         return tokens
     }
 
@@ -185,12 +183,12 @@ final class LibrarySyncChangeRecorder {
             try dirtyQueueStore.replaceEntry(token.previousEntry, for: token.identity)
         } catch {
             syncRecorderLogger.error(
-                "operation=restoreDeleteRecord result=queueWriteFailed identity=\(token.identity.rawID, privacy: .private) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                "Failed to restore the dirty queue for \(token.identity.rawID, privacy: .private): \(error.localizedDescription, privacy: .private)"
             )
             throw error
         }
-        syncRecorderLogger.debug(
-            "operation=restoreDeleteRecord result=restored identity=\(token.identity.rawID, privacy: .private) previousEntryPresent=\(token.previousEntry != nil, privacy: .public)"
+        syncRecorderLogger.info(
+            "Restored the previous iCloud sync dirty queue state for \(token.identity.rawID, privacy: .private)."
         )
     }
 
@@ -215,12 +213,12 @@ final class LibrarySyncChangeRecorder {
             try dirtyQueueStore.replaceEntries(Array(entriesByID.values))
         } catch {
             syncRecorderLogger.error(
-                "operation=restoreDeleteRecords result=queueWriteFailed count=\(tokens.count, privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                "Failed to restore \(tokens.count, privacy: .public) dirty queue entries after a delete rollback: \(error.localizedDescription, privacy: .private)"
             )
             throw error
         }
-        syncRecorderLogger.debug(
-            "operation=restoreDeleteRecords result=restored count=\(tokens.count, privacy: .public)"
+        syncRecorderLogger.info(
+            "Restored the previous iCloud sync dirty queue state for \(tokens.count, privacy: .public) entries."
         )
     }
 
@@ -232,16 +230,7 @@ final class LibrarySyncChangeRecorder {
             for: .deletedIdentifiers,
             in: notification
         )
-        guard suppressionDepth == 0 else {
-            syncRecorderLogger.debug(
-                "operation=processSaveNotification result=suppressed insertedCount=\(insertedIdentifiers.count, privacy: .public) updatedCount=\(updatedIdentifiers.count, privacy: .public) deletedCount=\(deletedIdentifiers.count, privacy: .public) suppressionDepth=\(self.suppressionDepth, privacy: .public)"
-            )
-            return
-        }
-
-        syncRecorderLogger.debug(
-            "operation=processSaveNotification result=received insertedCount=\(insertedIdentifiers.count, privacy: .public) updatedCount=\(updatedIdentifiers.count, privacy: .public) deletedCount=\(deletedIdentifiers.count, privacy: .public)"
-        )
+        guard suppressionDepth == 0 else { return }
 
         for identifier in deletedIdentifiers {
             lastSeenClocksByIdentifier.removeValue(forKey: identifier)
@@ -271,8 +260,8 @@ final class LibrarySyncChangeRecorder {
                 try dirtyQueueStore.setPendingUpsert(
                     .init(identity: entry.syncIdentity, dirtyAt: dirtyAt)
                 )
-                syncRecorderLogger.debug(
-                    "operation=processSaveNotification result=queuedUpsert identity=\(entry.syncIdentity.rawID, privacy: .private) dirtyAt=\(dirtyAt, privacy: .public) libraryClock=\(String(describing: currentBaseline.libraryUpdatedAt), privacy: .public) trackingClock=\(String(describing: currentBaseline.trackingUpdatedAt), privacy: .public)"
+                syncRecorderLogger.info(
+                    "Queued iCloud sync upsert for \(entry.syncIdentity.rawID, privacy: .private) at \(dirtyAt, privacy: .public)."
                 )
                 lastSeenClocksByIdentifier[identifier] = currentBaseline
             } catch {
@@ -282,7 +271,7 @@ final class LibrarySyncChangeRecorder {
                     lastSeenClocksByIdentifier.removeValue(forKey: identifier)
                 }
                 syncRecorderLogger.error(
-                    "operation=processSaveNotification result=queueWriteFailed identity=\(entry.syncIdentity.rawID, privacy: .private) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                    "Failed to queue an iCloud sync upsert for \(entry.syncIdentity.rawID, privacy: .private): \(error.localizedDescription, privacy: .private)"
                 )
             }
         }

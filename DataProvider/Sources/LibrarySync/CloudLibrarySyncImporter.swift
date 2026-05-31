@@ -78,23 +78,10 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
 
     /// Ensures the remote zone and silent subscription are available.
     public func prepareRemoteSync() async throws {
-        cloudLibrarySyncImportLogger.debug(
-            "operation=prepareRemoteSync state=start"
+        try await database.ensureZoneAndSubscription(
+            zoneID: Self.zoneID,
+            subscriptionID: CloudLibrarySyncClient.subscriptionID
         )
-        do {
-            try await database.ensureZoneAndSubscription(
-                zoneID: Self.zoneID,
-                subscriptionID: CloudLibrarySyncClient.subscriptionID
-            )
-            cloudLibrarySyncImportLogger.debug(
-                "operation=prepareRemoteSync state=end result=success"
-            )
-        } catch {
-            cloudLibrarySyncImportLogger.error(
-                "operation=prepareRemoteSync state=end result=failure errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
-            )
-            throw error
-        }
     }
 
     /// Fetches remote changes and resolves them against the current local state.
@@ -115,9 +102,6 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
         localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot]
     ) async throws -> CloudLibrarySyncImportBatch {
         let token = changeTokenStore.token(for: Self.zoneID, namespace: namespace)
-        cloudLibrarySyncImportLogger.debug(
-            "operation=fetchChanges state=start tokenState=\(token == nil ? "nil" : "present", privacy: .public) localSnapshotCount=\(localSnapshotsByIdentity.count, privacy: .public)"
-        )
         do {
             return try await fetchChanges(
                 namespace: namespace,
@@ -126,37 +110,24 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
             )
         } catch {
             guard error.isCloudLibrarySyncChangeTokenExpired, token != nil else {
-                cloudLibrarySyncImportLogger.error(
-                    "operation=fetchChanges state=end result=failure tokenState=\(token == nil ? "nil" : "present", privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
-                )
                 throw error
             }
 
             cloudLibrarySyncImportLogger.warning(
-                "operation=fetchChanges tokenState=expired action=reset"
+                "The stored iCloud sync change token expired. Clearing it and refetching from the start of the zone."
             )
             changeTokenStore.removeToken(for: Self.zoneID, namespace: namespace)
-            do {
-                return try await fetchChanges(
-                    namespace: namespace,
-                    localSnapshotsByIdentity: localSnapshotsByIdentity,
-                    startingToken: nil
-                )
-            } catch {
-                cloudLibrarySyncImportLogger.error(
-                    "operation=fetchChanges state=end result=failure tokenState=nil retryAfterExpiredToken=true errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
-                )
-                throw error
-            }
+            return try await fetchChanges(
+                namespace: namespace,
+                localSnapshotsByIdentity: localSnapshotsByIdentity,
+                startingToken: nil
+            )
         }
     }
 
     /// Persists the server change token for a successfully applied batch.
     public func commit(_ batch: CloudLibrarySyncImportBatch) {
         changeTokenStore.setToken(batch.changeToken, for: batch.zoneID, namespace: batch.namespace)
-        cloudLibrarySyncImportLogger.debug(
-            "operation=commitToken result=success snapshotCount=\(batch.snapshots.count, privacy: .public) remoteSnapshotCount=\(batch.remoteSnapshots.count, privacy: .public)"
-        )
     }
 
     /// Fetches all CloudKit pages for the zone starting at a specific token.
@@ -174,22 +145,13 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
         var finalToken: CKServerChangeToken?
         var remoteSnapshotsByID: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot] = [:]
         var ignoredDeletedRecordIDs: [CKRecord.ID] = []
-        var batchCount = 0
-        var decodedSnapshotCount = 0
-        var modifiedRecordCount = 0
-        var rawDeletedRecordCount = 0
-
         repeat {
-            batchCount += 1
             let batch = try await database.fetchRecordZoneChanges(
                 in: Self.zoneID,
                 since: currentToken
             )
-            modifiedRecordCount += batch.modifiedRecordsByID.count
-            rawDeletedRecordCount += batch.deletedRecordIDs.count
             for record in batch.modifiedRecordsByID.values {
                 let snapshot = try client.snapshot(from: record)
-                decodedSnapshotCount += 1
                 if let existing = remoteSnapshotsByID[snapshot.identity] {
                     remoteSnapshotsByID[snapshot.identity] = try existing.merged(with: snapshot)
                 } else {
@@ -199,10 +161,6 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
             ignoredDeletedRecordIDs.append(contentsOf: batch.deletedRecordIDs)
             currentToken = batch.changeToken
             finalToken = batch.changeToken
-
-            cloudLibrarySyncImportLogger.debug(
-                "operation=fetchChanges batchIndex=\(batchCount, privacy: .public) modifiedRecordCount=\(batch.modifiedRecordsByID.count, privacy: .public) rawDeletedRecordCount=\(batch.deletedRecordIDs.count, privacy: .public) decodedSnapshotCount=\(decodedSnapshotCount, privacy: .public) coalescedIdentityCount=\(remoteSnapshotsByID.count, privacy: .public) moreComing=\(batch.moreComing, privacy: .public)"
-            )
 
             if !batch.moreComing {
                 break
@@ -220,10 +178,6 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
         guard let finalToken else {
             throw CloudLibrarySyncImportError.missingChangeToken
         }
-
-        cloudLibrarySyncImportLogger.debug(
-            "operation=fetchChanges state=end result=success batchCount=\(batchCount, privacy: .public) modifiedRecordCount=\(modifiedRecordCount, privacy: .public) rawDeletedRecordCount=\(rawDeletedRecordCount, privacy: .public) decodedSnapshotCount=\(decodedSnapshotCount, privacy: .public) coalescedIdentityCount=\(remoteSnapshots.count, privacy: .public) resolvedSnapshotCount=\(resolvedSnapshots.count, privacy: .public) pendingTokenReceived=true"
-        )
 
         return .init(
             snapshots: resolvedSnapshots,

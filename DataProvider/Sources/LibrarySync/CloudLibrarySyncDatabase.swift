@@ -7,12 +7,6 @@
 
 import CloudKit
 import Foundation
-import os
-
-fileprivate let cloudLibrarySyncDatabaseLogger = Logger(
-    subsystem: "com.samuelhe.MyAnimeList",
-    category: "LibrarySync.CloudKit"
-)
 
 /// One CloudKit zone-change page normalized for the library sync pipeline.
 public struct CloudLibrarySyncZoneChangeBatch {
@@ -87,21 +81,8 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
         zoneID: CKRecordZone.ID,
         subscriptionID: CKSubscription.ID
     ) async throws {
-        cloudLibrarySyncDatabaseLogger.debug(
-            "operation=ensureZoneAndSubscription state=start zoneName=\(zoneID.zoneName, privacy: .public) subscriptionID=\(subscriptionID, privacy: .public)"
-        )
-        do {
-            try await ensureZone(zoneID)
-            try await ensureSubscription(subscriptionID, zoneID: zoneID)
-            cloudLibrarySyncDatabaseLogger.debug(
-                "operation=ensureZoneAndSubscription state=end result=success zoneName=\(zoneID.zoneName, privacy: .public) subscriptionID=\(subscriptionID, privacy: .public)"
-            )
-        } catch {
-            cloudLibrarySyncDatabaseLogger.error(
-                "operation=ensureZoneAndSubscription state=end result=failure zoneName=\(zoneID.zoneName, privacy: .public) subscriptionID=\(subscriptionID, privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
-            )
-            throw error
-        }
+        try await ensureZone(zoneID)
+        try await ensureSubscription(subscriptionID, zoneID: zoneID)
     }
 
     /// Fetches a single page of changes for a record zone.
@@ -117,38 +98,23 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
         in zoneID: CKRecordZone.ID,
         since changeToken: CKServerChangeToken?
     ) async throws -> CloudLibrarySyncZoneChangeBatch {
-        cloudLibrarySyncDatabaseLogger.debug(
-            "operation=fetchRecordZoneChanges state=start zoneName=\(zoneID.zoneName, privacy: .public) tokenState=\(changeToken == nil ? "nil" : "present", privacy: .public)"
+        let result = try await database.recordZoneChanges(
+            inZoneWith: zoneID,
+            since: changeToken
         )
 
-        do {
-            let result = try await database.recordZoneChanges(
-                inZoneWith: zoneID,
-                since: changeToken
-            )
-
-            var modifiedRecordsByID: [CKRecord.ID: CKRecord] = [:]
-            for (recordID, modificationResult) in result.modificationResultsByID {
-                let modification = try modificationResult.get()
-                modifiedRecordsByID[recordID] = modification.record
-            }
-
-            cloudLibrarySyncDatabaseLogger.debug(
-                "operation=fetchRecordZoneChanges state=end result=success zoneName=\(zoneID.zoneName, privacy: .public) modifiedCount=\(modifiedRecordsByID.count, privacy: .public) deletedCount=\(result.deletions.count, privacy: .public) moreComing=\(result.moreComing, privacy: .public)"
-            )
-
-            return .init(
-                modifiedRecordsByID: modifiedRecordsByID,
-                deletedRecordIDs: result.deletions.map(\.recordID),
-                changeToken: result.changeToken,
-                moreComing: result.moreComing
-            )
-        } catch {
-            cloudLibrarySyncDatabaseLogger.error(
-                "operation=fetchRecordZoneChanges state=end result=failure zoneName=\(zoneID.zoneName, privacy: .public) tokenState=\(changeToken == nil ? "nil" : "present", privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
-            )
-            throw error
+        var modifiedRecordsByID: [CKRecord.ID: CKRecord] = [:]
+        for (recordID, modificationResult) in result.modificationResultsByID {
+            let modification = try modificationResult.get()
+            modifiedRecordsByID[recordID] = modification.record
         }
+
+        return .init(
+            modifiedRecordsByID: modifiedRecordsByID,
+            deletedRecordIDs: result.deletions.map(\.recordID),
+            changeToken: result.changeToken,
+            moreComing: result.moreComing
+        )
     }
 
     /// Saves records non-atomically and reports the subset that succeeded.
@@ -159,10 +125,6 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
     /// - Throws: Non-partial CloudKit errors from the modify-records request.
     public func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
         guard !records.isEmpty else { return [] }
-        cloudLibrarySyncDatabaseLogger.debug(
-            "operation=saveRecords state=start requestedCount=\(records.count, privacy: .public)"
-        )
-
         do {
             let result = try await database.modifyRecords(
                 saving: records,
@@ -176,9 +138,6 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
                     savedRecordIDs.append(recordID)
                 }
             }
-            cloudLibrarySyncDatabaseLogger.debug(
-                "operation=saveRecords state=end result=success requestedCount=\(records.count, privacy: .public) savedCount=\(savedRecordIDs.count, privacy: .public)"
-            )
             return savedRecordIDs
         } catch {
             guard
@@ -186,18 +145,11 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
                 ckError.code == .partialFailure,
                 let partialErrors = ckError.partialErrorsByItemID
             else {
-                cloudLibrarySyncDatabaseLogger.error(
-                    "operation=saveRecords state=end result=failure requestedCount=\(records.count, privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
-                )
                 throw error
             }
 
             let failedIDs = Set(partialErrors.keys.compactMap { $0 as? CKRecord.ID })
-            let savedRecordIDs = records.map(\.recordID).filter { !failedIDs.contains($0) }
-            cloudLibrarySyncDatabaseLogger.warning(
-                "operation=saveRecords state=end result=partialFailure requestedCount=\(records.count, privacy: .public) savedCount=\(savedRecordIDs.count, privacy: .public) failedCount=\(failedIDs.count, privacy: .public)"
-            )
-            return savedRecordIDs
+            return records.map(\.recordID).filter { !failedIDs.contains($0) }
         }
     }
 

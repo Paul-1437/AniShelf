@@ -65,6 +65,9 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
         accountRecordID: CKRecord.ID
     ) -> CloudLibrarySyncChangeTokenStore.Namespace? {
         guard let containerIdentifier else { return nil }
+        cloudLibrarySyncLogger.debug(
+            "Resolved the iCloud sync change-token namespace for account \(accountRecordID.recordName, privacy: .private)."
+        )
         return .init(
             containerIdentifier: containerIdentifier,
             accountIdentifier: accountRecordID.recordName
@@ -120,6 +123,9 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
         record[Field.libraryUpdatedAt] = snapshot.libraryUpdatedAt
         record[Field.trackingUpdatedAt] = snapshot.trackingUpdatedAt
         record[Field.deletedAt] = snapshot.deletedAt
+        cloudLibrarySyncLogger.debug(
+            "Encoded an iCloud sync record for \(identity.rawID, privacy: .private)\(snapshot.deletedAt == nil ? "." : " as a tombstone.")"
+        )
         return record
     }
 
@@ -132,7 +138,11 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
     /// - Throws: `CloudLibrarySyncDecodeError` for invalid CloudKit records.
     public func snapshot(from record: CKRecord) throws -> LibraryEntrySyncSnapshot {
         do {
-            return try decodedSnapshot(from: record)
+            let snapshot = try decodedSnapshot(from: record)
+            cloudLibrarySyncLogger.debug(
+                "Decoded an iCloud sync record for \(snapshot.identity.rawID, privacy: .private)\(snapshot.deletedAt == nil ? "." : " as a tombstone.")"
+            )
+            return snapshot
         } catch let error as CloudLibrarySyncDecodeError {
             Self.logDecodeFailure(error, record: record)
             throw error
@@ -224,31 +234,31 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
         switch error {
         case .wrongRecordType(let actual):
             cloudLibrarySyncLogger.error(
-                "operation=decodeSnapshot result=failure reason=wrongRecordType expectedRecordType=\(Self.recordType, privacy: .public) actualRecordType=\(actual, privacy: .public)"
+                "Failed to decode an iCloud sync record because the record type was \(actual, privacy: .public) instead of \(Self.recordType, privacy: .public)."
             )
         case .unsupportedSchemaVersion(let schemaVersion):
             cloudLibrarySyncLogger.error(
-                "operation=decodeSnapshot result=failure recordType=\(record.recordType, privacy: .public) field=\(Field.schemaVersion, privacy: .public) reason=unsupportedSchemaVersion schemaVersion=\(schemaVersion, privacy: .public)"
+                "Failed to decode iCloud sync record \(record.recordType, privacy: .public) because schema version \(schemaVersion, privacy: .public) is unsupported."
             )
         case .missingRequiredField(let field):
             cloudLibrarySyncLogger.error(
-                "operation=decodeSnapshot result=failure recordType=\(record.recordType, privacy: .public) field=\(field, privacy: .public) reason=missingRequiredField"
+                "Failed to decode iCloud sync record \(record.recordType, privacy: .public) because \(field, privacy: .public) was missing."
             )
         case .invalidScalarValue(let field):
             cloudLibrarySyncLogger.error(
-                "operation=decodeSnapshot result=failure recordType=\(record.recordType, privacy: .public) field=\(field, privacy: .public) reason=invalidScalarValue"
+                "Failed to decode iCloud sync record \(record.recordType, privacy: .public) because \(field, privacy: .public) had an invalid value."
             )
         case .invalidEnumValue(let field):
             cloudLibrarySyncLogger.error(
-                "operation=decodeSnapshot result=failure recordType=\(record.recordType, privacy: .public) field=\(field, privacy: .public) reason=invalidEnumValue"
+                "Failed to decode iCloud sync record \(record.recordType, privacy: .public) because \(field, privacy: .public) had an unknown enum value."
             )
         case .invalidIdentityCombination(let recordName):
             cloudLibrarySyncLogger.error(
-                "operation=decodeSnapshot result=failure recordType=\(record.recordType, privacy: .public) field=identity reason=invalidIdentityCombination recordName=\(recordName, privacy: .private)"
+                "Failed to decode iCloud sync record \(record.recordType, privacy: .public) because record identity \(recordName, privacy: .private) was invalid."
             )
         case .corruptEpisodeProgressPayload:
             cloudLibrarySyncLogger.error(
-                "operation=decodeSnapshot result=failure recordType=\(record.recordType, privacy: .public) field=\(Field.episodeProgresses, privacy: .public) reason=corruptEpisodeProgressPayload"
+                "Failed to decode iCloud sync record \(record.recordType, privacy: .public) because the \(Field.episodeProgresses, privacy: .public) payload was corrupt."
             )
         }
     }

@@ -7,6 +7,12 @@
 
 import CloudKit
 import Foundation
+import os
+
+fileprivate let changeTokenStoreLogger = Logger(
+    subsystem: "com.samuelhe.MyAnimeList",
+    category: "LibrarySync.ChangeTokenStore"
+)
 
 /// Persists CloudKit zone change tokens per container, account, owner, and zone.
 ///
@@ -79,6 +85,9 @@ public final class CloudLibrarySyncChangeTokenStore: @unchecked Sendable {
 
         do {
             userDefaults.set(try encodeToken(token), forKey: key)
+            changeTokenStoreLogger.debug(
+                "Updated the stored iCloud sync change token for zone \(zoneID.zoneName, privacy: .public) in account \(namespace.accountIdentifier, privacy: .private). New token: \(String(describing: token), privacy: .public)"
+            )
         } catch {
             userDefaults.removeObject(forKey: key)
         }

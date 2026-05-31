@@ -212,15 +212,15 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         -> LibraryEntrySyncDirtyQueueEntry?
     {
         try withLock {
-            try mutateQueueUnlocked(for: pendingUpsert.identity, mutation: "upsert") { _, existing in
+            try mutateQueueUnlocked(for: pendingUpsert.identity) { _, existing in
                 if case .upsert(let previous) = existing, previous.dirtyAt >= pendingUpsert.dirtyAt {
                     dirtyQueueLogger.debug(
-                        "operation=setPendingUpsert decision=kept identity=\(pendingUpsert.identity.rawID, privacy: .private) existingDirtyAt=\(previous.dirtyAt, privacy: .public) incomingDirtyAt=\(pendingUpsert.dirtyAt, privacy: .public)"
+                        "Skipped storing an older dirty-queue upsert for \(pendingUpsert.identity.rawID, privacy: .private)."
                     )
                     return existing
                 }
                 dirtyQueueLogger.debug(
-                    "operation=setPendingUpsert decision=replaced identity=\(pendingUpsert.identity.rawID, privacy: .private) dirtyAt=\(pendingUpsert.dirtyAt, privacy: .public)"
+                    "Stored a dirty-queue upsert for \(pendingUpsert.identity.rawID, privacy: .private) at \(pendingUpsert.dirtyAt, privacy: .public)."
                 )
                 return .upsert(pendingUpsert)
             }
@@ -235,16 +235,17 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         -> LibraryEntrySyncDirtyQueueEntry?
     {
         try withLock {
-            try mutateQueueUnlocked(for: pendingDelete.identity, mutation: "delete") { _, existing in
-                if case .delete(let previous) = existing, previous.tombstone.deletedAt >= pendingDelete.tombstone.deletedAt
+            try mutateQueueUnlocked(for: pendingDelete.identity) { _, existing in
+                if case .delete(let previous) = existing,
+                    previous.tombstone.deletedAt >= pendingDelete.tombstone.deletedAt
                 {
                     dirtyQueueLogger.debug(
-                        "operation=setPendingDelete decision=kept identity=\(pendingDelete.identity.rawID, privacy: .private) existingDeletedAt=\(previous.tombstone.deletedAt, privacy: .public) incomingDeletedAt=\(pendingDelete.tombstone.deletedAt, privacy: .public)"
+                        "Skipped storing an older dirty-queue delete for \(pendingDelete.identity.rawID, privacy: .private)."
                     )
                     return existing
                 }
                 dirtyQueueLogger.debug(
-                    "operation=setPendingDelete decision=replaced identity=\(pendingDelete.identity.rawID, privacy: .private) deletedAt=\(pendingDelete.tombstone.deletedAt, privacy: .public)"
+                    "Stored a dirty-queue delete for \(pendingDelete.identity.rawID, privacy: .private) at \(pendingDelete.tombstone.deletedAt, privacy: .public)."
                 )
                 return .delete(pendingDelete)
             }
@@ -263,19 +264,15 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         for identity: LibraryEntrySyncIdentity
     ) throws -> LibraryEntrySyncDirtyQueueEntry? {
         try withLock {
-            try mutateQueueUnlocked(for: identity, mutation: "replaceEntry") { _, existing in
+            try mutateQueueUnlocked(for: identity) { _, _ in
                 switch entry {
                 case .some:
                     dirtyQueueLogger.debug(
-                        "operation=replaceEntry decision=replaced identity=\(identity.rawID, privacy: .private)"
-                    )
-                case .none where existing != nil:
-                    dirtyQueueLogger.debug(
-                        "operation=replaceEntry decision=removed identity=\(identity.rawID, privacy: .private)"
+                        "Replaced the dirty-queue entry for \(identity.rawID, privacy: .private)."
                     )
                 case .none:
                     dirtyQueueLogger.debug(
-                        "operation=replaceEntry decision=keptMissing identity=\(identity.rawID, privacy: .private)"
+                        "Removed the dirty-queue entry for \(identity.rawID, privacy: .private)."
                     )
                 }
                 return entry
@@ -297,15 +294,10 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         try withLock {
             let currentQueue = loadUnlocked()
             let queue = LibraryEntrySyncDirtyQueue(entries: entries)
+            guard currentQueue != queue else { return }
             dirtyQueueLogger.debug(
-                "operation=replaceEntries inputCount=\(entries.count, privacy: .public) storedCount=\(queue.entries.count, privacy: .public)"
+                "Replaced the dirty queue with \(queue.entries.count, privacy: .public) entries."
             )
-            guard currentQueue != queue else {
-                dirtyQueueLogger.debug(
-                    "operation=replaceEntries decision=skipped reason=unchanged entryCount=\(queue.entries.count, privacy: .public)"
-                )
-                return
-            }
             try writeQueueUnlocked(queue)
         }
     }
@@ -316,7 +308,6 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     /// existing entry, then writes the rewritten queue back only if it changed.
     private func mutateQueueUnlocked(
         for identity: LibraryEntrySyncIdentity,
-        mutation: String,
         _ transform: (_ queue: LibraryEntrySyncDirtyQueue, _ existing: LibraryEntrySyncDirtyQueueEntry?) ->
             LibraryEntrySyncDirtyQueueEntry?
     ) throws -> LibraryEntrySyncDirtyQueueEntry? {
@@ -331,15 +322,7 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
             let rewrittenQueue = LibraryEntrySyncDirtyQueue(
                 entries: entriesByID.values.sorted { lhs, rhs in lhs.identity.rawID < rhs.identity.rawID }
             )
-            dirtyQueueLogger.debug(
-                "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=removed inputCount=\(queue.entries.count, privacy: .public) outputCount=\(rewrittenQueue.entries.count, privacy: .public)"
-            )
-            guard queue != rewrittenQueue else {
-                dirtyQueueLogger.debug(
-                    "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=skipped reason=unchanged"
-                )
-                return existing
-            }
+            guard queue != rewrittenQueue else { return existing }
             try writeQueueUnlocked(rewrittenQueue)
             return existing
         }
@@ -347,25 +330,17 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         let rewrittenQueue = LibraryEntrySyncDirtyQueue(
             entries: entriesByID.values.sorted { lhs, rhs in lhs.identity.rawID < rhs.identity.rawID }
         )
-        dirtyQueueLogger.debug(
-            "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=stored inputCount=\(queue.entries.count, privacy: .public) outputCount=\(rewrittenQueue.entries.count, privacy: .public)"
-        )
-        guard queue != rewrittenQueue else {
-            dirtyQueueLogger.debug(
-                "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=skipped reason=unchanged"
-            )
-            return existing
-        }
+        guard queue != rewrittenQueue else { return existing }
         try writeQueueUnlocked(rewrittenQueue)
         return existing
     }
 
     /// Writes the queue through the injected persistence hook.
     private func writeQueueUnlocked(_ queue: LibraryEntrySyncDirtyQueue) throws {
-        dirtyQueueLogger.debug(
-            "operation=writeQueue entryCount=\(queue.entries.count, privacy: .public)"
-        )
         try writeQueueHandler(queue)
+        dirtyQueueLogger.debug(
+            "The dirty queue now has \(queue.entries.count, privacy: .public) entries."
+        )
     }
 
     /// Replaces a corrupt queue file with an empty queue if recovery succeeds.
@@ -374,7 +349,7 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
             try writeQueueUnlocked(.init())
         } catch {
             dirtyQueueLogger.error(
-                "operation=resetToEmptyQueue result=failure errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                "Failed to reset the iCloud sync dirty queue after a recovery attempt: \(error.localizedDescription, privacy: .private)"
             )
         }
     }
@@ -389,15 +364,18 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
             let queue = try JSONDecoder().decode(LibraryEntrySyncDirtyQueue.self, from: data)
             guard queue.schemaVersion <= LibraryEntrySyncDirtyQueue.currentSchemaVersion else {
                 dirtyQueueLogger.warning(
-                    "operation=load state=reset reason=unsupportedSchemaVersion schemaVersion=\(queue.schemaVersion, privacy: .public) currentSchemaVersion=\(LibraryEntrySyncDirtyQueue.currentSchemaVersion, privacy: .public)"
+                    "Resetting the iCloud sync dirty queue because schema version \(queue.schemaVersion, privacy: .public) is no longer supported."
                 )
                 resetToEmptyQueueUnlocked()
                 return .init()
             }
+            dirtyQueueLogger.debug(
+                "Loaded the dirty queue with \(queue.entries.count, privacy: .public) entries."
+            )
             return queue
         } catch {
             dirtyQueueLogger.warning(
-                "operation=load state=reset reason=decodeFailure errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                "Resetting the iCloud sync dirty queue because it could not be decoded: \(error.localizedDescription, privacy: .private)"
             )
             resetToEmptyQueueUnlocked()
             return .init()

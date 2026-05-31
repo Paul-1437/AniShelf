@@ -32,7 +32,6 @@ final class LibrarySyncCoordinator {
     }
 
     private weak var store: LibraryStore?
-    private let client: CloudLibrarySyncClient
     private let importer: CloudLibrarySyncImporter
     private let exporter: CloudLibrarySyncExporter
     private let namespaceProvider: @MainActor () async throws -> CloudLibrarySyncChangeTokenStore.Namespace?
@@ -85,7 +84,6 @@ final class LibrarySyncCoordinator {
             ?? resolvedClient.privateDatabase.map(CloudLibrarySyncLiveDatabase.init(database:))
 
         self.store = store
-        self.client = resolvedClient
         self.namespaceProvider =
             namespaceProvider ?? {
                 try await resolvedClient.changeTokenNamespace()
@@ -122,13 +120,10 @@ final class LibrarySyncCoordinator {
     /// Concurrent requests are serialized and merged so callers do not start
     /// overlapping CloudKit work.
     func sync(trigger: Trigger) async -> Bool {
-        librarySyncCoordinatorLogger.debug(
-            "trigger=\(trigger.rawValue, privacy: .public) action=request isSyncing=\(self.isSyncing, privacy: .public)"
-        )
         if isSyncing {
             syncRequestedWhileRunning = true
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) action=coalesced reason=alreadyRunning"
+            librarySyncCoordinatorLogger.info(
+                "Queued iCloud library sync for \(trigger.rawValue, privacy: .public) while another sync was already running."
             )
             return await withCheckedContinuation { continuation in
                 syncWaiters.append(continuation)
@@ -137,7 +132,7 @@ final class LibrarySyncCoordinator {
 
         isSyncing = true
         librarySyncCoordinatorLogger.info(
-            "trigger=\(trigger.rawValue, privacy: .public) action=start"
+            "Starting iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
         )
         var succeeded = true
 
@@ -155,133 +150,65 @@ final class LibrarySyncCoordinator {
         return succeeded
     }
 
-    /// Executes the ordered sync phases and records diagnostics for each stage.
+    /// Executes the ordered sync phases once.
     private func runSync(trigger: Trigger) async -> Bool {
         guard let store else {
             librarySyncCoordinatorLogger.warning(
-                "trigger=\(trigger.rawValue, privacy: .public) result=skipped reason=missingStore"
+                "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because the library store was unavailable."
             )
             return false
         }
         var currentPhase: SyncPhase?
-        var localSnapshotsCount = 0
-        var importedSnapshotsCount = 0
-        var hydratedEntriesCount = 0
-        var appliedSnapshotsCount = 0
-        var dirtyEntriesBeforeReconciliation = 0
-        var dirtyEntriesAfterReconciliation = 0
-        var removedRemoteWonCount = 0
-        var keptLocalWonCount = 0
-        var importUnaffectedCount = 0
-        var exportedEntriesCount = 0
-        var remainingDirtyEntriesCount = 0
 
         do {
             currentPhase = .prepareZoneSubscription
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=start"
-            )
             try await importer.prepareRemoteSync()
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=success"
-            )
 
             currentPhase = .namespaceResolution
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=start"
-            )
             guard let namespace = try await namespaceProvider() else {
-                librarySyncCoordinatorLogger.debug(
-                    "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=skipped reason=missingCloudKitNamespace"
-                )
                 librarySyncCoordinatorLogger.warning(
-                    "trigger=\(trigger.rawValue, privacy: .public) result=skipped reason=missingCloudKitNamespace"
+                    "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because no iCloud account namespace was available."
                 )
                 return false
             }
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=success"
-            )
 
             let localSnapshots = try localSnapshotsByIdentity(for: store)
-            localSnapshotsCount = localSnapshots.count
             currentPhase = .remoteFetch
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=start localSnapshotCount=\(localSnapshotsCount, privacy: .public)"
-            )
             let importBatch = try await importer.fetchChanges(
                 namespace: namespace,
                 localSnapshotsByIdentity: localSnapshots
             )
-            importedSnapshotsCount = importBatch.remoteSnapshots.count
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=success modifiedRemoteSnapshotCount=\(importBatch.remoteSnapshots.count, privacy: .public) importedSnapshotCount=\(importBatch.snapshots.count, privacy: .public) ignoredRawDeleteCount=\(importBatch.ignoredDeletedRecordIDs.count, privacy: .public)"
-            )
 
             currentPhase = .hydrationApply
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=start importedSnapshotCount=\(importBatch.snapshots.count, privacy: .public)"
-            )
-            let applyResult = try await apply(importBatch, to: store)
-            appliedSnapshotsCount = applyResult.appliedSnapshotsCount
-            hydratedEntriesCount = applyResult.hydratedEntriesCount
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=success appliedSnapshotCount=\(appliedSnapshotsCount, privacy: .public) hydratedEntryCount=\(hydratedEntriesCount, privacy: .public)"
-            )
+            _ = try await apply(importBatch, to: store)
 
             currentPhase = .tokenCommit
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=start"
-            )
             importer.commit(importBatch)
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=success"
-            )
 
             currentPhase = .dirtyQueueReconciliation
-            let dirtyQueueBefore = store.syncChangeRecorder.dirtyQueueStore.load().entries.count
-            dirtyEntriesBeforeReconciliation = dirtyQueueBefore
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=start dirtyBefore=\(dirtyQueueBefore, privacy: .public)"
-            )
-            let reconcileResult = try reconcileDirtyQueue(with: importBatch, in: store)
-            dirtyEntriesAfterReconciliation = reconcileResult.dirtyEntriesAfter
-            removedRemoteWonCount = reconcileResult.removedRemoteWonCount
-            keptLocalWonCount = reconcileResult.keptLocalWonCount
-            importUnaffectedCount = reconcileResult.importUnaffectedCount
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=success dirtyBefore=\(reconcileResult.dirtyEntriesBefore, privacy: .public) dirtyAfter=\(reconcileResult.dirtyEntriesAfter, privacy: .public) removedRemoteWon=\(removedRemoteWonCount, privacy: .public) keptLocalWon=\(keptLocalWonCount, privacy: .public) importUnaffected=\(importUnaffectedCount, privacy: .public)"
-            )
+            _ = try reconcileDirtyQueue(with: importBatch, in: store)
 
             let postImportSnapshots = try localSnapshotsByIdentity(for: store)
             let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
             currentPhase = .export
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=start dirtyCount=\(dirtyEntries.count, privacy: .public)"
-            )
             let exportResult = try await exporter.export(
                 entries: dirtyEntries,
                 localSnapshotsByIdentity: postImportSnapshots
             )
-            exportedEntriesCount = exportResult.exportedIdentities.count
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) action=removeConfirmedDirtyEntries confirmedExportCount=\(exportedEntriesCount, privacy: .public)"
-            )
             for identity in exportResult.exportedIdentities {
                 try store.syncChangeRecorder.dirtyQueueStore.removeEntry(for: identity)
+                librarySyncCoordinatorLogger.info(
+                    "Removed \(identity.rawID, privacy: .private) from the iCloud sync dirty queue after export."
+                )
             }
-            remainingDirtyEntriesCount = store.syncChangeRecorder.dirtyQueueStore.load().entries.count
-            librarySyncCoordinatorLogger.debug(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(currentPhase!.rawValue, privacy: .public) state=end result=success exportedEntryCount=\(exportedEntriesCount, privacy: .public) remainingDirtyCount=\(remainingDirtyEntriesCount, privacy: .public)"
-            )
             librarySyncCoordinatorLogger.info(
-                "trigger=\(trigger.rawValue, privacy: .public) result=success localSnapshotCount=\(localSnapshotsCount, privacy: .public) importedSnapshotCount=\(importedSnapshotsCount, privacy: .public) appliedSnapshotCount=\(appliedSnapshotsCount, privacy: .public) hydratedEntryCount=\(hydratedEntriesCount, privacy: .public) dirtyBefore=\(dirtyEntriesBeforeReconciliation, privacy: .public) dirtyAfter=\(dirtyEntriesAfterReconciliation, privacy: .public) removedRemoteWon=\(removedRemoteWonCount, privacy: .public) keptLocalWon=\(keptLocalWonCount, privacy: .public) importUnaffected=\(importUnaffectedCount, privacy: .public) exportedEntryCount=\(exportedEntriesCount, privacy: .public) remainingDirtyCount=\(remainingDirtyEntriesCount, privacy: .public)"
+                "Finished iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
             )
             return true
         } catch {
             let phase = currentPhase?.rawValue ?? "unknown"
             librarySyncCoordinatorLogger.error(
-                "trigger=\(trigger.rawValue, privacy: .public) phase=\(phase, privacy: .public) result=degraded errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+                "iCloud library sync triggered by \(trigger.rawValue, privacy: .public) failed during \(phase, privacy: .public): \(error.localizedDescription, privacy: .private)"
             )
             return false
         }
