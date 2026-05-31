@@ -9,6 +9,9 @@ import CloudKit
 import Foundation
 
 /// Persists CloudKit zone change tokens per container, account, owner, and zone.
+///
+/// This is a thin synchronous wrapper around `UserDefaults`; it does not keep
+/// mutable in-memory state beyond its immutable configuration.
 public final class CloudLibrarySyncChangeTokenStore: @unchecked Sendable {
     /// Namespace separating one iCloud account/container's token from another.
     public struct Namespace: Hashable, Sendable {

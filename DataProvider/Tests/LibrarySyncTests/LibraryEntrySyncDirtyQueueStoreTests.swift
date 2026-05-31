@@ -74,6 +74,36 @@ struct LibraryEntrySyncDirtyQueueStoreTests {
         #expect(queue.entries.isEmpty)
     }
 
+    @Test func queueStoreHandlesConcurrentWritesWithoutLosingEntries() async throws {
+        let url = makeTemporaryQueueURL()
+        defer {
+            try? FileManager.default.removeItem(at: url)
+        }
+
+        let store = LibraryEntrySyncDirtyQueueStore(url: url)
+        let identityCount = 32
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for index in 0..<identityCount {
+                group.addTask {
+                    let identity = LibraryEntrySyncIdentity(entryType: .series, tmdbID: index)
+                    let dirtyAt = referenceDate(year: 2026, month: 5, day: (index % 28) + 1)
+                    try store.setPendingUpsert(
+                        .init(identity: identity, dirtyAt: dirtyAt)
+                    )
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let queue = store.load()
+        #expect(queue.entries.count == identityCount)
+        for index in 0..<identityCount {
+            let identity = LibraryEntrySyncIdentity(entryType: .series, tmdbID: index)
+            #expect(queue.entry(for: identity) != nil)
+        }
+    }
+
     private func makeTemporaryQueueURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("AniShelf.LibrarySyncTests.\(UUID().uuidString).json")

@@ -78,7 +78,7 @@ tracking data from stale remote payloads.
 
 ### CloudKit Record Codec
 
-The current codebase already has the record schema boundary:
+The current codebase has the record schema boundary:
 
 - one record per sync identity
 - deterministic record names
@@ -86,7 +86,9 @@ The current codebase already has the record schema boundary:
 - schema-versioned decode checks
 - persisted server change tokens keyed by container/account namespace
 
-This is record mapping only. It is not yet a running sync loop.
+This codec is used by the live import/export path. AniShelf still avoids
+SwiftData CloudKit mirroring; sync runs through explicit CloudKit records in
+the custom library zone.
 
 ### Local Dirty Worklist
 
@@ -98,37 +100,27 @@ or tombstones outside the main SwiftData store.
 Deletes are explicit: the app records tombstones before deleting the local row,
 including all-or-nothing handling for batch delete rollback.
 
+### Running Sync Loop
+
+`LibrarySyncCoordinator` now owns the end-to-end sync pass:
+
+- prepares the custom CloudKit zone and silent subscription
+- resolves the current iCloud account namespace automatically
+- imports remote changes before exporting local dirty work
+- suppresses the local recorder while remote snapshots are applied
+- commits the server change token only after local apply succeeds
+- reconciles dirty queue entries after remote conflict resolution
+- exports only the CloudKit-accepted dirty entries and leaves partial failures
+  queued for retry
+
+The app requests sync on launch, foreground activation, and CloudKit remote
+notifications when the TMDb API key is available. This is functional plumbing,
+not a full product rollout; user-facing controls and restore policy remain
+pending.
+
 ## Remaining Work
 
 DO NOT follow the stages below as strict implementation requirements. You can be flexible about the specific implementation details depending on the current project status and context.
-
-### Stage 4. Import And Hydration
-
-Status: Complete as of 2026-05-31.
-
-Build the remote import path:
-
-- fetch CloudKit changes from the custom zone
-- decode them into `LibraryEntrySyncSnapshot`
-- merge into existing local entries by sync identity
-- hydrate missing entries through existing TMDb fetch flows. If this fails, we need to notify users; but that is UI/UX work, and we will push this off until the sync coordinator and rollout stages.
-- apply tombstones only when newer than local clocks
-
-Open point: offline duplicate adds still need a convergence policy. The current
-local repository lookup is not enough once multiple devices can add the same
-TMDb entry independently.
-
-### Stage 5. Sync Coordinator
-
-Status: Complete as of 2026-05-31.
-
-Add one coordinator/service responsible for:
-
-- remote import before local export
-- consuming and acknowledging dirty queue entries
-- suppressing recorder feedback while applying remote imports
-- advancing change tokens only after local apply succeeds
-- retrying transient CloudKit failures
 
 ### Stage 6. Settings And Rollout
 

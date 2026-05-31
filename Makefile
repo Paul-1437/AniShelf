@@ -28,7 +28,7 @@ test:
 .PHONY: test-dataprovider
 test-dataprovider:
 	@echo "Running DataProvider tests..."
-	@set -o pipefail; swift test --quiet --package-path DataProvider 2>&1 | awk '$$0 != "CoreData: warning: Migration was completed by another client"'
+	@set -o pipefail; swift test --quiet --package-path DataProvider -Xswiftc -gnone 2>&1 | awk '$$0 != "CoreData: warning: Migration was completed by another client"'
 	@echo "DataProvider tests completed."
 
 .PHONY: clean

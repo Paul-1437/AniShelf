@@ -161,6 +161,8 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         .appendingPathComponent("library-entry-sync-dirty-queue.json")
 
     private let fileManager: FileManager
+    /// Serializes all queue access so reads, writes, and recovery stay atomic.
+    private let stateLock = NSLock()
     /// Injected handler for writing the queue, used for testing purposes.
     private let writeQueueHandler: (LibraryEntrySyncDirtyQueue) throws -> Void
     public let url: URL
@@ -194,27 +196,8 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
 
     /// Loads the persisted queue, resetting corrupt or unsupported files.
     public func load() -> LibraryEntrySyncDirtyQueue {
-        guard fileManager.fileExists(atPath: url.path) else {
-            return .init()
-        }
-
-        do {
-            let data = try Data(contentsOf: url)
-            let queue = try JSONDecoder().decode(LibraryEntrySyncDirtyQueue.self, from: data)
-            guard queue.schemaVersion <= LibraryEntrySyncDirtyQueue.currentSchemaVersion else {
-                dirtyQueueLogger.warning(
-                    "operation=load state=reset reason=unsupportedSchemaVersion schemaVersion=\(queue.schemaVersion, privacy: .public) currentSchemaVersion=\(LibraryEntrySyncDirtyQueue.currentSchemaVersion, privacy: .public)"
-                )
-                resetToEmptyQueue()
-                return .init()
-            }
-            return queue
-        } catch {
-            dirtyQueueLogger.warning(
-                "operation=load state=reset reason=decodeFailure errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
-            )
-            resetToEmptyQueue()
-            return .init()
+        withLock {
+            loadUnlocked()
         }
     }
 
@@ -228,17 +211,19 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     public func setPendingUpsert(_ pendingUpsert: LibraryEntrySyncPendingUpsert) throws
         -> LibraryEntrySyncDirtyQueueEntry?
     {
-        try mutateQueue(for: pendingUpsert.identity, mutation: "upsert") { _, existing in
-            if case .upsert(let previous) = existing, previous.dirtyAt >= pendingUpsert.dirtyAt {
+        try withLock {
+            try mutateQueueUnlocked(for: pendingUpsert.identity, mutation: "upsert") { _, existing in
+                if case .upsert(let previous) = existing, previous.dirtyAt >= pendingUpsert.dirtyAt {
+                    dirtyQueueLogger.debug(
+                        "operation=setPendingUpsert decision=kept identity=\(pendingUpsert.identity.rawID, privacy: .private) existingDirtyAt=\(previous.dirtyAt, privacy: .public) incomingDirtyAt=\(pendingUpsert.dirtyAt, privacy: .public)"
+                    )
+                    return existing
+                }
                 dirtyQueueLogger.debug(
-                    "operation=setPendingUpsert decision=kept identity=\(pendingUpsert.identity.rawID, privacy: .private) existingDirtyAt=\(previous.dirtyAt, privacy: .public) incomingDirtyAt=\(pendingUpsert.dirtyAt, privacy: .public)"
+                    "operation=setPendingUpsert decision=replaced identity=\(pendingUpsert.identity.rawID, privacy: .private) dirtyAt=\(pendingUpsert.dirtyAt, privacy: .public)"
                 )
-                return existing
+                return .upsert(pendingUpsert)
             }
-            dirtyQueueLogger.debug(
-                "operation=setPendingUpsert decision=replaced identity=\(pendingUpsert.identity.rawID, privacy: .private) dirtyAt=\(pendingUpsert.dirtyAt, privacy: .public)"
-            )
-            return .upsert(pendingUpsert)
         }
     }
 
@@ -249,18 +234,20 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     public func setPendingDelete(_ pendingDelete: LibraryEntrySyncPendingDelete) throws
         -> LibraryEntrySyncDirtyQueueEntry?
     {
-        try mutateQueue(for: pendingDelete.identity, mutation: "delete") { _, existing in
-            if case .delete(let previous) = existing, previous.tombstone.deletedAt >= pendingDelete.tombstone.deletedAt
-            {
+        try withLock {
+            try mutateQueueUnlocked(for: pendingDelete.identity, mutation: "delete") { _, existing in
+                if case .delete(let previous) = existing, previous.tombstone.deletedAt >= pendingDelete.tombstone.deletedAt
+                {
+                    dirtyQueueLogger.debug(
+                        "operation=setPendingDelete decision=kept identity=\(pendingDelete.identity.rawID, privacy: .private) existingDeletedAt=\(previous.tombstone.deletedAt, privacy: .public) incomingDeletedAt=\(pendingDelete.tombstone.deletedAt, privacy: .public)"
+                    )
+                    return existing
+                }
                 dirtyQueueLogger.debug(
-                    "operation=setPendingDelete decision=kept identity=\(pendingDelete.identity.rawID, privacy: .private) existingDeletedAt=\(previous.tombstone.deletedAt, privacy: .public) incomingDeletedAt=\(pendingDelete.tombstone.deletedAt, privacy: .public)"
+                    "operation=setPendingDelete decision=replaced identity=\(pendingDelete.identity.rawID, privacy: .private) deletedAt=\(pendingDelete.tombstone.deletedAt, privacy: .public)"
                 )
-                return existing
+                return .delete(pendingDelete)
             }
-            dirtyQueueLogger.debug(
-                "operation=setPendingDelete decision=replaced identity=\(pendingDelete.identity.rawID, privacy: .private) deletedAt=\(pendingDelete.tombstone.deletedAt, privacy: .public)"
-            )
-            return .delete(pendingDelete)
         }
     }
 
@@ -275,22 +262,24 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         _ entry: LibraryEntrySyncDirtyQueueEntry?,
         for identity: LibraryEntrySyncIdentity
     ) throws -> LibraryEntrySyncDirtyQueueEntry? {
-        try mutateQueue(for: identity, mutation: "replaceEntry") { _, existing in
-            switch entry {
-            case .some:
-                dirtyQueueLogger.debug(
-                    "operation=replaceEntry decision=replaced identity=\(identity.rawID, privacy: .private)"
-                )
-            case .none where existing != nil:
-                dirtyQueueLogger.debug(
-                    "operation=replaceEntry decision=removed identity=\(identity.rawID, privacy: .private)"
-                )
-            case .none:
-                dirtyQueueLogger.debug(
-                    "operation=replaceEntry decision=keptMissing identity=\(identity.rawID, privacy: .private)"
-                )
+        try withLock {
+            try mutateQueueUnlocked(for: identity, mutation: "replaceEntry") { _, existing in
+                switch entry {
+                case .some:
+                    dirtyQueueLogger.debug(
+                        "operation=replaceEntry decision=replaced identity=\(identity.rawID, privacy: .private)"
+                    )
+                case .none where existing != nil:
+                    dirtyQueueLogger.debug(
+                        "operation=replaceEntry decision=removed identity=\(identity.rawID, privacy: .private)"
+                    )
+                case .none:
+                    dirtyQueueLogger.debug(
+                        "operation=replaceEntry decision=keptMissing identity=\(identity.rawID, privacy: .private)"
+                    )
+                }
+                return entry
             }
-            return entry
         }
     }
 
@@ -305,31 +294,33 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     /// full post-mutation queue in memory, then persist it through this method
     /// instead of chaining per-entry updates.
     public func replaceEntries(_ entries: [LibraryEntrySyncDirtyQueueEntry]) throws {
-        let currentQueue = load()
-        let queue = LibraryEntrySyncDirtyQueue(entries: entries)
-        dirtyQueueLogger.debug(
-            "operation=replaceEntries inputCount=\(entries.count, privacy: .public) storedCount=\(queue.entries.count, privacy: .public)"
-        )
-        guard currentQueue != queue else {
+        try withLock {
+            let currentQueue = loadUnlocked()
+            let queue = LibraryEntrySyncDirtyQueue(entries: entries)
             dirtyQueueLogger.debug(
-                "operation=replaceEntries decision=skipped reason=unchanged entryCount=\(queue.entries.count, privacy: .public)"
+                "operation=replaceEntries inputCount=\(entries.count, privacy: .public) storedCount=\(queue.entries.count, privacy: .public)"
             )
-            return
+            guard currentQueue != queue else {
+                dirtyQueueLogger.debug(
+                    "operation=replaceEntries decision=skipped reason=unchanged entryCount=\(queue.entries.count, privacy: .public)"
+                )
+                return
+            }
+            try writeQueueUnlocked(queue)
         }
-        try writeQueue(queue)
     }
 
     /// Applies one identity-scoped queue mutation against the persisted JSON.
     ///
     /// The helper loads the current queue, asks the caller how to transform the
     /// existing entry, then writes the rewritten queue back only if it changed.
-    private func mutateQueue(
+    private func mutateQueueUnlocked(
         for identity: LibraryEntrySyncIdentity,
         mutation: String,
         _ transform: (_ queue: LibraryEntrySyncDirtyQueue, _ existing: LibraryEntrySyncDirtyQueueEntry?) ->
             LibraryEntrySyncDirtyQueueEntry?
     ) throws -> LibraryEntrySyncDirtyQueueEntry? {
-        let queue = load()
+        let queue = loadUnlocked()
         var entriesByID = queue.entries.reduce(into: [String: LibraryEntrySyncDirtyQueueEntry]()) {
             partialResult, entry in
             partialResult[entry.identity.rawID] = entry
@@ -349,7 +340,7 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
                 )
                 return existing
             }
-            try writeQueue(rewrittenQueue)
+            try writeQueueUnlocked(rewrittenQueue)
             return existing
         }
         entriesByID[newEntry.identity.rawID] = newEntry
@@ -365,12 +356,12 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
             )
             return existing
         }
-        try writeQueue(rewrittenQueue)
+        try writeQueueUnlocked(rewrittenQueue)
         return existing
     }
 
     /// Writes the queue through the injected persistence hook.
-    private func writeQueue(_ queue: LibraryEntrySyncDirtyQueue) throws {
+    private func writeQueueUnlocked(_ queue: LibraryEntrySyncDirtyQueue) throws {
         dirtyQueueLogger.debug(
             "operation=writeQueue entryCount=\(queue.entries.count, privacy: .public)"
         )
@@ -378,13 +369,38 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     }
 
     /// Replaces a corrupt queue file with an empty queue if recovery succeeds.
-    private func resetToEmptyQueue() {
+    private func resetToEmptyQueueUnlocked() {
         do {
-            try writeQueue(.init())
+            try writeQueueUnlocked(.init())
         } catch {
             dirtyQueueLogger.error(
                 "operation=resetToEmptyQueue result=failure errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
             )
+        }
+    }
+
+    private func loadUnlocked() -> LibraryEntrySyncDirtyQueue {
+        guard fileManager.fileExists(atPath: url.path) else {
+            return .init()
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let queue = try JSONDecoder().decode(LibraryEntrySyncDirtyQueue.self, from: data)
+            guard queue.schemaVersion <= LibraryEntrySyncDirtyQueue.currentSchemaVersion else {
+                dirtyQueueLogger.warning(
+                    "operation=load state=reset reason=unsupportedSchemaVersion schemaVersion=\(queue.schemaVersion, privacy: .public) currentSchemaVersion=\(LibraryEntrySyncDirtyQueue.currentSchemaVersion, privacy: .public)"
+                )
+                resetToEmptyQueueUnlocked()
+                return .init()
+            }
+            return queue
+        } catch {
+            dirtyQueueLogger.warning(
+                "operation=load state=reset reason=decodeFailure errorType=\(String(describing: type(of: error)), privacy: .public) error=\(error.localizedDescription, privacy: .private)"
+            )
+            resetToEmptyQueueUnlocked()
+            return .init()
         }
     }
 
@@ -405,5 +421,11 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
             withIntermediateDirectories: true,
             attributes: nil
         )
+    }
+
+    private func withLock<T>(_ operation: () throws -> T) rethrows -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return try operation()
     }
 }
