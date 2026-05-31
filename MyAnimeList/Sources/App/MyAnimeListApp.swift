@@ -55,6 +55,8 @@ struct MyAnimeListApp: App {
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     requestSync(trigger: .foreground)
+                } else if newPhase == .background {
+                    flushPendingLocalSync()
                 }
             }
             .sheet(item: presentedWhatsNewEntry) { entry in
@@ -95,6 +97,11 @@ struct MyAnimeListApp: App {
     private func requestSync(trigger: LibrarySyncCoordinator.Trigger) {
         guard hasTMDbAPIKey else { return }
         libraryStore.syncLibrary(trigger: trigger)
+    }
+
+    private func flushPendingLocalSync() {
+        guard hasTMDbAPIKey else { return }
+        libraryStore.flushPendingLocalLibrarySync()
     }
 
     private var hasTMDbAPIKey: Bool {

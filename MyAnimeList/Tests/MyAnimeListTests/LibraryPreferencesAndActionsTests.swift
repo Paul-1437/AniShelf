@@ -294,6 +294,10 @@ struct LibraryPreferencesAndActionsTests {
             dirtyQueueStore: dirtyQueueStore,
             notificationCenter: .default
         )
+        var dirtyQueueChangeCount = 0
+        recorder.onDirtyQueueChanged = {
+            dirtyQueueChangeCount += 1
+        }
         let repository = LibraryRepository(
             dataProvider: dataProvider,
             syncChangeRecorder: recorder
@@ -311,6 +315,7 @@ struct LibraryPreferencesAndActionsTests {
         #expect(queue.entries.count == 1)
         #expect(queue.entries.first?.identity.rawID == entry.syncIdentity.rawID)
         #expect(writeCount == 1)
+        #expect(dirtyQueueChangeCount == 1)
 
         entry.name = "Metadata Only"
         try repository.save()
@@ -318,6 +323,7 @@ struct LibraryPreferencesAndActionsTests {
         queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
         #expect(writeCount == 1)
+        #expect(dirtyQueueChangeCount == 1)
 
         entry.updateFavorite(true, at: referenceDate(year: 2026, month: 5, day: 31))
         try repository.save()
@@ -325,6 +331,7 @@ struct LibraryPreferencesAndActionsTests {
         queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
         #expect(writeCount == 2)
+        #expect(dirtyQueueChangeCount == 2)
         if case .upsert(let pendingUpsert)? = queue.entries.first {
             #expect(pendingUpsert.dirtyAt == entry.trackingUpdatedAt)
         } else {
@@ -349,6 +356,10 @@ struct LibraryPreferencesAndActionsTests {
             dirtyQueueStore: dirtyQueueStore,
             notificationCenter: .init()
         )
+        var dirtyQueueChangeCount = 0
+        recorder.onDirtyQueueChanged = {
+            dirtyQueueChangeCount += 1
+        }
         let entry = AnimeEntry(
             name: "Failed Queue Entry",
             type: .series,
@@ -367,6 +378,7 @@ struct LibraryPreferencesAndActionsTests {
 
         recorder.processSaveNotification(notification)
         #expect(recorder.dirtyQueueStore.load().entries.isEmpty)
+        #expect(dirtyQueueChangeCount == 0)
 
         shouldFailWrite = false
         recorder.processSaveNotification(notification)
@@ -374,6 +386,7 @@ struct LibraryPreferencesAndActionsTests {
         let queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
         #expect(queue.entries.first?.identity == entry.syncIdentity)
+        #expect(dirtyQueueChangeCount == 1)
     }
 
     @Test @MainActor func testLibrarySyncRecorderQueuesDeleteTombstonesAndBulkDeletes() throws {
@@ -442,6 +455,10 @@ struct LibraryPreferencesAndActionsTests {
             dirtyQueueStore: dirtyQueueStore,
             notificationCenter: .init()
         )
+        var dirtyQueueChangeCount = 0
+        recorder.onDirtyQueueChanged = {
+            dirtyQueueChangeCount += 1
+        }
 
         let first = AnimeEntry(name: "Batch Delete 1", type: .movie, tmdbID: 300_101)
         let second = AnimeEntry(name: "Batch Delete 2", type: .movie, tmdbID: 300_102)
@@ -451,6 +468,7 @@ struct LibraryPreferencesAndActionsTests {
 
         #expect(writeCount == 1)
         #expect(tokens.count == 2)
+        #expect(dirtyQueueChangeCount == 1)
 
         let queue = dirtyQueueStore.load()
         #expect(queue.entries.count == 3)

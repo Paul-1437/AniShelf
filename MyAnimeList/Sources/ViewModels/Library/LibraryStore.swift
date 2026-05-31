@@ -22,6 +22,7 @@ class LibraryStore {
     @ObservationIgnored let repository: LibraryRepository
     @ObservationIgnored let syncChangeRecorder: LibrarySyncChangeRecorder
     @ObservationIgnored private(set) var syncCoordinator: LibrarySyncCoordinator?
+    @ObservationIgnored private var syncScheduler: LibrarySyncScheduler?
     @ObservationIgnored let preferences: LibraryPreferences
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
@@ -106,6 +107,7 @@ class LibraryStore {
         setupTMDbAPIConfigurationChangeMonitor()
         try? refreshLibrary()
         self.syncCoordinator = LibrarySyncCoordinator(store: self)
+        setupLibrarySyncScheduling()
     }
 
     func reloadPersistedPreferences() {
@@ -168,10 +170,32 @@ class LibraryStore {
         }
     }
 
+    func flushPendingLocalLibrarySync() {
+        syncScheduler?.flushLocalDirtyQueueSync()
+    }
+
     @discardableResult
     func performLibrarySync(trigger: LibrarySyncCoordinator.Trigger) async -> Bool {
         guard let syncCoordinator else { return false }
         return await syncCoordinator.sync(trigger: trigger)
+    }
+
+    private func setupLibrarySyncScheduling() {
+        guard !dataProvider.inMemory else { return }
+        let scheduler = LibrarySyncScheduler(
+            hasPendingDirtyWork: { [weak syncChangeRecorder] in
+                guard let syncChangeRecorder else { return false }
+                return !syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty
+            },
+            sync: { [weak self] trigger in
+                guard let self else { return false }
+                return await self.performLibrarySync(trigger: trigger)
+            }
+        )
+        syncScheduler = scheduler
+        syncChangeRecorder.onDirtyQueueChanged = { [weak scheduler] in
+            scheduler?.scheduleLocalDirtyQueueSync()
+        }
     }
 
     func setupTMDbAPIConfigurationChangeMonitor() {

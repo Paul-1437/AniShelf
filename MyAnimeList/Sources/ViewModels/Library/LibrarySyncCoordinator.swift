@@ -28,6 +28,7 @@ final class LibrarySyncCoordinator {
         case appLaunch
         case foreground
         case cloudNotification
+        case localDirtyQueueChange
         case manualRetry
     }
 

@@ -15,6 +15,69 @@ import Testing
 
 @Suite(.serialized)
 struct LibrarySyncCoordinatorTests {
+    @Test @MainActor func dirtyQueueSchedulerDebouncesLocalChanges() async throws {
+        var syncCount = 0
+        var hasPendingDirtyWork = true
+        let scheduler = LibrarySyncScheduler(
+            localDebounceInterval: 0.05,
+            failureRetryIntervals: [0.1],
+            hasPendingDirtyWork: {
+                hasPendingDirtyWork
+            },
+            sync: { trigger in
+                #expect(trigger == .localDirtyQueueChange)
+                syncCount += 1
+                hasPendingDirtyWork = false
+                return true
+            }
+        )
+
+        scheduler.scheduleLocalDirtyQueueSync()
+        try await Task.sleep(nanoseconds: 20_000_000)
+        scheduler.scheduleLocalDirtyQueueSync()
+        try await Task.sleep(nanoseconds: 30_000_000)
+
+        #expect(syncCount == 0)
+
+        try await Task.sleep(nanoseconds: 60_000_000)
+
+        #expect(syncCount == 1)
+    }
+
+    @Test @MainActor func dirtyQueueSchedulerBacksOffAfterFailure() async throws {
+        var syncCount = 0
+        var hasPendingDirtyWork = true
+        let scheduler = LibrarySyncScheduler(
+            localDebounceInterval: 0.01,
+            failureRetryIntervals: [0.08],
+            hasPendingDirtyWork: {
+                hasPendingDirtyWork
+            },
+            sync: { _ in
+                syncCount += 1
+                if syncCount == 1 {
+                    return false
+                }
+                hasPendingDirtyWork = false
+                return true
+            }
+        )
+
+        scheduler.scheduleLocalDirtyQueueSync()
+        try await Task.sleep(nanoseconds: 30_000_000)
+
+        #expect(syncCount == 1)
+
+        scheduler.scheduleLocalDirtyQueueSync()
+        try await Task.sleep(nanoseconds: 30_000_000)
+
+        #expect(syncCount == 1)
+
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        #expect(syncCount == 2)
+    }
+
     @Test @MainActor func remoteUpdateDoesNotEnqueueDirtyUpsert() async throws {
         let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
         let entry = AnimeEntry(name: "Remote Update", type: .series, tmdbID: 701)

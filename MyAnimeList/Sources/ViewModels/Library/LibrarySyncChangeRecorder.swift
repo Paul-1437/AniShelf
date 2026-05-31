@@ -60,6 +60,7 @@ final class LibrarySyncChangeRecorder {
     }
 
     let dirtyQueueStore: LibraryEntrySyncDirtyQueueStore
+    var onDirtyQueueChanged: (() -> Void)?
 
     private let dataProvider: DataProvider
     private let notificationCenter: NotificationCenter
@@ -128,6 +129,7 @@ final class LibrarySyncChangeRecorder {
         syncRecorderLogger.info(
             "Queued iCloud sync delete for \(pendingDelete.identity.rawID, privacy: .private) at \(pendingDelete.tombstone.deletedAt, privacy: .public)."
         )
+        onDirtyQueueChanged?()
         return .init(identity: pendingDelete.identity, previousEntry: previousEntry)
     }
 
@@ -173,6 +175,9 @@ final class LibrarySyncChangeRecorder {
             syncRecorderLogger.info(
                 "Queued iCloud sync delete for \(entry.syncIdentity.rawID, privacy: .private) at \(deletedAt, privacy: .public)."
             )
+        }
+        if !entries.isEmpty {
+            onDirtyQueueChanged?()
         }
         return tokens
     }
@@ -263,6 +268,7 @@ final class LibrarySyncChangeRecorder {
                 syncRecorderLogger.info(
                     "Queued iCloud sync upsert for \(entry.syncIdentity.rawID, privacy: .private) at \(dirtyAt, privacy: .public)."
                 )
+                onDirtyQueueChanged?()
                 lastSeenClocksByIdentifier[identifier] = currentBaseline
             } catch {
                 if let previousBaseline {
