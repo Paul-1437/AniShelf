@@ -51,6 +51,7 @@ struct LibrarySyncCoordinatorTests {
         try store.refreshLibrary()
         let refreshed = try #require(store.library.first { $0.syncIdentity == entry.syncIdentity })
         #expect(refreshed.notes == "Remote notes")
+        #expect(database.savedRecords.isEmpty)
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 

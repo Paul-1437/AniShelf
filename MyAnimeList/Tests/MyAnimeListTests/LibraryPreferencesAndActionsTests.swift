@@ -280,31 +280,51 @@ struct LibraryPreferencesAndActionsTests {
     }
 
     @Test @MainActor func testLibrarySyncRecorderQueuesUpsertsAndIgnoresMetadataOnlySaves() throws {
-        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let queueURL = makeTemporaryQueueURL(name: "metadata-only-save")
+        defer { try? FileManager.default.removeItem(at: queueURL.deletingLastPathComponent()) }
+
+        let dataProvider = DataProvider(inMemory: true)
+        var writeCount = 0
+        let dirtyQueueStore = LibraryEntrySyncDirtyQueueStore(url: queueURL) { queue in
+            writeCount += 1
+            try persistQueue(queue, to: queueURL)
+        }
+        let recorder = LibrarySyncChangeRecorder(
+            dataProvider: dataProvider,
+            dirtyQueueStore: dirtyQueueStore,
+            notificationCenter: .default
+        )
+        let repository = LibraryRepository(
+            dataProvider: dataProvider,
+            syncChangeRecorder: recorder
+        )
         let entry = AnimeEntry(
             name: "Tracked Entry",
             type: .series,
             tmdbID: 200_001
         )
-        store.applyNewEntryDefaults(to: entry)
+        entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 30))
 
-        try store.repository.newEntry(entry)
+        try repository.newEntry(entry)
 
-        var queue = store.syncChangeRecorder.dirtyQueueStore.load()
+        var queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
         #expect(queue.entries.first?.identity.rawID == entry.syncIdentity.rawID)
+        #expect(writeCount == 1)
 
         entry.name = "Metadata Only"
-        try store.repository.save()
+        try repository.save()
 
-        queue = store.syncChangeRecorder.dirtyQueueStore.load()
+        queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
+        #expect(writeCount == 1)
 
-        entry.updateFavorite(true)
-        try store.repository.save()
+        entry.updateFavorite(true, at: referenceDate(year: 2026, month: 5, day: 31))
+        try repository.save()
 
-        queue = store.syncChangeRecorder.dirtyQueueStore.load()
+        queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
+        #expect(writeCount == 2)
         if case .upsert(let pendingUpsert)? = queue.entries.first {
             #expect(pendingUpsert.dirtyAt == entry.trackingUpdatedAt)
         } else {
@@ -313,28 +333,20 @@ struct LibraryPreferencesAndActionsTests {
     }
 
     @Test @MainActor func testLibrarySyncRecorderKeepsBaselineWhenUpsertWriteFails() throws {
-        let fileManager = FileManager.default
-        let queueDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("AniShelfTests-sync-queue-\(UUID().uuidString)", isDirectory: true)
-        let queueURL = queueDirectory.appendingPathComponent("queue.json")
-        try fileManager.createDirectory(at: queueDirectory, withIntermediateDirectories: true)
-        defer {
-            try? fileManager.setAttributes(
-                [.posixPermissions: 0o755],
-                ofItemAtPath: queueDirectory.path
-            )
-            try? fileManager.removeItem(at: queueDirectory)
-        }
-
-        try fileManager.setAttributes(
-            [.posixPermissions: 0o555],
-            ofItemAtPath: queueDirectory.path
-        )
+        let queueURL = makeTemporaryQueueURL(name: "upsert-write-failure")
+        defer { try? FileManager.default.removeItem(at: queueURL.deletingLastPathComponent()) }
 
         let dataProvider = DataProvider(inMemory: true)
+        var shouldFailWrite = true
+        let dirtyQueueStore = LibraryEntrySyncDirtyQueueStore(url: queueURL) { queue in
+            if shouldFailWrite {
+                throw QueueWriteTestError.injectedWriteFailure
+            }
+            try persistQueue(queue, to: queueURL)
+        }
         let recorder = LibrarySyncChangeRecorder(
             dataProvider: dataProvider,
-            dirtyQueueStore: LibraryEntrySyncDirtyQueueStore(url: queueURL),
+            dirtyQueueStore: dirtyQueueStore,
             notificationCenter: .init()
         )
         let entry = AnimeEntry(
@@ -356,11 +368,7 @@ struct LibraryPreferencesAndActionsTests {
         recorder.processSaveNotification(notification)
         #expect(recorder.dirtyQueueStore.load().entries.isEmpty)
 
-        try fileManager.setAttributes(
-            [.posixPermissions: 0o755],
-            ofItemAtPath: queueDirectory.path
-        )
-
+        shouldFailWrite = false
         recorder.processSaveNotification(notification)
 
         let queue = recorder.dirtyQueueStore.load()
@@ -689,6 +697,7 @@ struct LibraryPreferencesAndActionsTests {
 }
 
 private enum QueueWriteTestError: Error {
+    case injectedWriteFailure
     case unexpectedAdditionalWrite
 }
 

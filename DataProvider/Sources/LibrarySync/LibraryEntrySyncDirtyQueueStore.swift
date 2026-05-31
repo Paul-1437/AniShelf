@@ -261,10 +261,17 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     /// full post-mutation queue in memory, then persist it through this method
     /// instead of chaining per-entry updates.
     public func replaceEntries(_ entries: [LibraryEntrySyncDirtyQueueEntry]) throws {
+        let currentQueue = load()
         let queue = LibraryEntrySyncDirtyQueue(entries: entries)
         dirtyQueueLogger.debug(
             "operation=replaceEntries inputCount=\(entries.count, privacy: .public) storedCount=\(queue.entries.count, privacy: .public)"
         )
+        guard currentQueue != queue else {
+            dirtyQueueLogger.debug(
+                "operation=replaceEntries decision=skipped reason=unchanged entryCount=\(queue.entries.count, privacy: .public)"
+            )
+            return
+        }
         try writeQueue(queue)
     }
 
@@ -288,6 +295,12 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
             dirtyQueueLogger.debug(
                 "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=removed inputCount=\(queue.entries.count, privacy: .public) outputCount=\(rewrittenQueue.entries.count, privacy: .public)"
             )
+            guard queue != rewrittenQueue else {
+                dirtyQueueLogger.debug(
+                    "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=skipped reason=unchanged"
+                )
+                return existing
+            }
             try writeQueue(rewrittenQueue)
             return existing
         }
@@ -298,6 +311,12 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         dirtyQueueLogger.debug(
             "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=stored inputCount=\(queue.entries.count, privacy: .public) outputCount=\(rewrittenQueue.entries.count, privacy: .public)"
         )
+        guard queue != rewrittenQueue else {
+            dirtyQueueLogger.debug(
+                "operation=\(mutation, privacy: .public) identity=\(identity.rawID, privacy: .private) decision=skipped reason=unchanged"
+            )
+            return existing
+        }
         try writeQueue(rewrittenQueue)
         return existing
     }

@@ -73,13 +73,6 @@ public struct CloudLibrarySyncExporter: @unchecked Sendable {
         return .init(exportedIdentities: exportedIdentities)
     }
 
-    public func records(
-        for entries: [LibraryEntrySyncDirtyQueueEntry],
-        localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot]
-    ) throws -> [LibraryEntrySyncIdentity: CKRecord] {
-        try prepareRecords(for: entries, localSnapshotsByIdentity: localSnapshotsByIdentity).recordsByIdentity
-    }
-
     private struct PreparedRecords {
         var recordsByIdentity: [LibraryEntrySyncIdentity: CKRecord]
         var skippedMissingLocalSnapshotCount: Int
