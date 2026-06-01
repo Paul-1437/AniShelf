@@ -112,10 +112,21 @@ let persistenStoreURL = URL.applicationSupportDirectory
             configurations: modelConfiguration)
     }
 
+    /// Fetches persistent models of a certain type.
+    public func getModels<T: PersistentModel>(
+        ofType: T.Type,
+        predicate: Predicate<T>? = nil,
+        fetchLimit: Int? = nil
+    ) throws -> [T] {
+        var descriptor = FetchDescriptor<T>(predicate: predicate)
+        if let fetchLimit {
+            descriptor.fetchLimit = fetchLimit
+        }
+        return try sharedModelContainer.mainContext.fetch(descriptor)
+    }
+
     /// Gets all persistent models of a certain type.
     public func getAllModels<T: PersistentModel>(ofType: T.Type, predicate: Predicate<T>? = nil) throws -> [T] {
-        let descriptor: FetchDescriptor<T>
-        descriptor = FetchDescriptor(predicate: predicate)
-        return try sharedModelContainer.mainContext.fetch(descriptor)
+        try getModels(ofType: ofType, predicate: predicate)
     }
 }

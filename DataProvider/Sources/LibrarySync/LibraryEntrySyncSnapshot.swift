@@ -31,6 +31,14 @@ public struct LibraryEntrySyncIdentity: Codable, Hashable, Sendable {
             rawID = "season:\(parentSeriesID):\(seasonNumber):\(tmdbID)"
         }
     }
+
+    /// Extracts the concrete entry TMDb identifier from the stable record name.
+    public var tmdbID: Int? {
+        guard let suffix = rawID.split(separator: ":").last else {
+            return nil
+        }
+        return Int(suffix)
+    }
 }
 
 /// Lean user-owned state that is safe to sync through iCloud.

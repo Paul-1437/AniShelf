@@ -62,11 +62,9 @@ final class LibraryRepository {
 
     func existingEntry(tmdbID: Int) -> AnimeEntry? {
         do {
-            let entries = try dataProvider.getAllModels(
-                ofType: AnimeEntry.self,
-                predicate: #Predicate { $0.tmdbID == tmdbID }
-            )
-            return entries.sorted(by: compareExistingEntries).first
+            return try matchingEntries(tmdbID: tmdbID)
+                .sorted(by: compareExistingEntries)
+                .first
         } catch {
             libraryStoreLogger.warning(
                 "Failed to fetch existing entry \(tmdbID, privacy: .public): \(error.localizedDescription)")
@@ -75,14 +73,28 @@ final class LibraryRepository {
     }
 
     func existingEntry(identity: LibraryEntrySyncIdentity) -> AnimeEntry? {
+        guard let tmdbID = identity.tmdbID else {
+            libraryStoreLogger.warning(
+                "Failed to parse TMDb ID from sync entry \(identity.rawID, privacy: .public).")
+            return nil
+        }
         do {
-            return try dataProvider.getAllModels(ofType: AnimeEntry.self)
-                .first { $0.syncIdentity == identity }
+            return try matchingEntries(tmdbID: tmdbID)
+                .filter { $0.syncIdentity == identity }
+                .sorted(by: compareExistingEntries)
+                .first
         } catch {
             libraryStoreLogger.warning(
                 "Failed to fetch sync entry \(identity.rawID, privacy: .public): \(error.localizedDescription)")
             return nil
         }
+    }
+
+    private func matchingEntries(tmdbID: Int) throws -> [AnimeEntry] {
+        try dataProvider.getModels(
+            ofType: AnimeEntry.self,
+            predicate: #Predicate { $0.tmdbID == tmdbID }
+        )
     }
 
     private func compareExistingEntries(_ lhs: AnimeEntry, _ rhs: AnimeEntry) -> Bool {
