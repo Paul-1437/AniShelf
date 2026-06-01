@@ -9,6 +9,7 @@ import CloudKit
 import DataProvider
 import Foundation
 import LibrarySync
+import SwiftUI
 import os
 
 fileprivate let librarySyncCoordinatorLogger = Logger(
@@ -232,18 +233,22 @@ final class LibrarySyncCoordinator {
                     let applicationTarget = try await entryForApplying(snapshot, store: store)
                     guard let applicationTarget else { continue }
                     appliedChangesCount += 1
-                    if applicationTarget.isInitialMaterialization {
-                        hydratedEntriesCount += 1
-                        try applicationTarget.entry.applyInitialSyncSnapshot(snapshot)
-                    } else {
-                        try applicationTarget.entry.applySyncSnapshot(snapshot)
+                    try withAnimation {
+                        if applicationTarget.isInitialMaterialization {
+                            hydratedEntriesCount += 1
+                            try applicationTarget.entry.applyInitialSyncSnapshot(snapshot)
+                        } else {
+                            try applicationTarget.entry.applySyncSnapshot(snapshot)
+                        }
                     }
                 case .tombstone(let tombstone):
                     guard let entry = store.repository.existingEntry(identity: tombstone.identity) else {
                         continue
                     }
                     appliedChangesCount += 1
-                    try entry.applySyncTombstone(tombstone)
+                    try withAnimation {
+                        try entry.applySyncTombstone(tombstone)
+                    }
                 }
             }
             try store.repository.save()
