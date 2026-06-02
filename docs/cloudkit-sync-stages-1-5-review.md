@@ -1,54 +1,7 @@
-# CloudKit Sync Stages 1–5 — Comprehensive Review
+# CloudKit Sync Feature Review
 
-**Review Date:** 2026-06-02  
-**Branch:** `feat/cloudkit-sync`  
-**Scope:** Stages 1–5 (completed) per `docs/cloudkit-sync-implementation-plan.md`  
-**Method:** Six parallel subagent reviews from independent perspectives (Data Consistency, Error Handling, Concurrency, CloudKit Integration, Test Coverage, Architecture), followed by manual code verification of every claimed issue. Corrected on 2026-06-02 after an additional scope pass against `docs/cloudkit-sync-implementation-plan.md`.
-
----
-
-## Executive Summary
-
-The implementation of Stages 1–5 is **architecturally sound and largely well-tested**, with strong adherence to the plan's core guardrails. The deterministic sync identity, tombstone-based delete handling, import-before-export sequencing, and recorder suppression are all correctly implemented.
-
-No confirmed critical Stage 1–5 correctness issue remains after narrowing the earlier dirty-queue/tombstone concern to a naming and API-clarity problem rather than a demonstrated runtime data-loss bug. Several other findings are valid hardening or rollout-policy concerns, but they should not be counted as Stage 1–5 blockers because the staged plan explicitly leaves settings, restore policy, and manual validation to Stages 6–8.
-
-| Severity | Count | Themes |
-|----------|-------|--------|
-| **🔴 Critical** | 0 | None confirmed |
-| **🟡 Stage 1–5 Warning** | 4 | Token commit ordering, concurrency hardening, test gaps |
-| **⚪ Out of Stage 1–5 Scope** | 5 | Account-change policy, restore recovery, rate/quota UX, rollout settings |
-| **🟢 Positive** | 10 | Strong architecture, good test coverage on core logic, correct sequencing |
-
----
-
-## 🟡 Valid Stage 1–5 Warning Issues
-
-### WARN-7: Token Commit Blocked by UI Refresh Failure
-
-**File:** `MyAnimeList/Sources/ViewModels/Library/LibrarySyncCoordinator.swift:185-189`  
-**Status:** Confirmed valid
-
-```swift
-currentPhase = .hydrationApply
-_ = try await apply(importBatch, to: store)   // includes refreshLibrary()
-
-currentPhase = .tokenCommit
-importer.commit(importBatch)                   // ← only reached if apply() succeeds
-```
-
-Inside `apply()`:
-```swift
-try store.repository.save()        // local data persisted
-store.rebuildSyncChangeTracking()  // in-memory baseline update
-try store.refreshLibrary()         // UI refresh — could throw
-```
-
-If `refreshLibrary()` throws (e.g., UI state inconsistency), `apply()` throws, and the token is **not committed**. The local data has already been saved. On the next sync, the same remote changes are re-fetched and re-applied (idempotent, but wasteful). If `refreshLibrary()` consistently throws, the token never advances.
-
-**Fix:** Commit the token after successful `repository.save()`, not after UI refresh.
-
----
+**Last Update Date:** 2026-06-02  
+**Branch:** `feat/cloudkit-sync`
 
 ## ⚪ Out-of-Scope / Rollout-Stage Findings
 
@@ -91,6 +44,7 @@ Per-record failure reasons (`limitExceeded`, `quotaExceeded`, `notAuthenticated`
 **Status:** Valid Stage 7/8 hardening; out of Stage 1–5 scope
 
 If the user deletes the app's iCloud data (wiping the zone), `fetchRecordZoneChanges` returns `zoneNotFound` or `userDeletedZone`. The importer does not handle these specifically — they propagate as generic errors. Correct behavior would be:
+
 - Reset the change token
 - Re-create the zone
 - Re-upload all local data (full sync)
@@ -172,6 +126,7 @@ Under **Swift 6 strict concurrency checking**, calling a `@MainActor` method fro
 **Status:** Confirmed valid, with lower-level coverage caveat
 
 No test simulates a scenario where the exporter saves 2 of 3 records and verifies that:
+
 - The 2 successful identities are removed from the dirty queue
 - The 1 failed identity remains queued
 
@@ -179,124 +134,26 @@ No test simulates a scenario where the exporter saves 2 of 3 records and verifie
 
 **Fix:** Add a test with a fake database that reports partial success.
 
----
-
-## ⚠️ Partial / Overstated Findings
-
-These findings contain some truth but were overstated in severity or description by the review subagents:
-
-| # | Original Claim | Reality | Verdict |
-|---|---------------|---------|---------|
-| CRIT-2 | Hydration failure leaves orphaned parent series entries because child `insert` can throw after parent `insert` | The exact claim is wrong: `repository.insert(_:)` is non-throwing and the throwing boundary is the later save/apply phase. The broader cleanup/idempotence concern is still worth testing if staged hydrated inserts are saved after a later failure. | Downgraded / Partial |
-| P-1 | `processSaveNotification` "silently drops" errors | Errors are logged; baseline is rolled back for retry on next notification. Reasonable for a notification handler. | Overstated |
-| P-3 | Episode progress JSON blob prevents field-level merge | Design trade-off for current scale. Acceptable for typical anime (1-5 seasons). | Trade-off |
-| P-4 | `episodeProgresses` could exceed CloudKit record size | Theoretical. 1MB record limit is far away for typical episode progress data. | Theoretical |
-| P-5 | `.allKeys` save policy causes silent overwrite of concurrent changes | Intentional for full-snapshot-replacement model. Conflict resolution happens at merge layer. | By design |
-| P-6 | No account status check before sync | Error is caught and returns false. Missing error categorization, not missing handling. | Partial |
-
----
-
-## ❌ Invalidated Findings
-
-These findings were **incorrect** upon manual verification:
-
-| # | Original Claim | Why Invalid |
-|---|---------------|-------------|
-| INV-1 | `applyInitialSyncSnapshot` nil clocks cause baseline problems | Hydrated entries get nil clocks until next local edit, which then sets clocks. Baseline is rebuilt after apply. Safe. |
-| INV-2 | `rebuildSyncChangeTracking()` and `refreshLibrary()` outside suppression block cause spurious enqueue | `rebuildSyncChangeTracking()` only updates in-memory dictionary. `refreshLibrary()` only fetches and assigns to `@Published`. Neither triggers saves. |
-| INV-3 | `withSuppressedRecordingAsync` suppression depth not restored on throw | Swift `defer` runs on **all** exit paths including throws. Correct by design. |
-| INV-4 | `isSyncing` flag race without await boundary | `@MainActor` serializes all accesses. Safe. |
-| INV-5 | `NSLock` re-entrancy deadlock in dirty queue store | Call graph audit confirms no re-entrant `withLock` calls. Safe. |
-| INV-6 | No test for `restoreDeleteRecords` bulk-delete rollback | Stale. `testLibrarySyncRecorderRestoreDeleteRecordsRewritesPriorQueueOnce` covers the rollback rewrite. |
-
----
-
-## ✅ Verified Positive Findings
-
-All 10 architectural strengths identified by the review subagents are **confirmed valid** through manual code inspection:
-
-### Architecture
-
-1. **Main store correctly on `cloudKitDatabase: .none`**  
-   `DataProvider.swift:96-106` — Both persistent and in-memory configurations explicitly use `.none`.
-
-2. **Import-before-export sequencing is correct**  
-   `LibrarySyncCoordinator.runSync` phases: prepare → namespace → remote fetch → apply → token commit → reconcile → export. Remote changes are fully incorporated before any local dirty work is exported.
-
-3. **Delete handling uses explicit tombstones throughout**  
-   - `LibrarySyncChangeRecorder.recordDeletion` queues tombstones before local delete  
-   - `CloudLibrarySyncClient.record(from tombstone:)` clears all user-state fields, sets `deletedAt`  
-   - `CloudLibrarySyncImporter` ignores raw CloudKit deletes (line 161)  
-   - `AnimeEntry.applySyncTombstone` hides entry (`onDisplay = false`) rather than deleting, preserving metadata
-
-4. **Dirty queue is treated as sync work, not backup payload**  
-   The queue stores only identities and timestamps. Export materializes the actual payload from the current local store (`localSnapshotsByIdentity`). This does **not** mean queue entries can be arbitrarily dropped: removal is safe after CloudKit accepts equivalent work, but reconciliation drops must use the same conflict outcome as remote application.
-
-5. **Recorder suppression is depth-counted**  
-   `suppressionDepth` supports nested `withSuppressedRecording` / `withSuppressedRecordingAsync` calls without premature re-enabling. The `defer` pattern ensures depth is always decremented.
-
-### Data Integrity
-
-6. **Deterministic record IDs prevent duplicates**  
-   `LibraryEntrySyncIdentity` derives `rawID` from `entryType` + `tmdbID` (+ season context). Every device addresses the same CloudKit record for the same anime without relying on CloudKit uniqueness constraints.
-
-7. **Clock-based LWW merge per-domain**  
-   `LibraryEntrySyncSnapshot.merged(with:)` uses `libraryUpdatedAt` for membership/display fields and `trackingUpdatedAt` for tracking fields. Episode progress merges per-season by progress clock. This prevents cross-domain overwrites.
-
-### Resilience
-
-8. **Token namespace isolation prevents cross-account leakage**  
-   `CloudLibrarySyncChangeTokenStore.Namespace` combines `containerIdentifier` + `accountIdentifier`. Tokens from one iCloud account are never reused for another.
-
-9. **Token expiry handled with automatic retry**  
-   `CloudLibrarySyncImporter.fetchChanges` catches `.changeTokenExpired`, clears the stored token, and retries from the beginning of the zone. One retry is attempted.
-
-10. **Concurrent sync requests are serialized**  
-    `LibrarySyncCoordinator.sync(trigger:)` uses `isSyncing` + `syncWaiters` to serialize concurrent calls. The `repeat { ... } while syncRequestedWhileRunning` loop handles requests that arrive while a sync is finishing.
-
----
-
-## Test Coverage Assessment
-
-| Category | Count | Confidence |
-|----------|-------|------------|
-| Well-tested core logic (snapshots, merges, tombstones, codec) | ~20 tests | **High** |
-| Importer/exporter integration | 4 tests | **High** |
-| Coordinator integration | 7 tests | **Medium-High** |
-| Remaining important gaps (coordinator partial export, direct suppression test, deterministic scheduler tests) | 3-4 gaps | **Medium — should be addressed before rollout** |
-| Rollout/manual-validation paths | Pending Stage 6-8 | Medium |
-
-### Must-Add Tests Before Rollout
-
-1. **Partial export failure in coordinator** — verify only successful identities are dequeued
-2. **Recorder suppression** — verify `processSaveNotification` is skipped when `suppressionDepth > 0`
-3. **Duplicate save notification deduplication** — verify identical clocks don't flood the queue
-4. **`applyInitialSyncSnapshot` direct unit coverage** — coordinator integration covers fresh nil-clock materialization, but a focused method-level test would be useful
-
-Already covered: bulk delete rollback is tested in `LibraryPreferencesAndActionsTests`.
-
----
-
 ## Top Priorities to Fix
 
 ### Before Stage 6 (Settings & Rollout)
 
-1. **WARN-7:** Commit change token after successful local save, not after UI refresh
-2. **WARN-12:** Add `@MainActor` dispatch in Combine sink for future Swift 6 compatibility
-3. **Hydration cleanup:** Add coverage or cleanup for staged hydrated inserts if later apply/save fails; this is a downgraded partial finding, not a confirmed critical orphan bug
+1. **WARN-12:** Add `@MainActor` dispatch in Combine sink for future Swift 6 compatibility
+2. **Hydration cleanup:** Add coverage or cleanup for staged hydrated inserts if later apply/save fails; this is a downgraded partial finding, not a confirmed critical orphan bug
 
 ### Before Stage 8 (Manual Validation)
 
 4. **WARN-4:** Define account-change policy, then add `CKAccountChanged` observer behavior
 5. **WARN-8:** Surface per-record CloudKit error details if rollout needs smarter retry/status
 6. **WARN-9 / WARN-10:** Add specific handling for `zoneNotFound`, `userDeletedZone`, rate limits, and quota exceeded as part of restore/status policy
-13. **All remaining must-add tests** (see Test Coverage section above)
+7. **All remaining must-add tests** (see Test Coverage section above)
 
 ---
 
 ## Files Reviewed
 
 **Implementation:**
+
 - `DataProvider/Sources/LibrarySync/LibraryEntrySyncSnapshot.swift`
 - `DataProvider/Sources/LibrarySync/CloudLibrarySyncClient.swift`
 - `DataProvider/Sources/LibrarySync/CloudLibrarySyncChangeTokenStore.swift`
@@ -316,6 +173,7 @@ Already covered: bulk delete rollback is tested in `LibraryPreferencesAndActions
 - `MyAnimeList/Sources/ViewModels/Library/LibraryRepository.swift`
 
 **Tests:**
+
 - `DataProvider/Tests/LibrarySyncTests/LibraryEntrySyncTests.swift`
 - `DataProvider/Tests/LibrarySyncTests/CloudLibrarySyncClientTests.swift`
 - `DataProvider/Tests/LibrarySyncTests/CloudLibrarySyncImporterExporterTests.swift`
