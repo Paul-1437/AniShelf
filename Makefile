@@ -20,7 +20,7 @@ test:
 	@[ -n "$(CONNECTED_IOS_DEVICE_ID)" ] || { echo "No connected iPhone found."; exit 1; }
 	@echo "Using device $(CONNECTED_IOS_DEVICE_ID)"
 	@echo "Running MyAnimeList tests..."
-	@xcodebuild -quiet -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) -destination "id=$(CONNECTED_IOS_DEVICE_ID)" test -only-testing:MyAnimeListTests && echo "** TEST SUCCEEDED **"
+	@xcodebuild -quiet -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIGURATION) -destination "id=$(CONNECTED_IOS_DEVICE_ID)" test -only-testing:MyAnimeListTests -collect-test-diagnostics never && echo "** TEST SUCCEEDED **"
 	@echo "MyAnimeList tests completed."
 	@$(MAKE) --no-print-directory test-dataprovider
 	@echo "All tests completed."
