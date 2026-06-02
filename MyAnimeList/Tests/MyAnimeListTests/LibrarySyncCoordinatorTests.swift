@@ -28,7 +28,7 @@ struct LibrarySyncCoordinatorTests {
                 #expect(trigger == .localDirtyQueueChange)
                 syncCount += 1
                 hasPendingDirtyWork = false
-                return true
+                return .success
             }
         )
 
@@ -56,10 +56,10 @@ struct LibrarySyncCoordinatorTests {
             sync: { _ in
                 syncCount += 1
                 if syncCount == 1 {
-                    return false
+                    return .retryableFailure
                 }
                 hasPendingDirtyWork = false
-                return true
+                return .success
             }
         )
 
@@ -76,6 +76,26 @@ struct LibrarySyncCoordinatorTests {
         try await Task.sleep(nanoseconds: 80_000_000)
 
         #expect(syncCount == 2)
+    }
+
+    @Test @MainActor func dirtyQueueSchedulerDoesNotRetryPermanentFailure() async throws {
+        var syncCount = 0
+        let scheduler = LibrarySyncScheduler(
+            localDebounceInterval: 0.01,
+            failureRetryIntervals: [0.02],
+            hasPendingDirtyWork: {
+                true
+            },
+            sync: { _ in
+                syncCount += 1
+                return .permanentFailure
+            }
+        )
+
+        scheduler.scheduleLocalDirtyQueueSync()
+        try await Task.sleep(nanoseconds: 40_000_000)
+
+        #expect(syncCount == 1)
     }
 
     @Test @MainActor func remoteUpdateDoesNotEnqueueDirtyUpsert() async throws {

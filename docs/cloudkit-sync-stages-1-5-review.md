@@ -16,85 +16,13 @@ No confirmed critical Stage 1–5 correctness issue remains after narrowing the 
 | Severity | Count | Themes |
 |----------|-------|--------|
 | **🔴 Critical** | 0 | None confirmed |
-| **🟡 Stage 1–5 Warning** | 8 | Retry behavior, token commit ordering, setup hardening, test gaps |
+| **🟡 Stage 1–5 Warning** | 4 | Token commit ordering, concurrency hardening, test gaps |
 | **⚪ Out of Stage 1–5 Scope** | 5 | Account-change policy, restore recovery, rate/quota UX, rollout settings |
 | **🟢 Positive** | 10 | Strong architecture, good test coverage on core logic, correct sequencing |
 
 ---
 
 ## 🟡 Valid Stage 1–5 Warning Issues
-
-### WARN-2: TMDb API Key Guard Missing from Coordinator
-
-**File:** `MyAnimeList/Sources/ViewModels/Library/LibrarySyncCoordinator.swift:277-308`  
-**Status:** Partially valid
-
-The plan states that app sync requests happen "when the TMDb API key is available." Launch, foreground, and CloudKit notification triggers are guarded at the app layer, but the coordinator and scheduler themselves do not have a key gate. `hydrateMissingEntry` calls `store.infoFetcher.latestInfo(...)`, and `InfoFetcher` can be constructed with an empty key. Without a key:
-- Hydration fails for any missing remote entry
-- The entire `apply()` phase throws
-- The token is never advanced
-- A local dirty-queue scheduler path can still trigger retries
-
-**Fix:** Either enforce TMDb key availability in the sync scheduler/coordinator boundary, or make hydration gracefully defer missing rows when the key is unavailable.
-
----
-
-### WARN-3: Scheduler Retries Without Distinguishing Recoverable vs. Permanent Failures
-
-**File:** `MyAnimeList/Sources/ViewModels/Library/LibrarySyncScheduler.swift:70-78`  
-**Status:** Confirmed valid
-
-```swift
-private func scheduleFailureRetryIfNeeded() {
-    guard hasPendingDirtyWork(), !failureRetryIntervals.isEmpty else { return }
-    let retryDelay = failureRetryIntervals[min(failureRetryAttempt, failureRetryIntervals.count - 1)]
-    failureRetryAttempt += 1
-    // ... schedules retry
-}
-```
-
-Any failure triggers retry with backoff. If the failure is "no iCloud account" or another permanent failure, the scheduler keeps retrying while dirty work remains. Retries are **not** capped at 4; the code clamps to the last interval after the fourth failure and continues retrying indefinitely.
-
-**Fix:** Distinguish transient failures (network, rate limit) from permanent failures (no account, disabled) in the coordinator's error reporting, and skip retries for permanent conditions.
-
----
-
-### WARN-5: Pagination Loop Has No Page Limit
-
-**File:** `DataProvider/Sources/LibrarySync/CloudLibrarySyncImporter.swift:148-168`  
-**Status:** Valid low-probability hardening
-
-```swift
-repeat {
-    let batch = try await database.fetchRecordZoneChanges(...)
-    // ...
-    if !batch.moreComing { break }
-} while true
-```
-
-No maximum page count, timeout, or record limit. A buggy CloudKit response could set `moreComing = true` indefinitely.
-
-**Fix:** Add a `maxPages` guard (e.g., 100) and throw if exceeded.
-
----
-
-### WARN-6: `serverRejectedRequest` Treated as "Already Exists"
-
-**File:** `DataProvider/Sources/LibrarySync/CloudLibrarySyncDatabase.swift:232-235`  
-**Status:** Confirmed valid
-
-```swift
-fileprivate var isCloudLibrarySyncAlreadyExists: Bool {
-    guard let ckError = self as? CKError else { return false }
-    return ckError.code == .serverRejectedRequest || ckError.code == .constraintViolation
-}
-```
-
-`.serverRejectedRequest` is a broad error code that can indicate many problems beyond "already exists." Treating it as success could mask real configuration errors during zone or subscription creation.
-
-**Fix:** Only treat `.constraintViolation` and `.serverRejectedRequest` with the specific "already exists" reason as success, or log and inspect the error details.
-
----
 
 ### WARN-7: Token Commit Blocked by UI Refresh Failure
 
@@ -261,12 +189,10 @@ These findings contain some truth but were overstated in severity or description
 |---|---------------|---------|---------|
 | CRIT-2 | Hydration failure leaves orphaned parent series entries because child `insert` can throw after parent `insert` | The exact claim is wrong: `repository.insert(_:)` is non-throwing and the throwing boundary is the later save/apply phase. The broader cleanup/idempotence concern is still worth testing if staged hydrated inserts are saved after a later failure. | Downgraded / Partial |
 | P-1 | `processSaveNotification` "silently drops" errors | Errors are logged; baseline is rolled back for retry on next notification. Reasonable for a notification handler. | Overstated |
-| P-2 | Disabled database doesn't distinguish error types | Partly true for disabled/test plumbing. The original rationale was wrong because scheduler retries are not bounded; they repeat at the last interval while dirty work remains. | Partial |
 | P-3 | Episode progress JSON blob prevents field-level merge | Design trade-off for current scale. Acceptable for typical anime (1-5 seasons). | Trade-off |
 | P-4 | `episodeProgresses` could exceed CloudKit record size | Theoretical. 1MB record limit is far away for typical episode progress data. | Theoretical |
 | P-5 | `.allKeys` save policy causes silent overwrite of concurrent changes | Intentional for full-snapshot-replacement model. Conflict resolution happens at merge layer. | By design |
 | P-6 | No account status check before sync | Error is caught and returns false. Missing error categorization, not missing handling. | Partial |
-| P-7 | Export "poison pill" — repeated failures never escalate | Valid. Retries are not capped; they repeat indefinitely at the last configured interval while dirty work remains. | Promoted to WARN-3 |
 
 ---
 
@@ -356,18 +282,14 @@ Already covered: bulk delete rollback is tested in `LibraryPreferencesAndActions
 ### Before Stage 6 (Settings & Rollout)
 
 1. **WARN-7:** Commit change token after successful local save, not after UI refresh
-2. **WARN-3:** Stop indefinite poison-pill retries or classify permanent failures
-3. **WARN-2:** Enforce TMDb key availability at scheduler/coordinator boundaries, or make hydration gracefully defer missing rows
-4. **WARN-6:** Narrow `.serverRejectedRequest` handling so CloudKit setup errors are not masked
-5. **WARN-12:** Add `@MainActor` dispatch in Combine sink for future Swift 6 compatibility
-6. **Hydration cleanup:** Add coverage or cleanup for staged hydrated inserts if later apply/save fails; this is a downgraded partial finding, not a confirmed critical orphan bug
+2. **WARN-12:** Add `@MainActor` dispatch in Combine sink for future Swift 6 compatibility
+3. **Hydration cleanup:** Add coverage or cleanup for staged hydrated inserts if later apply/save fails; this is a downgraded partial finding, not a confirmed critical orphan bug
 
 ### Before Stage 8 (Manual Validation)
 
-9. **WARN-4:** Define account-change policy, then add `CKAccountChanged` observer behavior
-10. **WARN-5:** Add pagination page limit
-11. **WARN-8:** Surface per-record CloudKit error details if rollout needs smarter retry/status
-12. **WARN-9 / WARN-10:** Add specific handling for `zoneNotFound`, `userDeletedZone`, rate limits, and quota exceeded as part of restore/status policy
+4. **WARN-4:** Define account-change policy, then add `CKAccountChanged` observer behavior
+5. **WARN-8:** Surface per-record CloudKit error details if rollout needs smarter retry/status
+6. **WARN-9 / WARN-10:** Add specific handling for `zoneNotFound`, `userDeletedZone`, rate limits, and quota exceeded as part of restore/status policy
 13. **All remaining must-add tests** (see Test Coverage section above)
 
 ---

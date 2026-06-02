@@ -188,8 +188,9 @@ class LibraryStore {
                 return !syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty
             },
             sync: { [weak self] trigger in
-                guard let self else { return false }
-                return await self.performLibrarySync(trigger: trigger)
+                guard let self else { return .permanentFailure }
+                guard let syncCoordinator else { return .permanentFailure }
+                return await syncCoordinator.syncResult(trigger: trigger)
             }
         )
         syncScheduler = scheduler

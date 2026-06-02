@@ -33,6 +33,16 @@ final class LibrarySyncCoordinator {
         case manualRetry
     }
 
+    enum SyncResult: Equatable {
+        case success
+        case retryableFailure
+        case permanentFailure
+
+        var succeeded: Bool {
+            self == .success
+        }
+    }
+
     private weak var store: LibraryStore?
     private let importer: CloudLibrarySyncImporter
     private let exporter: CloudLibrarySyncExporter
@@ -41,7 +51,7 @@ final class LibrarySyncCoordinator {
 
     private var isSyncing = false
     private var syncRequestedWhileRunning = false
-    private var syncWaiters: [CheckedContinuation<Bool, Never>] = []
+    private var syncWaiters: [CheckedContinuation<SyncResult, Never>] = []
 
     private enum SyncPhase: String {
         case prepareZoneSubscription
@@ -122,6 +132,12 @@ final class LibrarySyncCoordinator {
     /// Concurrent requests are serialized and merged so callers do not start
     /// overlapping CloudKit work.
     func sync(trigger: Trigger) async -> Bool {
+        await syncResult(trigger: trigger).succeeded
+    }
+
+    /// Runs one coalesced sync pass and preserves failure classification for
+    /// local dirty-queue retry scheduling.
+    func syncResult(trigger: Trigger) async -> SyncResult {
         if isSyncing {
             syncRequestedWhileRunning = true
             librarySyncCoordinatorLogger.info(
@@ -136,29 +152,29 @@ final class LibrarySyncCoordinator {
         librarySyncCoordinatorLogger.info(
             "Starting iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
         )
-        var succeeded = true
+        var result = SyncResult.success
 
         repeat {
             syncRequestedWhileRunning = false
-            succeeded = await runSync(trigger: trigger) && succeeded
+            result = result.merged(with: await runSync(trigger: trigger))
         } while syncRequestedWhileRunning
 
         isSyncing = false
         let waiters = syncWaiters
         syncWaiters.removeAll()
         for waiter in waiters {
-            waiter.resume(returning: succeeded)
+            waiter.resume(returning: result)
         }
-        return succeeded
+        return result
     }
 
     /// Executes the ordered sync phases once.
-    private func runSync(trigger: Trigger) async -> Bool {
+    private func runSync(trigger: Trigger) async -> SyncResult {
         guard let store else {
             librarySyncCoordinatorLogger.warning(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because the library store was unavailable."
             )
-            return false
+            return .permanentFailure
         }
         var currentPhase: SyncPhase?
 
@@ -171,7 +187,7 @@ final class LibrarySyncCoordinator {
                 librarySyncCoordinatorLogger.warning(
                     "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because no iCloud account namespace was available."
                 )
-                return false
+                return .permanentFailure
             }
 
             let localSnapshots = try localSnapshotsByIdentity(for: store)
@@ -206,13 +222,13 @@ final class LibrarySyncCoordinator {
             librarySyncCoordinatorLogger.info(
                 "Finished iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
             )
-            return true
+            return .success
         } catch {
             let phase = currentPhase?.rawValue ?? "unknown"
             librarySyncCoordinatorLogger.error(
                 "iCloud library sync triggered by \(trigger.rawValue, privacy: .public) failed during \(phase, privacy: .public): \(error.localizedDescription, privacy: .private)"
             )
-            return false
+            return error.isPermanentLibrarySyncFailure ? .permanentFailure : .retryableFailure
         }
     }
 
@@ -363,9 +379,37 @@ final class LibrarySyncCoordinator {
     }
 }
 
+extension LibrarySyncCoordinator.SyncResult {
+    fileprivate func merged(with nextResult: Self) -> Self {
+        switch (self, nextResult) {
+        case (.retryableFailure, _), (_, .retryableFailure):
+            return .retryableFailure
+        case (.permanentFailure, _), (_, .permanentFailure):
+            return .permanentFailure
+        case (.success, .success):
+            return .success
+        }
+    }
+}
+
 fileprivate struct ApplicationTarget {
     let entry: AnimeEntry
     let isInitialMaterialization: Bool
+}
+
+extension Error {
+    fileprivate var isPermanentLibrarySyncFailure: Bool {
+        if self is DisabledCloudLibrarySyncDatabase.DisabledError {
+            return true
+        }
+        guard let ckError = self as? CKError else { return false }
+        switch ckError.code {
+        case .notAuthenticated, .permissionFailure:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 extension LibraryEntrySyncRemoteChange {

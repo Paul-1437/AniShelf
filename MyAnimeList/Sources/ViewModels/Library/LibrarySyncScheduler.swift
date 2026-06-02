@@ -19,7 +19,7 @@ final class LibrarySyncScheduler {
     private let localDebounceInterval: TimeInterval
     private let failureRetryIntervals: [TimeInterval]
     private let hasPendingDirtyWork: @MainActor () -> Bool
-    private let sync: @MainActor (LibrarySyncCoordinator.Trigger) async -> Bool
+    private let sync: @MainActor (LibrarySyncCoordinator.Trigger) async -> LibrarySyncCoordinator.SyncResult
 
     private var scheduledTask: Task<Void, Never>?
     private var nextRetryAllowedAt: Date?
@@ -29,7 +29,7 @@ final class LibrarySyncScheduler {
         localDebounceInterval: TimeInterval = 3,
         failureRetryIntervals: [TimeInterval] = [30, 60, 120, 300],
         hasPendingDirtyWork: @escaping @MainActor () -> Bool,
-        sync: @escaping @MainActor (LibrarySyncCoordinator.Trigger) async -> Bool
+        sync: @escaping @MainActor (LibrarySyncCoordinator.Trigger) async -> LibrarySyncCoordinator.SyncResult
     ) {
         self.localDebounceInterval = localDebounceInterval
         self.failureRetryIntervals = failureRetryIntervals
@@ -59,12 +59,18 @@ final class LibrarySyncScheduler {
             return
         }
 
-        let succeeded = await sync(.localDirtyQueueChange)
-        guard succeeded else {
+        let result = await sync(.localDirtyQueueChange)
+        switch result {
+        case .success:
+            resetFailureBackoff()
+        case .retryableFailure:
             scheduleFailureRetryIfNeeded()
-            return
+        case .permanentFailure:
+            resetFailureBackoff()
+            librarySyncSchedulerLogger.warning(
+                "Skipped automatic iCloud library sync retry after a non-retryable local-change sync failure."
+            )
         }
-        resetFailureBackoff()
     }
 
     private func scheduleFailureRetryIfNeeded() {
