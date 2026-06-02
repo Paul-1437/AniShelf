@@ -8,14 +8,14 @@
 import Foundation
 import SwiftData
 
-enum AnimeEntryMigrationWatchStatus {
+enum AnimeEntryMigrationWatchStatus: Sendable {
     case planToWatch
     case watching
     case watched
     case dropped
 }
 
-struct AnimeEntryMigrationDTO {
+struct AnimeEntryMigrationDTO: Sendable {
     var originalIndex: Int
     var oldID: PersistentIdentifier
     var parentSeriesOldID: PersistentIdentifier?

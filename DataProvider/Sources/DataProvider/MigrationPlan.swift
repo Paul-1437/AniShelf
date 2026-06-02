@@ -68,13 +68,49 @@ enum MigrationPlan: SchemaMigrationPlan {
 }
 
 extension MigrationStage {
-    private struct ParentSeriesCleanupPlan {
+    private struct ParentSeriesCleanupPlan: Sendable {
         let canonicalParentOldIDByTMDbID: [Int: PersistentIdentifier]
         let discardedParentOldIDs: Set<PersistentIdentifier>
     }
 
+    private struct V210MigrationEntryData: Sendable {
+        let name: String
+        let overview: String?
+        let onAirDate: Date?
+        let type: AnimeType
+        let linkToDetails: URL?
+        let posterURL: URL?
+        let backdropURL: URL?
+        let tmdbID: Int
+        let useSeriesPoster: Bool
+        let dateSaved: Date
+        let dateStarted: Date?
+        let dateFinished: Date?
+    }
+
+    private final class MigrationState<Value: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Value
+
+        init(_ value: Value) {
+            self.value = value
+        }
+
+        func set(_ newValue: Value) {
+            lock.withLock {
+                value = newValue
+            }
+        }
+
+        func get() -> Value {
+            lock.withLock {
+                value
+            }
+        }
+    }
+
     static func migrateV201ToV210() -> MigrationStage {
-        var newEntries: [SchemaV2_1_0.AnimeEntry] = []
+        let newEntries = MigrationState<[V210MigrationEntryData]>([])
 
         return MigrationStage.custom(
             fromVersion: SchemaV2_0_1.self,
@@ -82,37 +118,53 @@ extension MigrationStage {
             willMigrate: { context in
                 let descriptor = FetchDescriptor<SchemaV2_0_1.AnimeEntry>()
                 let oldEntries = try context.fetch(descriptor)
-                newEntries = oldEntries.map { old in
-                    let type: AnimeType
-                    switch old.entryType {
-                    case .movie: type = .movie
-                    case .tvSeries: type = .series
-                    case .tvSeason(let seasonNumber, let parentSeriesID):
-                        type = .season(seasonNumber: seasonNumber, parentSeriesID: parentSeriesID)
-                    }
+                newEntries.set(
+                    oldEntries.map { old in
+                        let type: AnimeType
+                        switch old.entryType {
+                        case .movie: type = .movie
+                        case .tvSeries: type = .series
+                        case .tvSeason(let seasonNumber, let parentSeriesID):
+                            type = .season(seasonNumber: seasonNumber, parentSeriesID: parentSeriesID)
+                        }
 
-                    let newEntry = SchemaV2_1_0.AnimeEntry(
-                        name: old.name,
-                        overview: old.overview,
-                        onAirDate: old.onAirDate,
-                        type: type,
-                        linkToDetails: old.linkToDetails,
-                        posterURL: old.posterURL,
-                        backdropURL: old.backdropURL,
-                        tmdbID: old.tmdbID,
-                        useSeriesPoster: old.useSeriesPoster,
-                        dateSaved: old.dateSaved,
-                        dateStarted: old.dateStarted,
-                        dateFinished: old.dateFinished
-                    )
-                    context.delete(old)
-                    return newEntry
-                }
+                        let newEntry = V210MigrationEntryData(
+                            name: old.name,
+                            overview: old.overview,
+                            onAirDate: old.onAirDate,
+                            type: type,
+                            linkToDetails: old.linkToDetails,
+                            posterURL: old.posterURL,
+                            backdropURL: old.backdropURL,
+                            tmdbID: old.tmdbID,
+                            useSeriesPoster: old.useSeriesPoster,
+                            dateSaved: old.dateSaved,
+                            dateStarted: old.dateStarted,
+                            dateFinished: old.dateFinished
+                        )
+                        context.delete(old)
+                        return newEntry
+                    })
                 try context.save()
             },
             didMigrate: { context in
-                for entry in newEntries {
-                    context.insert(entry)
+                for entryData in newEntries.get() {
+                    context.insert(
+                        SchemaV2_1_0.AnimeEntry(
+                            name: entryData.name,
+                            overview: entryData.overview,
+                            onAirDate: entryData.onAirDate,
+                            type: entryData.type,
+                            linkToDetails: entryData.linkToDetails,
+                            posterURL: entryData.posterURL,
+                            backdropURL: entryData.backdropURL,
+                            tmdbID: entryData.tmdbID,
+                            useSeriesPoster: entryData.useSeriesPoster,
+                            dateSaved: entryData.dateSaved,
+                            dateStarted: entryData.dateStarted,
+                            dateFinished: entryData.dateFinished
+                        )
+                    )
                 }
                 try context.save()
             }
@@ -120,20 +172,21 @@ extension MigrationStage {
     }
 
     static func migrateV260ToV270() -> MigrationStage {
-        var snapshots: [AnimeEntryMigrationDTO] = []
+        let snapshots = MigrationState<[AnimeEntryMigrationDTO]>([])
 
         return MigrationStage.custom(
             fromVersion: SchemaV2_6_0.self,
             toVersion: SchemaV2_7_0.self,
             willMigrate: { context in
-                snapshots = try Self.captureAndDeleteEntries(in: context) {
-                    (index: Int, entry: SchemaV2_6_0.AnimeEntry) in
-                    entry.migrationDTO(index: index)
-                }
+                snapshots.set(
+                    try Self.captureAndDeleteEntries(in: context) {
+                        (index: Int, entry: SchemaV2_6_0.AnimeEntry) in
+                        entry.migrationDTO(index: index)
+                    })
             },
             didMigrate: { context in
                 try Self.rebuildEntries(
-                    from: snapshots,
+                    from: snapshots.get(),
                     in: context,
                     makeEntry: { snapshot in
                         SchemaV2_7_0.AnimeEntry(
@@ -151,20 +204,21 @@ extension MigrationStage {
     }
 
     static func migrateV270ToV271() -> MigrationStage {
-        var snapshots: [AnimeEntryMigrationDTO] = []
+        let snapshots = MigrationState<[AnimeEntryMigrationDTO]>([])
 
         return MigrationStage.custom(
             fromVersion: SchemaV2_7_0.self,
             toVersion: SchemaV2_7_1.self,
             willMigrate: { context in
-                snapshots = try Self.captureAndDeleteEntries(in: context) {
-                    (index: Int, entry: SchemaV2_7_0.AnimeEntry) in
-                    entry.migrationDTO(index: index)
-                }
+                snapshots.set(
+                    try Self.captureAndDeleteEntries(in: context) {
+                        (index: Int, entry: SchemaV2_7_0.AnimeEntry) in
+                        entry.migrationDTO(index: index)
+                    })
             },
             didMigrate: { context in
                 try Self.rebuildEntries(
-                    from: snapshots,
+                    from: snapshots.get(),
                     in: context,
                     makeEntry: { snapshot in
                         SchemaV2_7_1.AnimeEntry(
@@ -182,21 +236,23 @@ extension MigrationStage {
     }
 
     static func migrateV273ToV274() -> MigrationStage {
-        var snapshots: [AnimeEntryMigrationDTO] = []
+        let snapshots = MigrationState<[AnimeEntryMigrationDTO]>([])
 
         return MigrationStage.custom(
             fromVersion: SchemaV2_7_3.self,
             toVersion: SchemaV2_7_4.self,
             willMigrate: { context in
-                snapshots = try Self.captureAndDeleteEntries(in: context) {
-                    (index: Int, entry: SchemaV2_7_3.AnimeEntry) in
-                    entry.migrationDTO(index: index)
-                }
+                snapshots.set(
+                    try Self.captureAndDeleteEntries(in: context) {
+                        (index: Int, entry: SchemaV2_7_3.AnimeEntry) in
+                        entry.migrationDTO(index: index)
+                    })
             },
             didMigrate: { context in
-                let cleanupPlan = Self.parentSeriesCleanupPlan(from: snapshots)
+                let migratedSnapshots = snapshots.get()
+                let cleanupPlan = Self.parentSeriesCleanupPlan(from: migratedSnapshots)
                 try Self.rebuildEntries(
-                    from: snapshots,
+                    from: migratedSnapshots,
                     in: context,
                     include: { snapshot in
                         cleanupPlan.discardedParentOldIDs.contains(snapshot.oldID) == false
