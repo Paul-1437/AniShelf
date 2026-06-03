@@ -743,6 +743,43 @@ struct LibrarySyncCoordinatorTests {
         #expect(fixture.database.savedRecords.isEmpty)
     }
 
+    @Test @MainActor func disablingLibraryCloudSyncClearsTransientStateAndPersists() {
+        let store = makeStore(
+            enabled: true,
+            bootstrapState: .completed,
+            hasTMDbAPIKey: true
+        )
+        store.updateLibraryCloudSyncStatus { status in
+            status.currentPhase = .syncing
+            status.pendingConflictSummary = .init(
+                entryCount: 2,
+                libraryDomainCount: 1,
+                trackingDomainCount: 1,
+                episodeProgressDomainCount: 0
+            )
+            status.retryState = .init(
+                failureRetryAttempt: 2,
+                nextRetryAllowedAt: referenceDate(year: 2026, month: 6, day: 2),
+                automaticRetriesExhausted: true
+            )
+            status.lastResult = .retryableFailure
+            status.lastFailureReason = "Network unavailable."
+            status.degradedReason = "Automatic retries are exhausted."
+        }
+
+        store.disableLibraryCloudSync()
+
+        #expect(!store.libraryCloudSyncStatus.isEnabled)
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .notStarted)
+        #expect(store.libraryCloudSyncStatus.pendingConflictSummary == nil)
+        #expect(store.libraryCloudSyncStatus.currentPhase == nil)
+        #expect(store.libraryCloudSyncStatus.retryState == .idle)
+        #expect(store.libraryCloudSyncStatus.lastResult == .skipped)
+        #expect(store.libraryCloudSyncStatus.lastFailureReason == nil)
+        #expect(store.libraryCloudSyncStatus.degradedReason == nil)
+        #expect(store.preferences.load().cloudSyncStatus == store.libraryCloudSyncStatus)
+    }
+
     @Test @MainActor func cancelingInFlightFirstEnableBootstrapStopsBeforeExport() async throws {
         let store = makeStore(
             enabled: false,

@@ -103,6 +103,10 @@ final class LibraryProfileSettingsActions {
         store.cancelLibraryCloudSyncEnablement()
     }
 
+    func disableLibraryCloudSync() {
+        store.disableLibraryCloudSync()
+    }
+
     @discardableResult
     func retryLibraryCloudSync() async -> Bool {
         await store.retryLibraryCloudSync()

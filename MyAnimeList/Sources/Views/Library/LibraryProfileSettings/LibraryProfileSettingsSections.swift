@@ -140,6 +140,7 @@ struct LibraryProfileLibraryDetailsCard: View {
 
 struct LibraryProfileSettingsCard: View {
     @Environment(\.colorScheme) private var colorScheme
+    @State private var cloudSyncActionInFlight = false
 
     @Binding var followsSystemLanguage: Bool
     @Binding var hideDroppedByDefault: Bool
@@ -155,10 +156,16 @@ struct LibraryProfileSettingsCard: View {
     @Binding var useTMDbRelayServer: Bool
     @Binding var preferredLanguage: Language
 
+    let libraryCloudSyncStatus: LibraryCloudSyncStatus
     let restoreCompleted: Bool
     let createBackupItems: () -> [Any]?
     let onExportLibrary: (LibraryExportFormat) -> Void
     let onRestore: () -> Void
+    let onEnableLibraryCloudSync: () async -> Bool
+    let onDisableLibraryCloudSync: () -> Void
+    let onRetryLibraryCloudSync: () async -> Bool
+    let onResolveLibraryCloudSyncConflicts: (LibraryCloudSyncConflictPreference) async -> Bool
+    let onCancelLibraryCloudSyncEnablement: () -> Void
     let onChangeAPIKey: () -> Void
     let onCheckMetadataCacheSize: () -> Void
     let onRefreshInfos: () -> Void
@@ -180,6 +187,7 @@ struct LibraryProfileSettingsCard: View {
                 languagePickerRow
                 defaultLibraryBehaviorRow
                 tmdbConnectionRow
+                iCloudSyncRow
                 backupManagementRow
                 maintenanceActions
             }
@@ -405,6 +413,130 @@ struct LibraryProfileSettingsCard: View {
         .libraryProfileInsetPanel(cornerRadius: 22, tint: .cyan)
     }
 
+    private var iCloudSyncRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LibraryProfileSettingHeader(
+                title: "iCloud Sync",
+                subtitle: "Keep your library available across devices.",
+                systemImage: "icloud",
+                tint: .indigo
+            )
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("iCloud Library Sync")
+                        .font(.subheadline.weight(.semibold))
+                    Text(cloudSyncToggleSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 12)
+                HStack(spacing: 8) {
+                    if cloudSyncIsBusy {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
+                    Toggle("iCloud Library Sync", isOn: cloudSyncToggleBinding)
+                        .labelsHidden()
+                        .tint(.indigo)
+                        .scaleEffect(0.78, anchor: .trailing)
+                        .frame(width: 42, height: 26, alignment: .trailing)
+                        .disabled(cloudSyncIsBusy)
+                }
+            }
+            .padding(.vertical, 2)
+
+            if libraryCloudSyncStatus.isEnabled {
+                cloudSyncStatusRow
+
+                switch libraryCloudSyncStatus.bootstrapState {
+                case .running:
+                    cloudSyncProgressRow
+                case .failed:
+                    cloudSyncFailureRow
+                case .needsConflictChoice:
+                    cloudSyncConflictPrompt
+                case .notStarted, .completed:
+                    EmptyView()
+                }
+
+                Button("Sync Now", systemImage: "arrow.clockwise", action: retryLibraryCloudSync)
+                    .buttonStyle(LibraryProfileCommandButtonStyle(tint: .indigo, filled: false))
+                    .disabled(cloudSyncManualRetryDisabled)
+            }
+        }
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .indigo)
+    }
+
+    private var cloudSyncStatusRow: some View {
+        HStack(spacing: 12) {
+            LibraryProfileSettingIcon(
+                systemImage: libraryCloudSyncStatus.statusDisplay.systemImage,
+                tint: libraryCloudSyncStatus.statusDisplay.tint
+            )
+            VStack(alignment: .leading, spacing: 3) {
+                Text(libraryCloudSyncStatus.statusDisplay.title)
+                    .font(.subheadline.weight(.semibold))
+                Text(libraryCloudSyncStatus.lastSyncDisplayResource)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var cloudSyncProgressRow: some View {
+        HStack(spacing: 10) {
+            ProgressView()
+                .controlSize(.small)
+            Text(libraryCloudSyncStatus.currentPhase?.progressTitleResource ?? "Syncing")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var cloudSyncFailureRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let reason = libraryCloudSyncStatus.lastFailureReason, !reason.isEmpty {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button("Retry", systemImage: "arrow.clockwise", action: retryLibraryCloudSync)
+                .buttonStyle(LibraryProfileCommandButtonStyle(tint: .red, filled: false))
+                .disabled(cloudSyncManualRetryDisabled)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var cloudSyncConflictPrompt: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(conflictSummaryResource)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                Button("Use iCloud", action: { resolveLibraryCloudSyncConflicts(.preferCloud) })
+                    .buttonStyle(LibraryProfileCommandButtonStyle(tint: .indigo, filled: false))
+                Button("Use This Device", action: { resolveLibraryCloudSyncConflicts(.preferLocal) })
+                    .buttonStyle(LibraryProfileCommandButtonStyle(tint: .mint, filled: false))
+            }
+
+            Button("Cancel", role: .cancel, action: cancelLibraryCloudSyncEnablement)
+                .buttonStyle(LibraryProfileCommandButtonStyle(tint: .secondary, filled: false))
+        }
+        .disabled(cloudSyncActionInFlight)
+        .padding(.vertical, 2)
+    }
+
     private var backupManagementRow: some View {
         VStack(alignment: .leading, spacing: 12) {
             LibraryProfileSettingHeader(
@@ -549,6 +681,76 @@ struct LibraryProfileSettingsCard: View {
         colorScheme == .dark ? .black.opacity(0.22) : .white.opacity(0.05)
     }
 
+    private var cloudSyncToggleBinding: Binding<Bool> {
+        Binding(
+            get: { libraryCloudSyncStatus.isEnabled },
+            set: { isEnabled in
+                if isEnabled {
+                    enableLibraryCloudSync()
+                } else {
+                    onDisableLibraryCloudSync()
+                }
+            }
+        )
+    }
+
+    private var cloudSyncIsBusy: Bool {
+        cloudSyncActionInFlight
+            || libraryCloudSyncStatus.bootstrapState == .running
+            || libraryCloudSyncStatus.currentPhase != nil
+    }
+
+    private var cloudSyncManualRetryDisabled: Bool {
+        cloudSyncIsBusy || libraryCloudSyncStatus.bootstrapState == .needsConflictChoice
+    }
+
+    private var cloudSyncToggleSubtitle: LocalizedStringResource {
+        if libraryCloudSyncStatus.isEnabled {
+            "Sync is enabled for this library."
+        } else {
+            "Turn on to bootstrap iCloud sync."
+        }
+    }
+
+    private var conflictSummaryResource: LocalizedStringResource {
+        guard let summary = libraryCloudSyncStatus.pendingConflictSummary else {
+            return "Choose which library data to keep."
+        }
+        return
+            "\(summary.entryCount) entries need a choice. Library: \(summary.libraryDomainCount), tracking: \(summary.trackingDomainCount), episodes: \(summary.episodeProgressDomainCount)."
+    }
+
+    private func enableLibraryCloudSync() {
+        guard !cloudSyncIsBusy else { return }
+        cloudSyncActionInFlight = true
+        Task {
+            _ = await onEnableLibraryCloudSync()
+            cloudSyncActionInFlight = false
+        }
+    }
+
+    private func retryLibraryCloudSync() {
+        guard !cloudSyncManualRetryDisabled else { return }
+        cloudSyncActionInFlight = true
+        Task {
+            _ = await onRetryLibraryCloudSync()
+            cloudSyncActionInFlight = false
+        }
+    }
+
+    private func resolveLibraryCloudSyncConflicts(_ preference: LibraryCloudSyncConflictPreference) {
+        guard !cloudSyncActionInFlight else { return }
+        cloudSyncActionInFlight = true
+        Task {
+            _ = await onResolveLibraryCloudSyncConflicts(preference)
+            cloudSyncActionInFlight = false
+        }
+    }
+
+    private func cancelLibraryCloudSyncEnablement() {
+        onCancelLibraryCloudSyncEnablement()
+    }
+
     private var orderedDefaultFilters: [LibraryStore.AnimeFilter] {
         LibraryStore.AnimeFilter.allCases.filter { defaultFilters.contains($0) }
     }
@@ -606,6 +808,63 @@ struct LibraryProfileSettingsCard: View {
 
     private func whatsNewSubtitleResource(for version: String) -> LocalizedStringResource {
         "Reopen the release note for version \(version)."
+    }
+}
+
+extension LibraryCloudSyncStatus {
+    fileprivate var statusDisplay:
+        (
+            title: LocalizedStringResource,
+            systemImage: String,
+            tint: Color
+        )
+    {
+        switch bootstrapState {
+        case .notStarted:
+            ("Ready to Sync", "icloud", .indigo)
+        case .needsConflictChoice:
+            ("Needs Choice", "exclamationmark.triangle", .orange)
+        case .running:
+            ("Syncing", "arrow.triangle.2.circlepath", .indigo)
+        case .completed:
+            switch lastResult {
+            case .success:
+                ("Synced", "checkmark.icloud", .green)
+            case .skipped:
+                ("Sync Skipped", "pause.circle", .secondary)
+            case .retryableFailure, .permanentFailure:
+                ("Sync Failed", "xmark.icloud", .red)
+            case .conflictChoiceRequired:
+                ("Needs Choice", "exclamationmark.triangle", .orange)
+            case nil:
+                ("Sync Enabled", "icloud", .indigo)
+            }
+        case .failed:
+            ("Sync Failed", "xmark.icloud", .red)
+        }
+    }
+
+    fileprivate var lastSyncDisplayResource: LocalizedStringResource {
+        if let lastSuccessfulSyncDate {
+            "Last sync: \(lastSuccessfulSyncDate.formatted(date: .abbreviated, time: .shortened))"
+        } else if let lastAttemptDate {
+            "Last attempt: \(lastAttemptDate.formatted(date: .abbreviated, time: .shortened))"
+        } else {
+            "No sync yet."
+        }
+    }
+}
+
+extension LibraryCloudSyncPhase {
+    fileprivate var progressTitleResource: LocalizedStringResource {
+        switch self {
+        case .preparing:
+            "Preparing iCloud"
+        case .syncing:
+            "Syncing library"
+        case .exporting:
+            "Exporting changes"
+        }
     }
 }
 

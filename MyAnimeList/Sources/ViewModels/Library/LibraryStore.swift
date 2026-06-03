@@ -257,6 +257,15 @@ class LibraryStore {
             return
         }
         syncCoordinator?.cancelFirstEnableBootstrap()
+        resetLibraryCloudSyncDisabledState(resetRetryState: false)
+    }
+
+    func disableLibraryCloudSync() {
+        syncCoordinator?.cancelFirstEnableBootstrap()
+        resetLibraryCloudSyncDisabledState(resetRetryState: true)
+    }
+
+    private func resetLibraryCloudSyncDisabledState(resetRetryState: Bool) {
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = false
             status.bootstrapState = .notStarted
@@ -265,6 +274,9 @@ class LibraryStore {
             status.lastResult = .skipped
             status.lastFailureReason = nil
             status.degradedReason = nil
+            if resetRetryState {
+                status.retryState = .idle
+            }
         }
     }
 

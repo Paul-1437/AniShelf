@@ -88,7 +88,7 @@ struct LibraryExportManagerTests {
 
         let csvURL = try manager.createExport(for: [entry], format: .csv)
         defer { try? FileManager.default.removeItem(at: csvURL) }
-        let csv = try String(contentsOf: csvURL)
+        let csv = try String(contentsOf: csvURL, encoding: .utf8)
         #expect(!csv.contains("tmdb_id"))
         #expect(!csv.contains("parent_series_tmdb_id"))
         #expect(csv.contains("\"Line 1, with comma\nLine\t2\""))
@@ -96,7 +96,7 @@ struct LibraryExportManagerTests {
 
         let tsvURL = try manager.createExport(for: [entry], format: .tsv)
         defer { try? FileManager.default.removeItem(at: tsvURL) }
-        let tsv = try String(contentsOf: tsvURL)
+        let tsv = try String(contentsOf: tsvURL, encoding: .utf8)
         #expect(!tsv.contains("tmdb_id"))
         #expect(!tsv.contains("parent_series_tmdb_id"))
         #expect(tsv.contains("\"Line 1, with comma\nLine\t2\""))

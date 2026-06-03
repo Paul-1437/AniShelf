@@ -222,10 +222,18 @@ struct LibraryProfileSettingsView: View {
             autoPrefetchImagesOnAddAndRestore: $store.autoPrefetchImagesOnAddAndRestore,
             useTMDbRelayServer: $useTMDbRelayServer,
             preferredLanguage: $preferredLanguage,
+            libraryCloudSyncStatus: store.libraryCloudSyncStatus,
             restoreCompleted: restoreCompleted,
             createBackupItems: createBackupItems,
             onExportLibrary: exportLibrary,
             onRestore: requestRestore,
+            onEnableLibraryCloudSync: { await actions.enableLibraryCloudSync() },
+            onDisableLibraryCloudSync: { actions.disableLibraryCloudSync() },
+            onRetryLibraryCloudSync: { await actions.retryLibraryCloudSync() },
+            onResolveLibraryCloudSyncConflicts: { preference in
+                await actions.resolveLibraryCloudSyncConflicts(preference: preference)
+            },
+            onCancelLibraryCloudSyncEnablement: { actions.cancelLibraryCloudSyncEnablement() },
             onChangeAPIKey: requestAPIKeySheet,
             onCheckMetadataCacheSize: checkMetadataCacheSize,
             onRefreshInfos: requestRefreshInfos,

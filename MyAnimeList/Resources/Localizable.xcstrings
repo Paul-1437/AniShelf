@@ -66,6 +66,16 @@
         }
       }
     },
+    "%lld entries need a choice. Library: %lld, tracking: %lld, episodes: %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld entries need a choice. Library: %2$lld, tracking: %3$lld, episodes: %4$lld."
+          }
+        }
+      }
+    },
     "%lld episodes" : {
       "localizations" : {
         "ja" : {
@@ -1261,6 +1271,9 @@
         }
       }
     },
+    "Choose which library data to keep." : {
+
+    },
     "Clear" : {
       "localizations" : {
         "ja" : {
@@ -2244,6 +2257,9 @@
         }
       }
     },
+    "Exporting changes" : {
+
+    },
     "Failed to load posters." : {
       "localizations" : {
         "ja" : {
@@ -2706,6 +2722,12 @@
         }
       }
     },
+    "iCloud Library Sync" : {
+
+    },
+    "iCloud Sync" : {
+
+    },
     "If you use a VPN or another network proxy, turning off Use TMDb Proxy in Settings may help." : {
       "localizations" : {
         "ja" : {
@@ -2819,6 +2841,9 @@
         }
       }
     },
+    "Keep your library available across devices." : {
+
+    },
     "Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2885,6 +2910,12 @@
           }
         }
       }
+    },
+    "Last attempt: %@" : {
+
+    },
+    "Last sync: %@" : {
+
     },
     "Later" : {
       "localizations" : {
@@ -3436,6 +3467,9 @@
         }
       }
     },
+    "No sync yet." : {
+
+    },
     "No TMDb result found for this prompt." : {
       "localizations" : {
         "ja" : {
@@ -3533,22 +3567,6 @@
         }
       }
     },
-    "Only show dropped entries after you explicitly enable the Dropped filter." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「中断」フィルターを明示的に有効にした場合のみ、中断項目を表示します。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只有在你明确启用“中断”筛选后，才会显示中断条目。"
-          }
-        }
-      }
-    },
     "On the details page, long-press an episode to view that episode's staff." : {
       "localizations" : {
         "ja" : {
@@ -3577,6 +3595,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "详情页中，分集模块现在支持展示观看进度"
+          }
+        }
+      }
+    },
+    "Only show dropped entries after you explicitly enable the Dropped filter." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「中断」フィルターを明示的に有効にした場合のみ、中断項目を表示します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有在你明确启用“中断”筛选后，才会显示中断条目。"
           }
         }
       }
@@ -4031,6 +4065,9 @@
         }
       }
     },
+    "Preparing iCloud" : {
+
+    },
     "Preview" : {
       "localizations" : {
         "ja" : {
@@ -4110,6 +4147,9 @@
           }
         }
       }
+    },
+    "Ready to Sync" : {
+
     },
     "Refresh" : {
       "localizations" : {
@@ -5185,6 +5225,21 @@
         }
       }
     },
+    "Sync Enabled" : {
+
+    },
+    "Sync is enabled for this library." : {
+
+    },
+    "Sync Now" : {
+
+    },
+    "Syncing" : {
+
+    },
+    "Syncing library" : {
+
+    },
     "Tab-Separated Values (.tsv)" : {
       "localizations" : {
         "ja" : {
@@ -5730,6 +5785,9 @@
         }
       }
     },
+    "Turn on to bootstrap iCloud sync." : {
+
+    },
     "Turn this off if you use a VPN or another proxy." : {
       "localizations" : {
         "ja" : {
@@ -5976,6 +6034,9 @@
         }
       }
     },
+    "Use iCloud" : {
+
+    },
     "Use Poster" : {
       "localizations" : {
         "ja" : {
@@ -5991,6 +6052,9 @@
           }
         }
       }
+    },
+    "Use This Device" : {
+
     },
     "Use this poster" : {
       "localizations" : {
