@@ -97,6 +97,14 @@ public final class CloudLibrarySyncChangeTokenStore: @unchecked Sendable {
     public func removeToken(for zoneID: CKRecordZone.ID, namespace: Namespace) {
         userDefaults.removeObject(forKey: tokenKey(for: zoneID, namespace: namespace))
     }
+
+    /// Removes all CloudKit change tokens owned by this store.
+    public func removeAllTokens() {
+        let prefix = "\(keyPrefix)."
+        for key in userDefaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
+            userDefaults.removeObject(forKey: key)
+        }
+    }
 }
 
 extension CloudLibrarySyncChangeTokenStore {

@@ -47,6 +47,116 @@ struct LibraryPreferencesAndActionsTests {
         #expect(preferences.load().cloudSyncStatus.currentPhase == .preparing)
     }
 
+    @Test @MainActor func testRestoreBackupIsBlockedWhileLibraryCloudSyncIsEnabled() throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        store.updateLibraryCloudSyncStatus { status in
+            status.isEnabled = true
+            status.bootstrapState = .completed
+        }
+        let actions = LibraryProfileSettingsActions(store: store)
+
+        #expect(throws: LibraryBackupRestorePolicyError.cloudSyncEnabled) {
+            try actions.restoreBackup(from: URL(fileURLWithPath: "/tmp/unused.mallib"))
+        }
+    }
+
+    @Test @MainActor func testRestoreBackupIsBlockedWhileLibraryCloudSyncPhaseIsActive() throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        store.updateLibraryCloudSyncStatus { status in
+            status.isEnabled = false
+            status.currentPhase = .exporting
+            status.lastResult = nil
+        }
+        let actions = LibraryProfileSettingsActions(store: store)
+
+        #expect(throws: LibraryBackupRestorePolicyError.cloudSyncEnabled) {
+            try actions.restoreBackup(from: URL(fileURLWithPath: "/tmp/unused.mallib"))
+        }
+    }
+
+    @Test @MainActor func testRestoreBackupClearsLocalSyncStateAndResetsCloudSync() throws {
+        let fileManager = FileManager.default
+        let sourceDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("AniShelfTests-actions-restore-source-\(UUID().uuidString)", isDirectory: true)
+        let targetDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("AniShelfTests-actions-restore-target-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true)
+        defer {
+            try? fileManager.removeItem(at: sourceDirectory)
+            try? fileManager.removeItem(at: targetDirectory)
+        }
+
+        let sourceProvider = DataProvider(url: sourceDirectory.appendingPathComponent("library.store"))
+        try sourceProvider.dataHandler.newEntry(
+            AnimeEntry(name: "Restored", type: .movie, tmdbID: 700_001)
+        )
+        let backupURL = try BackupManager(dataProvider: sourceProvider).createBackup()
+        defer { try? fileManager.removeItem(at: backupURL) }
+
+        let defaultsSuiteName = "MyAnimeListTests.RestoreBackupSyncState.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: defaultsSuiteName)!
+        defaults.removePersistentDomain(forName: defaultsSuiteName)
+        defer { defaults.removePersistentDomain(forName: defaultsSuiteName) }
+
+        let targetProvider = DataProvider(url: targetDirectory.appendingPathComponent("library.store"))
+        try targetProvider.dataHandler.newEntry(
+            AnimeEntry(name: "Replace Me", type: .movie, tmdbID: 700_002)
+        )
+        let store = LibraryStore(
+            dataProvider: targetProvider,
+            preferences: LibraryPreferences(defaults: defaults)
+        )
+        store.updateLibraryCloudSyncStatus { status in
+            status.bootstrapState = .failed
+            status.retryState = .init(
+                failureRetryAttempt: 2,
+                nextRetryAllowedAt: Date(timeIntervalSince1970: 1_800),
+                automaticRetriesExhausted: true
+            )
+            status.lastResult = .retryableFailure
+            status.lastFailureReason = "Previous failure"
+        }
+        try store.syncChangeRecorder.dirtyQueueStore.setPendingUpsert(
+            .init(
+                identity: .init(entryType: .movie, tmdbID: 700_002),
+                dirtyAt: Date(timeIntervalSince1970: 1_700)
+            )
+        )
+
+        let tokenDefaultsSuiteName = "MyAnimeListTests.RestoreBackupTokenStore.\(UUID().uuidString)"
+        let tokenDefaults = UserDefaults(suiteName: tokenDefaultsSuiteName)!
+        tokenDefaults.removePersistentDomain(forName: tokenDefaultsSuiteName)
+        defer { tokenDefaults.removePersistentDomain(forName: tokenDefaultsSuiteName) }
+        let tokenStore = CloudLibrarySyncChangeTokenStore(
+            userDefaults: tokenDefaults,
+            keyPrefix: "MyAnimeListTests.CustomChangeTokenStore"
+        )
+        let namespace = CloudLibrarySyncChangeTokenStore.Namespace(
+            containerIdentifier: "test-container",
+            accountIdentifier: "test-account"
+        )
+        let tokenKey = tokenStore.tokenKey(
+            for: CloudLibrarySyncClient.recordZoneID,
+            namespace: namespace
+        )
+        tokenDefaults.set(Data([0x01]), forKey: tokenKey)
+        store.configureLibrarySyncCoordinator(changeTokenStore: tokenStore)
+
+        let actions = LibraryProfileSettingsActions(
+            store: store,
+            refreshInfosHandler: { _, _ in }
+        )
+
+        try actions.restoreBackup(from: backupURL)
+
+        #expect(store.library.map(\.tmdbID) == [700_001])
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+        #expect(tokenDefaults.object(forKey: tokenKey) == nil)
+        #expect(store.libraryCloudSyncStatus == .defaultValue)
+        #expect(store.preferences.load().cloudSyncStatus == .defaultValue)
+    }
+
     @Test func testSingleTapDetailPreferenceDefaultsAndBackupInclusion() {
         let suiteName = "MyAnimeListTests.SingleTapDetailPreference"
         let defaults = UserDefaults(suiteName: suiteName)!

@@ -179,6 +179,7 @@ struct LibraryProfileSelectionCapsule: View {
 
 struct LibraryProfileCommandButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isEnabled) private var isEnabled
 
     let tint: Color
     let filled: Bool
@@ -200,8 +201,9 @@ struct LibraryProfileCommandButtonStyle: ButtonStyle {
                     .stroke(borderColor, lineWidth: 1)
             }
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .opacity(configuration.isPressed ? 0.82 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.42)
             .animation(.spring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
+            .animation(.easeInOut(duration: 0.16), value: isEnabled)
     }
 
     private var backgroundStyle: LinearGradient {

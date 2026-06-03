@@ -64,6 +64,7 @@ final class LibrarySyncCoordinator {
     private weak var store: LibraryStore?
     private let importer: CloudLibrarySyncImporter
     private let exporter: CloudLibrarySyncExporter
+    private let changeTokenStore: CloudLibrarySyncChangeTokenStore
     private let namespaceProvider: @MainActor () async throws -> CloudLibrarySyncChangeTokenStore.Namespace?
     private let hydrateMissingEntry: @MainActor (LibraryEntrySyncSnapshot, LibraryStore) async throws -> AnimeEntry
     private let dateProvider: @MainActor @Sendable () -> Date
@@ -111,6 +112,7 @@ final class LibrarySyncCoordinator {
             ?? resolvedClient.privateDatabase.map(CloudLibrarySyncLiveDatabase.init(database:))
 
         self.store = store
+        self.changeTokenStore = changeTokenStore
         self.namespaceProvider =
             namespaceProvider ?? {
                 try await resolvedClient.changeTokenNamespace()
@@ -140,6 +142,10 @@ final class LibrarySyncCoordinator {
                 database: disabledDatabase
             )
         }
+    }
+
+    func removeAllChangeTokens() {
+        changeTokenStore.removeAllTokens()
     }
 
     @discardableResult

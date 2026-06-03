@@ -168,4 +168,8 @@ struct LibraryCloudSyncStatus: Equatable {
         lastFailureReason: nil,
         degradedReason: nil
     )
+
+    var blocksBackupRestore: Bool {
+        isEnabled || (currentPhase != nil && lastResult == nil)
+    }
 }

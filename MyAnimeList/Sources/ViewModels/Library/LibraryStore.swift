@@ -266,7 +266,26 @@ class LibraryStore {
         resetLibraryCloudSyncDisabledState(resetRetryState: true)
     }
 
+    func resetLibraryCloudSyncAfterBackupRestore() {
+        syncCoordinator?.cancelFirstEnableBootstrap()
+        syncScheduler?.resetRetryBackoff()
+        updateLibraryCloudSyncStatus { status in
+            status = .defaultValue
+        }
+    }
+
+    func resetLibraryCloudSyncChangeTokens() {
+        guard let syncCoordinator else {
+            CloudLibrarySyncChangeTokenStore().removeAllTokens()
+            return
+        }
+        syncCoordinator.removeAllChangeTokens()
+    }
+
     private func resetLibraryCloudSyncDisabledState(resetRetryState: Bool) {
+        if resetRetryState {
+            syncScheduler?.resetRetryBackoff()
+        }
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = false
             status.bootstrapState = .notStarted

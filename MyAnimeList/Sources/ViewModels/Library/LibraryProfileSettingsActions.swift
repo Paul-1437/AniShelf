@@ -8,24 +8,45 @@
 import DataProvider
 import Foundation
 import Kingfisher
+import LibrarySync
+
+enum LibraryBackupRestorePolicyError: LocalizedError, Equatable {
+    case cloudSyncEnabled
+
+    var errorDescription: String? {
+        switch self {
+        case .cloudSyncEnabled:
+            "Turn off iCloud Sync before restoring a backup. You can turn it on again after restore."
+        }
+    }
+}
 
 @MainActor
 final class LibraryProfileSettingsActions {
     typealias RefreshInfosHandler = @MainActor (LibraryStore, LibraryRefreshOptions) -> Void
+    typealias ResetCloudSyncChangeTokensHandler = @MainActor (LibraryStore) -> Void
 
     private let store: LibraryStore
     /// Indirection for the metadata refresh path so tests can verify routing
     /// and inject alternate presentation backends without changing the core flow.
     private let refreshInfosHandler: RefreshInfosHandler
+    private let resetCloudSyncChangeTokensHandler: ResetCloudSyncChangeTokensHandler
 
     init(store: LibraryStore) {
         self.store = store
         self.refreshInfosHandler = Self.performRefreshInfos
+        self.resetCloudSyncChangeTokensHandler = Self.resetCloudSyncChangeTokens
     }
 
-    init(store: LibraryStore, refreshInfosHandler: @escaping RefreshInfosHandler) {
+    init(
+        store: LibraryStore,
+        refreshInfosHandler: @escaping RefreshInfosHandler,
+        resetCloudSyncChangeTokensHandler: @escaping ResetCloudSyncChangeTokensHandler =
+            LibraryProfileSettingsActions.resetCloudSyncChangeTokens
+    ) {
         self.store = store
         self.refreshInfosHandler = refreshInfosHandler
+        self.resetCloudSyncChangeTokensHandler = resetCloudSyncChangeTokensHandler
     }
 
     func createBackup() throws -> URL {
@@ -37,7 +58,14 @@ final class LibraryProfileSettingsActions {
         try LibraryExportManager().createExport(for: store.library, format: format)
     }
 
+    func validateCanRestoreBackup() throws {
+        guard !store.libraryCloudSyncStatus.blocksBackupRestore else {
+            throw LibraryBackupRestorePolicyError.cloudSyncEnabled
+        }
+    }
+
     func restoreBackup(from url: URL) throws {
+        try validateCanRestoreBackup()
         let accessedSecurityScopedResource = url.startAccessingSecurityScopedResource()
         defer {
             if accessedSecurityScopedResource {
@@ -47,10 +75,10 @@ final class LibraryProfileSettingsActions {
 
         let backupManager = BackupManager(dataProvider: store.dataProvider)
         try backupManager.restoreBackup(from: url)
-        // TODO: Decide whether backup restore should also reconcile remote CloudKit state.
-        // For now, only clear the local dirty queue so stale tombstones do not survive restore.
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
+        resetCloudSyncChangeTokensHandler(store)
         store.reloadPersistedPreferences()
+        store.resetLibraryCloudSyncAfterBackupRestore()
         store.rebuildSyncChangeTracking()
         try store.refreshLibrary()
         if store.autoPrefetchImagesOnAddAndRestore {
@@ -110,6 +138,10 @@ final class LibraryProfileSettingsActions {
     @discardableResult
     func retryLibraryCloudSync() async -> Bool {
         await store.retryLibraryCloudSync()
+    }
+
+    private static func resetCloudSyncChangeTokens(for store: LibraryStore) {
+        store.resetLibraryCloudSyncChangeTokens()
     }
 
     /// Default production implementation for `refreshInfos(options:)`.

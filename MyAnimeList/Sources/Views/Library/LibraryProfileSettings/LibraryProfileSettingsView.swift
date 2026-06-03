@@ -338,6 +338,12 @@ struct LibraryProfileSettingsView: View {
 
     private func requestRestore() {
         restoreCompleted = false
+        do {
+            try actions.validateCanRestoreBackup()
+        } catch {
+            presentRestoreError(error)
+            return
+        }
         showFileImporter = true
     }
 

@@ -70,6 +70,12 @@ final class LibrarySyncScheduler {
         schedule(after: delayRespectingFailureBackoff(0))
     }
 
+    func resetRetryBackoff() {
+        scheduledTask?.cancel()
+        scheduledTask = nil
+        resetFailureBackoff()
+    }
+
     private func runScheduledSync() async {
         scheduledTask = nil
         guard hasPendingDirtyWork() else {

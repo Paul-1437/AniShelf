@@ -45,7 +45,11 @@ For failure patterns from the earlier full-store mirroring attempt, see
   - first-enable bootstrap with CloudKit preparation and conflict choice handling
   - sync policy gating for enabled state, bootstrap completion, and TMDb API key
   - settings UI for enable/disable, bootstrap state, last sync time, and manual retry
-- Stages 7-8 are still pending.
+- Stage 7 is complete:
+  - restore is blocked while iCloud sync is enabled or actively syncing
+  - successful restore keeps CloudKit untouched, resets local sync state, clears
+    dirty queue work, and clears stored change tokens
+- Stage 8 is still pending.
 
 ## Plan Maintenance
 
@@ -121,24 +125,23 @@ including all-or-nothing handling for batch delete rollback.
 The app requests sync on launch, foreground activation, and CloudKit remote
 notifications only when the user has enabled sync, first-enable bootstrap has
 completed, and the TMDb API key is available. Settings now expose opt-in,
-bootstrap, status, conflict choice, and manual retry controls. Restore policy
-remains pending.
+bootstrap, status, conflict choice, manual retry, and explicit restore
+guardrails.
 
 ## Remaining Work
 
 DO NOT follow the stages below as strict implementation requirements. You can be flexible about the specific implementation details depending on the current project status and context.
 
-### Stage 7. Backup And Restore Policy
+### Stage 7. Backup And Restore Policy - Complete
 
-The current restore path only clears local queue state after restore. That is
-not enough for a live sync feature.
+Restore is local-only and does not silently reconcile against CloudKit:
 
-Before rollout, restore needs an explicit policy. Initial direction:
-
-- if sync is enabled, block raw SQLite restore unless the user first disables
-  sync
-- do not silently reconcile restored local data against CloudKit
-- only clear or reset change tokens as part of an explicit restore flow
+- if sync is enabled or currently active, block raw SQLite restore and tell the
+  user to turn off iCloud Sync first
+- after restore, keep CloudKit records untouched, reset local sync state to
+  disabled/not-started, clear dirty queue work, and clear stored change tokens
+- users can turn iCloud Sync on again after restore; re-enable uses the existing
+  first-enable bootstrap and conflict policy
 
 ### Stage 8. Manual Validation
 

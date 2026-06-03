@@ -4717,6 +4717,38 @@
         }
       }
     },
+    "Restore Unavailable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復元できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法恢复"
+          }
+        }
+      }
+    },
+    "Restore a library backup." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリバックアップを復元します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复资料库备份。"
+          }
+        }
+      }
+    },
     "Restore completed!" : {
       "localizations" : {
         "ja" : {
@@ -6143,6 +6175,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重试"
+          }
+        }
+      }
+    },
+    "Turn off iCloud Sync before restoring a backup. You can turn it on again after restore." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バックアップを復元する前にiCloud同期をオフにしてください。復元後に再度オンにできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复备份前请关闭 iCloud 同步。恢复后可以重新开启。"
           }
         }
       }

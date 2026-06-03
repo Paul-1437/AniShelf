@@ -143,6 +143,7 @@ struct LibraryProfileSettingsCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var cloudSyncActionInFlight = false
     @State private var showCloudSyncConflictAlert = false
+    @State private var showRestoreUnavailableAlert = false
 
     @Binding var followsSystemLanguage: Bool
     @Binding var hideDroppedByDefault: Bool
@@ -204,6 +205,13 @@ struct LibraryProfileSettingsCard: View {
             Button("Cancel", role: .cancel, action: cancelLibraryCloudSyncEnablement)
         } message: {
             Text(libraryCloudSyncStatus.conflictSummaryResource)
+        }
+        .alert("Restore Unavailable", isPresented: $showRestoreUnavailableAlert) {
+            Button("OK") {}
+        } message: {
+            Text(
+                "Turn off iCloud Sync before restoring a backup. You can turn it on again after restore."
+            )
         }
         .onAppear(perform: updateCloudSyncConflictAlertPresentation)
         .onChange(of: libraryCloudSyncStatus.bootstrapState) {
@@ -635,8 +643,32 @@ struct LibraryProfileSettingsCard: View {
     }
 
     private var restoreButton: some View {
-        Button("Restore", systemImage: "document.badge.clock", role: .destructive, action: onRestore)
-            .buttonStyle(LibraryProfileCommandButtonStyle(tint: .red, filled: false))
+        Button(role: .destructive, action: handleRestoreButtonPress) {
+            Label("Restore", systemImage: restoreButtonSystemImage)
+        }
+        .buttonStyle(LibraryProfileCommandButtonStyle(tint: .red, filled: false))
+        .opacity(libraryCloudSyncStatus.blocksBackupRestore ? 0.52 : 1)
+        .accessibilityHint(Text(restoreButtonAccessibilityHint))
+    }
+
+    private var restoreButtonSystemImage: String {
+        libraryCloudSyncStatus.blocksBackupRestore ? "icloud.slash" : "document.badge.clock"
+    }
+
+    private var restoreButtonAccessibilityHint: LocalizedStringResource {
+        if libraryCloudSyncStatus.blocksBackupRestore {
+            "Turn off iCloud Sync before restoring a backup. You can turn it on again after restore."
+        } else {
+            "Restore a library backup."
+        }
+    }
+
+    private func handleRestoreButtonPress() {
+        if libraryCloudSyncStatus.blocksBackupRestore {
+            showRestoreUnavailableAlert = true
+        } else {
+            onRestore()
+        }
     }
 
     private var libraryExportMenu: some View {

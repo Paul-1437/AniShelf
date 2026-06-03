@@ -109,6 +109,38 @@ struct LibrarySyncCoordinatorTests {
         #expect(syncCount == 5)
     }
 
+    @Test @MainActor func dirtyQueueSchedulerResetRestartsFailureRetryPolicy() async throws {
+        var syncCount = 0
+        var retryStates: [LibraryCloudSyncRetryState] = []
+        let scheduler = LibrarySyncScheduler(
+            localDebounceInterval: 0.001,
+            failureRetryIntervals: [0.01, 0.02],
+            maximumRetryAttemptsAtFinalInterval: 3,
+            hasPendingDirtyWork: {
+                true
+            },
+            sync: { _ in
+                syncCount += 1
+                return .retryableFailure
+            },
+            retryStateDidChange: { retryStates.append($0) }
+        )
+
+        scheduler.scheduleLocalDirtyQueueSync()
+        try await Task.sleep(nanoseconds: 110_000_000)
+
+        #expect(syncCount == 5)
+        #expect(retryStates.last?.automaticRetriesExhausted == true)
+
+        scheduler.resetRetryBackoff()
+        scheduler.scheduleLocalDirtyQueueSync()
+        try await Task.sleep(nanoseconds: 5_000_000)
+
+        #expect(syncCount == 6)
+        #expect(retryStates.last?.failureRetryAttempt == 1)
+        #expect(retryStates.last?.automaticRetriesExhausted == false)
+    }
+
     @Test @MainActor func dirtyQueueSchedulerDoesNotRetryPermanentFailure() async throws {
         var syncCount = 0
         var degradedReason: String?

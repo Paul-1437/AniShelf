@@ -201,6 +201,33 @@ struct CloudLibrarySyncClientTests {
         userDefaults.removePersistentDomain(forName: suiteName)
     }
 
+    @Test func changeTokenStoreRemovesAllOwnedTokensOnly() throws {
+        let suiteName = "CloudLibrarySyncClientTests.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        let store = CloudLibrarySyncChangeTokenStore(userDefaults: userDefaults)
+        let zoneID = CloudLibrarySyncClient.recordZoneID
+        let firstNamespace = CloudLibrarySyncChangeTokenStore.Namespace(
+            containerIdentifier: "iCloud.com.samuelhe.MyAnimeList",
+            accountIdentifier: "user-a"
+        )
+        let secondNamespace = CloudLibrarySyncChangeTokenStore.Namespace(
+            containerIdentifier: "iCloud.com.samuelhe.OtherBuild",
+            accountIdentifier: "user-b"
+        )
+        let token = try #require(class_createInstance(CKServerChangeToken.self, 0) as? CKServerChangeToken)
+
+        store.setToken(token, for: zoneID, namespace: firstNamespace)
+        store.setToken(token, for: zoneID, namespace: secondNamespace)
+        userDefaults.set("keep", forKey: "AniShelf.OtherPreference")
+
+        store.removeAllTokens()
+
+        #expect(store.token(for: zoneID, namespace: firstNamespace) == nil)
+        #expect(store.token(for: zoneID, namespace: secondNamespace) == nil)
+        #expect(userDefaults.string(forKey: "AniShelf.OtherPreference") == "keep")
+        userDefaults.removePersistentDomain(forName: suiteName)
+    }
+
     private func makeSnapshot(
         entryType: AnimeType = .series,
         tmdbID: Int = 101
