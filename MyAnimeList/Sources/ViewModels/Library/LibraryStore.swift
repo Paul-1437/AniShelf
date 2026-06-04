@@ -24,6 +24,8 @@ class LibraryStore {
     @ObservationIgnored let syncChangeRecorder: LibrarySyncChangeRecorder
     @ObservationIgnored private(set) var syncCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored private var syncScheduler: LibrarySyncScheduler?
+    @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncResult, Never>] =
+        [:]
     @ObservationIgnored let preferences: LibraryPreferences
     @ObservationIgnored private let cloudSyncStateController: LibraryCloudSyncStateController
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
@@ -201,7 +203,22 @@ class LibraryStore {
         -> LibrarySyncCoordinator.SyncResult
     {
         guard let syncCoordinator else { return .permanentFailure }
-        return await syncCoordinator.syncResult(trigger: trigger)
+        guard !Task.isCancelled else { return .skipped(.disabled) }
+
+        let taskID = UUID()
+        let syncTask = Task {
+            await syncCoordinator.syncResult(trigger: trigger)
+        }
+        ordinarySyncTasks[taskID] = syncTask
+
+        let result = await withTaskCancellationHandler {
+            await syncTask.value
+        } onCancel: {
+            syncTask.cancel()
+        }
+        ordinarySyncTasks[taskID] = nil
+        guard libraryCloudSyncStatus.isEnabled else { return .skipped(.disabled) }
+        return result
     }
 
     @discardableResult
@@ -257,16 +274,22 @@ class LibraryStore {
         guard cloudSyncStateController.canCancelFirstEnablement(libraryCloudSyncStatus) else {
             return
         }
+        cancelOrdinaryLibrarySyncTasks()
+        syncCoordinator?.cancelOrdinarySync()
         syncCoordinator?.cancelFirstEnableBootstrap()
         resetLibraryCloudSyncDisabledState(resetRetryState: false)
     }
 
     func disableLibraryCloudSync() {
+        cancelOrdinaryLibrarySyncTasks()
+        syncCoordinator?.cancelOrdinarySync()
         syncCoordinator?.cancelFirstEnableBootstrap()
         resetLibraryCloudSyncDisabledState(resetRetryState: true)
     }
 
     func resetLibraryCloudSyncAfterBackupRestore() {
+        cancelOrdinaryLibrarySyncTasks()
+        syncCoordinator?.cancelOrdinarySync()
         syncCoordinator?.cancelFirstEnableBootstrap()
         syncScheduler?.resetRetryBackoff()
         updateLibraryCloudSyncStatus { status in
@@ -298,6 +321,13 @@ class LibraryStore {
                 status.retryState = .idle
             }
         }
+    }
+
+    private func cancelOrdinaryLibrarySyncTasks() {
+        for syncTask in ordinarySyncTasks.values {
+            syncTask.cancel()
+        }
+        ordinarySyncTasks.removeAll()
     }
 
     @discardableResult

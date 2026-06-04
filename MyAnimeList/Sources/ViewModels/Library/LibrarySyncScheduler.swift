@@ -25,6 +25,7 @@ final class LibrarySyncScheduler {
     private let degradedStateDidChange: @MainActor (String) -> Void
 
     private var scheduledTask: Task<Void, Never>?
+    private var scheduledTaskID: UUID?
     private var nextRetryAllowedAt: Date?
     private var failureRetryAttempt = 0
     private var automaticRetriesExhausted = false
@@ -73,17 +74,25 @@ final class LibrarySyncScheduler {
     func resetRetryBackoff() {
         scheduledTask?.cancel()
         scheduledTask = nil
+        scheduledTaskID = nil
         resetFailureBackoff()
     }
 
-    private func runScheduledSync() async {
-        scheduledTask = nil
+    private func runScheduledSync(taskID: UUID) async {
+        guard scheduledTaskID == taskID, !Task.isCancelled else { return }
+        defer {
+            if scheduledTaskID == taskID {
+                scheduledTask = nil
+                scheduledTaskID = nil
+            }
+        }
         guard hasPendingDirtyWork() else {
             resetFailureBackoff()
             return
         }
 
         let result = await sync(.localDirtyQueueChange)
+        guard !Task.isCancelled, scheduledTaskID == taskID else { return }
         switch result {
         case .success:
             resetFailureBackoff()
@@ -150,10 +159,12 @@ final class LibrarySyncScheduler {
     private func schedule(after interval: TimeInterval) {
         scheduledTask?.cancel()
         let clampedInterval = max(0, interval)
+        let taskID = UUID()
+        scheduledTaskID = taskID
         scheduledTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: Self.nanoseconds(for: clampedInterval))
             guard !Task.isCancelled else { return }
-            await self?.runScheduledSync()
+            await self?.runScheduledSync(taskID: taskID)
         }
     }
 

@@ -72,6 +72,7 @@ final class LibrarySyncCoordinator {
     private var isSyncing = false
     private var syncRequestedWhileRunning = false
     private var syncWaiters: [CheckedContinuation<SyncResult, Never>] = []
+    private var ordinarySyncCancellationGeneration = 0
     private var activeFirstEnableBootstrapIDs = Set<UUID>()
     private var canceledFirstEnableBootstrapIDs = Set<UUID>()
 
@@ -160,6 +161,7 @@ final class LibrarySyncCoordinator {
     /// Runs one coalesced sync pass and preserves failure classification for
     /// local dirty-queue retry scheduling.
     func syncResult(trigger: Trigger) async -> SyncResult {
+        guard !Task.isCancelled else { return .skipped(.disabled) }
         guard let store else {
             librarySyncCoordinatorLogger.warning(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because the library store was unavailable."
@@ -192,10 +194,15 @@ final class LibrarySyncCoordinator {
             "Starting iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
         )
         var result = SyncResult.success
+        let cancellationGeneration = ordinarySyncCancellationGeneration
 
         repeat {
             syncRequestedWhileRunning = false
-            result = result.merged(with: await runSync(trigger: trigger))
+            result = result.merged(
+                with: await runSync(
+                    trigger: trigger,
+                    cancellationGeneration: cancellationGeneration
+                ))
         } while syncRequestedWhileRunning
 
         isSyncing = false
@@ -208,7 +215,10 @@ final class LibrarySyncCoordinator {
     }
 
     /// Executes the ordered sync phases once.
-    private func runSync(trigger: Trigger) async -> SyncResult {
+    private func runSync(
+        trigger: Trigger,
+        cancellationGeneration: Int
+    ) async -> SyncResult {
         guard let store else {
             librarySyncCoordinatorLogger.warning(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because the library store was unavailable."
@@ -218,6 +228,7 @@ final class LibrarySyncCoordinator {
         var currentPhase: SyncPhase?
 
         do {
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
             currentPhase = .prepareZoneSubscription
             store.recordLibraryCloudSyncPhase(
                 trigger: trigger,
@@ -225,6 +236,7 @@ final class LibrarySyncCoordinator {
                 at: dateProvider()
             )
             try await importer.prepareRemoteSync()
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
 
             currentPhase = .namespaceResolution
             store.recordLibraryCloudSyncPhase(
@@ -233,6 +245,7 @@ final class LibrarySyncCoordinator {
                 at: dateProvider()
             )
             guard let namespace = try await resolveNamespace(reportingTo: store) else {
+                try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
                 librarySyncCoordinatorLogger.warning(
                     "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because no iCloud account namespace was available."
                 )
@@ -246,6 +259,7 @@ final class LibrarySyncCoordinator {
                 )
                 return .permanentFailure
             }
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
 
             let localSnapshots = try localSnapshotsByIdentity(for: store)
             currentPhase = .remoteFetch
@@ -258,6 +272,7 @@ final class LibrarySyncCoordinator {
                 namespace: namespace,
                 localSnapshotsByIdentity: localSnapshots
             )
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
 
             currentPhase = .hydrationApply
             store.recordLibraryCloudSyncPhase(
@@ -266,6 +281,7 @@ final class LibrarySyncCoordinator {
                 at: dateProvider()
             )
             _ = try await applyImportedChanges(importBatch, to: store)
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
 
             currentPhase = .tokenCommit
             store.recordLibraryCloudSyncPhase(
@@ -282,6 +298,7 @@ final class LibrarySyncCoordinator {
                 at: dateProvider()
             )
             try refreshLibraryAfterImport(in: store)
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
 
             currentPhase = .dirtyQueueReconciliation
             store.recordLibraryCloudSyncPhase(
@@ -290,6 +307,7 @@ final class LibrarySyncCoordinator {
                 at: dateProvider()
             )
             _ = try reconcileDirtyQueue(with: importBatch, in: store)
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
 
             let postImportSnapshots = try localSnapshotsByIdentity(for: store)
             let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
@@ -303,6 +321,7 @@ final class LibrarySyncCoordinator {
                 entries: dirtyEntries,
                 localSnapshotsByIdentity: postImportSnapshots
             )
+            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
             try removeExportedDirtyEntries(
                 exportResult.exportedIdentities,
                 from: dirtyEntries,
@@ -317,6 +336,11 @@ final class LibrarySyncCoordinator {
                 at: dateProvider()
             )
             return .success
+        } catch is CancellationError {
+            librarySyncCoordinatorLogger.info(
+                "Cancelled iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
+            )
+            return .skipped(.disabled)
         } catch {
             let phase = currentPhase?.rawValue ?? "unknown"
             librarySyncCoordinatorLogger.error(
@@ -366,9 +390,14 @@ final class LibrarySyncCoordinator {
         activeFirstEnableBootstrapIDs.remove(bootstrapID)
         canceledFirstEnableBootstrapIDs.remove(bootstrapID)
         if result == .success {
+            let cancellationGeneration = ordinarySyncCancellationGeneration
             while syncRequestedWhileRunning {
                 syncRequestedWhileRunning = false
-                result = result.merged(with: await runSync(trigger: .firstEnableBootstrap))
+                result = result.merged(
+                    with: await runSync(
+                        trigger: .firstEnableBootstrap,
+                        cancellationGeneration: cancellationGeneration
+                    ))
             }
         }
         isSyncing = false
@@ -383,6 +412,16 @@ final class LibrarySyncCoordinator {
         return result
     }
 
+    func cancelOrdinarySync() {
+        ordinarySyncCancellationGeneration &+= 1
+        syncRequestedWhileRunning = false
+        let waiters = syncWaiters
+        syncWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume(returning: .skipped(.disabled))
+        }
+    }
+
     func cancelFirstEnableBootstrap() {
         canceledFirstEnableBootstrapIDs.formUnion(activeFirstEnableBootstrapIDs)
         syncRequestedWhileRunning = false
@@ -391,6 +430,19 @@ final class LibrarySyncCoordinator {
         for waiter in waiters {
             waiter.resume(returning: .skipped(.disabled))
         }
+    }
+
+    private func checkOrdinarySyncCancellation(
+        _ cancellationGeneration: Int,
+        store: LibraryStore
+    ) throws {
+        guard cancellationGeneration == ordinarySyncCancellationGeneration else {
+            throw CancellationError()
+        }
+        if store.libraryCloudSyncPolicyBlockReason() == .disabled {
+            throw CancellationError()
+        }
+        try Task.checkCancellation()
     }
 
     private func runFirstEnableBootstrap(
@@ -913,15 +965,23 @@ final class LibrarySyncCoordinator {
         from dirtyEntries: [LibraryEntrySyncDirtyQueueEntry],
         in store: LibraryStore
     ) throws {
-        let dirtyEntriesByIdentity = Dictionary(
-            uniqueKeysWithValues: dirtyEntries.map { ($0.identity, $0) }
-        )
+        let dirtyEntriesByIdentity = Self.coalescedDirtyEntriesByIdentity(dirtyEntries)
         for identity in exportedIdentities {
             guard let exportedEntry = dirtyEntriesByIdentity[identity] else { continue }
-            let removed = try store.syncChangeRecorder.dirtyQueueStore.removeEntry(
-                for: identity,
-                ifCurrentEntryMatches: exportedEntry
-            )
+            let removed: Bool
+            if dirtyEntries.filter({ $0.identity == identity }).count > 1 {
+                removed = try removeExportedDuplicateDirtyEntries(
+                    for: identity,
+                    matching: dirtyEntries.filter { $0.identity == identity },
+                    selectedEntry: exportedEntry,
+                    in: store
+                )
+            } else {
+                removed = try store.syncChangeRecorder.dirtyQueueStore.removeEntry(
+                    for: identity,
+                    ifCurrentEntryMatches: exportedEntry
+                )
+            }
             if removed {
                 librarySyncCoordinatorLogger.info(
                     "Removed \(identity.rawID, privacy: .private) from the iCloud sync dirty queue after export."
@@ -932,6 +992,30 @@ final class LibrarySyncCoordinator {
                 )
             }
         }
+    }
+
+    private func removeExportedDuplicateDirtyEntries(
+        for identity: LibraryEntrySyncIdentity,
+        matching observedEntries: [LibraryEntrySyncDirtyQueueEntry],
+        selectedEntry: LibraryEntrySyncDirtyQueueEntry,
+        in store: LibraryStore
+    ) throws -> Bool {
+        let currentEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
+        let currentEntriesForIdentity = currentEntries.filter { $0.identity == identity }
+        guard currentEntriesForIdentity == observedEntries || currentEntriesForIdentity == [selectedEntry] else {
+            librarySyncCoordinatorLogger.info(
+                "Kept duplicate dirty-queue entries for \(identity.rawID, privacy: .private) because local work changed during export confirmation."
+            )
+            return false
+        }
+
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(
+            currentEntries.filter { $0.identity != identity }
+        )
+        librarySyncCoordinatorLogger.info(
+            "Removed \(currentEntriesForIdentity.count, privacy: .public) duplicate dirty-queue entries for \(identity.rawID, privacy: .private) after export."
+        )
+        return true
     }
 
     /// Refreshes derived library view state after imported changes are persisted.
@@ -1002,9 +1086,7 @@ final class LibrarySyncCoordinator {
         keptLocalWonCount: Int,
         importUnaffectedCount: Int
     ) {
-        let remoteChangesByIdentity = Dictionary(
-            uniqueKeysWithValues: batch.changes.map { ($0.identity, $0) }
-        )
+        let remoteChangesByIdentity = try Self.coalescedRemoteChangesByIdentity(batch.changes)
         let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
         var removedRemoteWonCount = 0
         var keptLocalWonCount = 0
@@ -1036,11 +1118,104 @@ final class LibrarySyncCoordinator {
         for store: LibraryStore
     ) throws -> [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot] {
         let entries = try store.dataProvider.getAllModels(ofType: AnimeEntry.self)
-        return Dictionary(
-            uniqueKeysWithValues: entries.map { entry in
-                (entry.syncIdentity, LibraryEntrySyncSnapshot(entry: entry))
+        var entriesByIdentity: [LibraryEntrySyncIdentity: AnimeEntry] = [:]
+        var duplicateCountsByIdentity: [LibraryEntrySyncIdentity: Int] = [:]
+
+        for entry in entries {
+            let identity = entry.syncIdentity
+            guard let existingEntry = entriesByIdentity[identity] else {
+                entriesByIdentity[identity] = entry
+                duplicateCountsByIdentity[identity] = 1
+                continue
             }
-        )
+
+            duplicateCountsByIdentity[identity, default: 1] += 1
+            if Self.prefersLocalSnapshotEntry(entry, over: existingEntry) {
+                entriesByIdentity[identity] = entry
+            }
+        }
+
+        for (identity, count) in duplicateCountsByIdentity where count > 1 {
+            librarySyncCoordinatorLogger.warning(
+                "Found \(count, privacy: .public) local library rows for iCloud sync identity \(identity.rawID, privacy: .private); using the preferred local row for sync snapshot generation."
+            )
+        }
+
+        return entriesByIdentity.reduce(into: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot]()) {
+            snapshotsByIdentity, pair in
+            snapshotsByIdentity[pair.key] = LibraryEntrySyncSnapshot(entry: pair.value)
+        }
+    }
+
+    private static func coalescedDirtyEntriesByIdentity(
+        _ dirtyEntries: [LibraryEntrySyncDirtyQueueEntry]
+    ) -> [LibraryEntrySyncIdentity: LibraryEntrySyncDirtyQueueEntry] {
+        var entriesByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncDirtyQueueEntry] = [:]
+        var duplicateCountsByIdentity: [LibraryEntrySyncIdentity: Int] = [:]
+
+        for entry in dirtyEntries {
+            let identity = entry.identity
+            if entriesByIdentity[identity] != nil {
+                duplicateCountsByIdentity[identity, default: 1] += 1
+            } else {
+                duplicateCountsByIdentity[identity] = 1
+            }
+            entriesByIdentity[identity] = entry
+        }
+
+        for (identity, count) in duplicateCountsByIdentity where count > 1 {
+            librarySyncCoordinatorLogger.warning(
+                "Found \(count, privacy: .public) dirty-queue entries for iCloud sync identity \(identity.rawID, privacy: .private); using the last queued entry for export confirmation."
+            )
+        }
+
+        return entriesByIdentity
+    }
+
+    static func coalescedRemoteChangesByIdentity(
+        _ remoteChanges: [LibraryEntrySyncRemoteChange]
+    ) throws -> [LibraryEntrySyncIdentity: LibraryEntrySyncRemoteChange] {
+        var changesByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncRemoteChange] = [:]
+        var duplicateCountsByIdentity: [LibraryEntrySyncIdentity: Int] = [:]
+
+        for remoteChange in remoteChanges {
+            let identity = remoteChange.identity
+            if let existingChange = changesByIdentity[identity] {
+                changesByIdentity[identity] = try existingChange.merged(with: remoteChange)
+                duplicateCountsByIdentity[identity, default: 1] += 1
+            } else {
+                changesByIdentity[identity] = remoteChange
+                duplicateCountsByIdentity[identity] = 1
+            }
+        }
+
+        for (identity, count) in duplicateCountsByIdentity where count > 1 {
+            librarySyncCoordinatorLogger.warning(
+                "Found \(count, privacy: .public) remote changes for iCloud sync identity \(identity.rawID, privacy: .private); merged them before dirty-queue reconciliation."
+            )
+        }
+
+        return changesByIdentity
+    }
+
+    private static func prefersLocalSnapshotEntry(_ lhs: AnimeEntry, over rhs: AnimeEntry) -> Bool {
+        if lhs.onDisplay != rhs.onDisplay {
+            return lhs.onDisplay && !rhs.onDisplay
+        }
+
+        if lhs.childSeasonEntries.count != rhs.childSeasonEntries.count {
+            return lhs.childSeasonEntries.count > rhs.childSeasonEntries.count
+        }
+
+        if (lhs.detail != nil) != (rhs.detail != nil) {
+            return lhs.detail != nil
+        }
+
+        if lhs.dateSaved != rhs.dateSaved {
+            return lhs.dateSaved > rhs.dateSaved
+        }
+
+        return lhs.name < rhs.name
     }
 }
 

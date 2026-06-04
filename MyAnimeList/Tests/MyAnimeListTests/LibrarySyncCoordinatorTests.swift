@@ -127,14 +127,18 @@ struct LibrarySyncCoordinatorTests {
         )
 
         scheduler.scheduleLocalDirtyQueueSync()
-        try await Task.sleep(nanoseconds: 110_000_000)
+        for _ in 0..<100 where retryStates.last?.automaticRetriesExhausted != true {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
 
         #expect(syncCount == 5)
         #expect(retryStates.last?.automaticRetriesExhausted == true)
 
         scheduler.resetRetryBackoff()
         scheduler.scheduleLocalDirtyQueueSync()
-        try await Task.sleep(nanoseconds: 5_000_000)
+        for _ in 0..<50 where syncCount < 6 {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
 
         #expect(syncCount == 6)
         #expect(retryStates.last?.failureRetryAttempt == 1)
@@ -162,6 +166,42 @@ struct LibrarySyncCoordinatorTests {
 
         #expect(syncCount == 1)
         #expect(degradedReason != nil)
+    }
+
+    @Test @MainActor func dirtyQueueSchedulerResetCancelsInFlightSyncHandling() async throws {
+        var syncCount = 0
+        var syncStarted = false
+        var syncContinuation: CheckedContinuation<Void, Never>?
+        var retryStates: [LibraryCloudSyncRetryState] = []
+        let scheduler = LibrarySyncScheduler(
+            localDebounceInterval: 0,
+            failureRetryIntervals: [0.01],
+            hasPendingDirtyWork: {
+                true
+            },
+            sync: { _ in
+                syncCount += 1
+                syncStarted = true
+                await withCheckedContinuation { continuation in
+                    syncContinuation = continuation
+                }
+                return .retryableFailure
+            },
+            retryStateDidChange: { retryStates.append($0) }
+        )
+
+        scheduler.flushLocalDirtyQueueSync()
+        while !syncStarted {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+
+        scheduler.resetRetryBackoff()
+        syncContinuation?.resume()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(syncCount == 1)
+        #expect(retryStates.last?.failureRetryAttempt == 0)
+        #expect(retryStates.last?.automaticRetriesExhausted == false)
     }
 
     @Test @MainActor func ordinarySyncSkipsWhenCloudSyncDisabled() async throws {
@@ -560,6 +600,35 @@ struct LibrarySyncCoordinatorTests {
         #expect(database.savedRecords.isEmpty)
     }
 
+    @Test @MainActor func duplicateRemoteChangesCoalesceBeforeDirtyQueueReconciliation() throws {
+        let identity = LibraryEntrySyncIdentity(entryType: .series, tmdbID: 712)
+        let olderRemoteSnapshot = makeSnapshot(
+            identity: identity,
+            tmdbID: 712,
+            notes: "Older remote",
+            trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 2)
+        )
+        let newerRemoteSnapshot = makeSnapshot(
+            identity: identity,
+            tmdbID: 712,
+            notes: "Newer remote",
+            trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 9)
+        )
+
+        let changesByIdentity = try LibrarySyncCoordinator.coalescedRemoteChangesByIdentity([
+            .snapshot(olderRemoteSnapshot),
+            .snapshot(newerRemoteSnapshot)
+        ])
+
+        let mergedChange = try #require(changesByIdentity[identity])
+        guard case .snapshot(let mergedSnapshot) = mergedChange else {
+            Issue.record("Expected duplicate snapshots to merge into a snapshot.")
+            return
+        }
+        #expect(mergedSnapshot.notes == "Newer remote")
+        #expect(mergedSnapshot.trackingUpdatedAt == referenceDate(year: 2026, month: 5, day: 9))
+    }
+
     @Test @MainActor func partialExportOnlyDequeuesAcceptedDirtyEntries() async throws {
         let store = makeSyncReadyStore()
         let first = AnimeEntry(name: "First Export", type: .movie, tmdbID: 707)
@@ -608,6 +677,85 @@ struct LibrarySyncCoordinatorTests {
         #expect(remainingEntries.count == 1)
         #expect(remainingEntries.first?.identity == second.syncIdentity)
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: first.syncIdentity) == nil)
+    }
+
+    @Test @MainActor func duplicateDirtyQueueEntriesDoNotCrashExportConfirmation() async throws {
+        let store = makeSyncReadyStore()
+        let entry = AnimeEntry(name: "Duplicate Dirty", type: .movie, tmdbID: 713)
+        entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
+        try store.repository.newEntry(entry)
+        store.rebuildSyncChangeTracking()
+
+        let olderEntry = LibraryEntrySyncDirtyQueueEntry.upsert(
+            .init(
+                identity: entry.syncIdentity,
+                dirtyAt: referenceDate(year: 2026, month: 5, day: 8)
+            ))
+        let newerEntry = LibraryEntrySyncDirtyQueueEntry.upsert(
+            .init(
+                identity: entry.syncIdentity,
+                dirtyAt: referenceDate(year: 2026, month: 5, day: 9)
+            ))
+        try writeRawDirtyQueueEntries([olderEntry, newerEntry], in: store)
+
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        await coordinator.sync(trigger: .manualRetry)
+
+        #expect(database.savedRecords.count == 1)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+    }
+
+    @Test @MainActor func duplicateLocalSnapshotsChooseRepositoryPreferredWinner() async throws {
+        let store = makeSyncReadyStore()
+        let olderEntry = AnimeEntry(
+            name: "Older Duplicate",
+            type: .movie,
+            tmdbID: 714,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 1)
+        )
+        olderEntry.notes = "Older local"
+        let newerEntry = AnimeEntry(
+            name: "Newer Duplicate",
+            type: .movie,
+            tmdbID: 714,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 3)
+        )
+        newerEntry.notes = "Preferred local"
+        try store.repository.newEntry(olderEntry)
+        try store.repository.newEntry(newerEntry)
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
+            .upsert(
+                .init(
+                    identity: newerEntry.syncIdentity,
+                    dirtyAt: referenceDate(year: 2026, month: 5, day: 9)
+                ))
+        ])
+        store.rebuildSyncChangeTracking()
+
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        await coordinator.sync(trigger: .manualRetry)
+
+        let savedSnapshot = try savedSnapshot(from: try #require(database.savedRecords.first), client: client)
+        #expect(database.savedRecords.count == 1)
+        #expect(savedSnapshot.identity == newerEntry.syncIdentity)
+        #expect(savedSnapshot.notes == "Preferred local")
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 
     @Test @MainActor func exportConfirmationKeepsNewerSameIdentityDirtyEntry() async throws {
@@ -932,6 +1080,52 @@ struct LibrarySyncCoordinatorTests {
         #expect(store.preferences.load().cloudSyncStatus == store.libraryCloudSyncStatus)
     }
 
+    @Test @MainActor func disablingLibraryCloudSyncCancelsInFlightOrdinarySyncBeforeExport()
+        async throws
+    {
+        let store = makeSyncReadyStore()
+        let entry = AnimeEntry(
+            name: "Cancelable Ordinary",
+            type: .movie,
+            tmdbID: 854,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 1)
+        )
+        try store.repository.newEntry(entry)
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
+            .upsert(
+                .init(
+                    identity: entry.syncIdentity,
+                    dirtyAt: referenceDate(year: 2026, month: 5, day: 2)
+                ))
+        ])
+
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
+        database.suspendNextFetch = true
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(),
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let syncTask = Task {
+            await store.performLibrarySyncResult(trigger: .foreground)
+        }
+        while !database.isFetchSuspended {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+
+        store.disableLibraryCloudSync()
+        database.resumeSuspendedFetch()
+        let result = await syncTask.value
+
+        #expect(result == .skipped(.disabled))
+        #expect(!store.libraryCloudSyncStatus.isEnabled)
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .notStarted)
+        #expect(store.libraryCloudSyncStatus.currentPhase == nil)
+        #expect(store.libraryCloudSyncStatus.lastResult == .skipped)
+        #expect(database.savedRecords.isEmpty)
+    }
+
     @Test @MainActor func recordingLibraryCloudSyncFailureClearsActivePhase() {
         let store = makeSyncReadyStore()
         let lastSuccessDate = referenceDate(year: 2026, month: 6, day: 1)
@@ -1193,6 +1387,24 @@ fileprivate func makeEmptyChangeBatch() -> CloudLibrarySyncZoneChangeBatch {
         changeToken: makeToken(),
         moreComing: false
     )
+}
+
+fileprivate struct RawDirtyQueue: Encodable {
+    var schemaVersion: Int
+    var entries: [LibraryEntrySyncDirtyQueueEntry]
+}
+
+@MainActor
+fileprivate func writeRawDirtyQueueEntries(
+    _ entries: [LibraryEntrySyncDirtyQueueEntry],
+    in store: LibraryStore
+) throws {
+    let queue = RawDirtyQueue(
+        schemaVersion: LibraryEntrySyncDirtyQueue.currentSchemaVersion,
+        entries: entries
+    )
+    let data = try JSONEncoder().encode(queue)
+    try data.write(to: store.syncChangeRecorder.dirtyQueueStore.url)
 }
 
 fileprivate func makeChangeBatch(
