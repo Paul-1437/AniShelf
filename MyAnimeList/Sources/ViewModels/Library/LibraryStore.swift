@@ -169,6 +169,9 @@ class LibraryStore {
     }
 
     func applyRemoteCloudSyncedPreferences(_ snapshot: LibrarySettingsSyncSnapshot) {
+        libraryStoreLogger.info(
+            "Applying iCloud settings snapshot updated at \(snapshot.updatedAt, privacy: .public) with \(snapshot.payload.count, privacy: .public) keys."
+        )
         isApplyingRemoteCloudSyncedPreferences = true
         preferences.applyCloudSyncedSettingsSnapshot(snapshot)
         preferences.saveCloudSyncedDefaultsUpdatedAt(snapshot.updatedAt)
@@ -588,13 +591,21 @@ class LibraryStore {
         guard currentHash != lastObservedCloudSyncedPreferencesHash else { return }
         lastObservedCloudSyncedPreferencesHash = currentHash
         if isApplyingRemoteCloudSyncedPreferences {
+            libraryStoreLogger.debug(
+                "Observed iCloud settings change while applying remote snapshot; refreshed preferences without restamping the local clock."
+            )
             reloadPersistedPreferences()
             return
         }
 
-        preferences.saveCloudSyncedDefaultsUpdatedAt(.now)
+        let updatedAt = Date.now
+        preferences.saveCloudSyncedDefaultsUpdatedAt(updatedAt)
+        libraryStoreLogger.info(
+            "Detected local cloud-synced settings change and updated the local settings clock to \(updatedAt, privacy: .public)."
+        )
         reloadPersistedPreferences()
         guard libraryCloudSyncStatus.isEnabled else { return }
+        libraryStoreLogger.debug("Scheduled iCloud settings sync for local preference changes.")
         schedulePendingLocalLibrarySync()
     }
 

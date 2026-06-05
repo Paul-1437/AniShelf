@@ -334,6 +334,10 @@ final class LibrarySyncCoordinator {
                 localSnapshotsByIdentity: postImportSnapshots,
                 settingsSnapshot: settingsSnapshotForExport
             )
+            logSettingsExportResult(
+                settingsSnapshotForExport,
+                exportResult: exportResult
+            )
             try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
             try removeExportedDirtyEntries(
                 exportResult.exportedIdentities,
@@ -662,6 +666,10 @@ final class LibrarySyncCoordinator {
                 entries: dirtyEntries,
                 localSnapshotsByIdentity: postImportSnapshots,
                 settingsSnapshot: settingsSnapshotForExport
+            )
+            logSettingsExportResult(
+                settingsSnapshotForExport,
+                exportResult: exportResult
             )
             try removeExportedDirtyEntries(
                 exportResult.exportedIdentities,
@@ -1065,7 +1073,12 @@ final class LibrarySyncCoordinator {
     ) {
         guard let remoteSnapshot else { return }
         let localUpdatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() ?? .distantPast
-        guard remoteSnapshot.updatedAt > localUpdatedAt else { return }
+        guard remoteSnapshot.updatedAt > localUpdatedAt else {
+            librarySyncCoordinatorLogger.debug(
+                "Skipped iCloud settings snapshot updated at \(remoteSnapshot.updatedAt, privacy: .public) because the local settings clock is not older."
+            )
+            return
+        }
         store.applyRemoteCloudSyncedPreferences(remoteSnapshot)
     }
 
@@ -1088,11 +1101,31 @@ final class LibrarySyncCoordinator {
             guard remoteSnapshot == nil, !localState.snapshot.payload.isEmpty else { return nil }
             let updatedAt = dateProvider()
             store.preferences.saveCloudSyncedDefaultsUpdatedAt(updatedAt)
-            return store.preferences.loadCloudSyncedSettingsSnapshot(fallbackUpdatedAt: updatedAt)
+            let snapshot = store.preferences.loadCloudSyncedSettingsSnapshot(fallbackUpdatedAt: updatedAt)
+            librarySyncCoordinatorLogger.info(
+                "Initialized iCloud settings clock at \(updatedAt, privacy: .public) for first settings export with \(snapshot.payload.count, privacy: .public) keys."
+            )
+            return snapshot
         }
         guard let remoteSnapshot else { return localState.snapshot }
         guard localUpdatedAt > remoteSnapshot.updatedAt else { return nil }
         return localState.snapshot
+    }
+
+    private func logSettingsExportResult(
+        _ snapshot: LibrarySettingsSyncSnapshot?,
+        exportResult: CloudLibrarySyncExportResult
+    ) {
+        guard let snapshot else { return }
+        if exportResult.settingsExported {
+            librarySyncCoordinatorLogger.info(
+                "Exported iCloud settings snapshot updated at \(snapshot.updatedAt, privacy: .public) with \(snapshot.payload.count, privacy: .public) keys."
+            )
+        } else {
+            librarySyncCoordinatorLogger.warning(
+                "CloudKit did not accept the iCloud settings snapshot updated at \(snapshot.updatedAt, privacy: .public); settings remain pending."
+            )
+        }
     }
 
     private func reconciledCloudSyncedSettingsUpdatedAt(
