@@ -26,6 +26,7 @@ class LibraryStore {
     @ObservationIgnored private var syncScheduler: LibrarySyncScheduler?
     @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncResult, Never>] =
         [:]
+    @ObservationIgnored private var shouldResumeInterruptedCloudSyncBootstrap = false
     @ObservationIgnored let preferences: LibraryPreferences
     @ObservationIgnored private let cloudSyncStateController: LibraryCloudSyncStateController
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
@@ -112,13 +113,16 @@ class LibraryStore {
         self.syncChangeRecorder = syncChangeRecorder
         self.repository = repository
         self.preferences = preferences
+        let snapshot = preferences.load()
         self.cloudSyncStateController = .init(
             preferences: preferences,
             hasTMDbAPIKey: hasTMDbAPIKey
         )
         self.infoFetcher = .init()
         self.library = []
-        self.libraryCloudSyncStatus = preferences.load().cloudSyncStatus
+        self.libraryCloudSyncStatus = snapshot.cloudSyncStatus
+        self.shouldResumeInterruptedCloudSyncBootstrap =
+            snapshot.cloudSyncStatus.isEnabled && snapshot.cloudSyncStatus.bootstrapState == .running
         reloadPersistedPreferences()
         setupUpdateLibrary()
         setupTMDbAPIConfigurationChangeMonitor()
@@ -204,6 +208,10 @@ class LibraryStore {
     {
         guard let syncCoordinator else { return .permanentFailure }
         guard !Task.isCancelled else { return .skipped(.disabled) }
+        if shouldResumeInterruptedCloudSyncBootstrap {
+            shouldResumeInterruptedCloudSyncBootstrap = false
+            return await bootstrapLibraryCloudSyncEnablement()
+        }
 
         let taskID = UUID()
         let syncTask = Task {
@@ -223,6 +231,10 @@ class LibraryStore {
 
     @discardableResult
     func enableLibraryCloudSync() async -> Bool {
+        await bootstrapLibraryCloudSyncEnablement().succeeded
+    }
+
+    private func bootstrapLibraryCloudSyncEnablement() async -> LibrarySyncCoordinator.SyncResult {
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = true
             status.bootstrapState = .running
@@ -243,7 +255,7 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return false
+            return .permanentFailure
         }
         guard let syncCoordinator else {
             recordLibraryCloudSyncFailure(
@@ -256,9 +268,9 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return false
+            return .permanentFailure
         }
-        return await syncCoordinator.bootstrapFirstEnablement(preference: nil).succeeded
+        return await syncCoordinator.bootstrapFirstEnablement(preference: nil)
     }
 
     @discardableResult

@@ -265,6 +265,28 @@ struct LibrarySyncCoordinatorTests {
         #expect(database.ensureZoneCallCount == 0)
     }
 
+    @Test @MainActor func appLaunchResumesInterruptedFirstEnableBootstrap() async throws {
+        let store = makeStore(
+            enabled: true,
+            bootstrapState: .running,
+            hasTMDbAPIKey: true
+        )
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(),
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let result = await store.performLibrarySyncResult(trigger: .appLaunch)
+
+        #expect(result == .success)
+        #expect(store.libraryCloudSyncStatus.isEnabled)
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .completed)
+        #expect(store.libraryCloudSyncStatus.lastResult == .success)
+        #expect(database.ensureZoneCallCount == 1)
+    }
+
     @Test @MainActor func manualRetryClearsDegradedStateAfterSuccessfulSync() async throws {
         let store = makeSyncReadyStore()
         store.updateLibraryCloudSyncStatus { status in

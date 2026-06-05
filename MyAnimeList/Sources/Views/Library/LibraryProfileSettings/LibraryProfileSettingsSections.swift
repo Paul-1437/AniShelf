@@ -462,7 +462,7 @@ struct LibraryProfileSettingsCard: View {
                     .tint(.indigo)
                     .scaleEffect(0.78, anchor: .trailing)
                     .frame(width: 42, height: 26, alignment: .trailing)
-                    .disabled(cloudSyncIsBusy)
+                    .disabled(cloudSyncToggleDisabled)
             }
             .padding(.vertical, 2)
 
@@ -711,6 +711,10 @@ struct LibraryProfileSettingsCard: View {
 
     private var cloudSyncManualRetryDisabled: Bool {
         cloudSyncIsBusy || libraryCloudSyncStatus.bootstrapState == .needsConflictChoice
+    }
+
+    private var cloudSyncToggleDisabled: Bool {
+        !libraryCloudSyncStatus.isEnabled && cloudSyncIsBusy
     }
 
     private var cloudSyncToggleSubtitle: LocalizedStringResource {
