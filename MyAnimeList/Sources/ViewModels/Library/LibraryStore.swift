@@ -212,7 +212,7 @@ class LibraryStore {
     }
 
     func flushPendingLocalLibrarySync() {
-        syncScheduler?.flushLocalDirtyQueueSync()
+        syncScheduler?.flushPendingLocalSync()
     }
 
     @discardableResult
@@ -413,6 +413,7 @@ class LibraryStore {
     func recordLibraryCloudSyncSuccess(
         trigger: LibrarySyncCoordinator.Trigger,
         completedBootstrap: Bool,
+        reconciledCloudSyncedSettingsUpdatedAt: Date?,
         at date: Date = .now
     ) {
         updateLibraryCloudSyncStatus { status in
@@ -424,6 +425,8 @@ class LibraryStore {
             status.lastTrigger = trigger.rawValue
             status.lastAttemptDate = date
             status.lastSuccessfulSyncDate = date
+            status.lastReconciledCloudSyncedSettingsUpdatedAt =
+                reconciledCloudSyncedSettingsUpdatedAt
             status.lastFailureReason = nil
             status.degradedReason = nil
             status.pendingConflictSummary = nil
@@ -506,9 +509,8 @@ class LibraryStore {
     private func setupLibrarySyncScheduling() {
         guard !dataProvider.inMemory else { return }
         let scheduler = LibrarySyncScheduler(
-            hasPendingDirtyWork: { [weak syncChangeRecorder] in
-                guard let syncChangeRecorder else { return false }
-                return !syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty
+            hasPendingLocalWork: { [weak self] in
+                self?.hasPendingLocalLibrarySyncWork() ?? false
             },
             sync: { [weak self] trigger in
                 guard let self else { return .permanentFailure }
@@ -524,8 +526,29 @@ class LibraryStore {
         )
         syncScheduler = scheduler
         syncChangeRecorder.onDirtyQueueChanged = { [weak scheduler] in
-            scheduler?.scheduleLocalDirtyQueueSync()
+            scheduler?.schedulePendingLocalSync()
         }
+    }
+
+    func hasPendingLocalLibrarySyncWork() -> Bool {
+        hasPendingLibraryEntrySyncWork() || hasPendingCloudSyncedSettingsSyncWork()
+    }
+
+    private func hasPendingLibraryEntrySyncWork() -> Bool {
+        !syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty
+    }
+
+    func hasPendingCloudSyncedSettingsSyncWork() -> Bool {
+        guard let updatedAt = preferences.cloudSyncedDefaultsUpdatedAt() else { return false }
+        let payload = preferences.loadCloudSyncedSettingsSnapshot(fallbackUpdatedAt: updatedAt).payload
+        guard !payload.isEmpty else { return false }
+        guard
+            let lastReconciledUpdatedAt =
+                libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
+        else {
+            return true
+        }
+        return updatedAt > lastReconciledUpdatedAt
     }
 
     func setupTMDbAPIConfigurationChangeMonitor() {
@@ -559,7 +582,15 @@ class LibraryStore {
         preferences.saveCloudSyncedDefaultsUpdatedAt(.now)
         reloadPersistedPreferences()
         guard libraryCloudSyncStatus.isEnabled else { return }
-        syncLibrary(trigger: .localDirtyQueueChange)
+        schedulePendingLocalLibrarySync()
+    }
+
+    private func schedulePendingLocalLibrarySync() {
+        guard let syncScheduler else {
+            syncLibrary(trigger: .localChange)
+            return
+        }
+        syncScheduler.schedulePendingLocalSync()
     }
 
     // MARK: - Shared Helpers

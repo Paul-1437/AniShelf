@@ -157,6 +157,45 @@ struct LibraryPreferencesAndActionsTests {
         #expect(store.preferences.load().cloudSyncStatus == .defaultValue)
     }
 
+    @Test @MainActor func testPendingLocalSyncWorkIncludesUnsyncedCloudSettings() throws {
+        let suiteName = "MyAnimeListTests.PendingCloudSettings.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let preferences = LibraryPreferences(defaults: defaults)
+        let store = LibraryStore(
+            dataProvider: DataProvider(inMemory: true),
+            preferences: preferences
+        )
+        store.updateLibraryCloudSyncStatus { status in
+            status.isEnabled = true
+            status.bootstrapState = .completed
+            status.lastSuccessfulSyncDate = Date(timeIntervalSince1970: 1_000)
+            status.lastReconciledCloudSyncedSettingsUpdatedAt = Date(timeIntervalSince1970: 1_000)
+        }
+        preferences.saveSortReversed(false)
+        preferences.saveCloudSyncedDefaultsUpdatedAt(Date(timeIntervalSince1970: 2_000))
+
+        #expect(store.hasPendingCloudSyncedSettingsSyncWork())
+        #expect(store.hasPendingLocalLibrarySyncWork())
+
+        store.updateLibraryCloudSyncStatus { status in
+            status.lastSuccessfulSyncDate = Date(timeIntervalSince1970: 3_000)
+            status.lastReconciledCloudSyncedSettingsUpdatedAt = Date(timeIntervalSince1970: 3_000)
+        }
+        #expect(!store.hasPendingCloudSyncedSettingsSyncWork())
+        #expect(!store.hasPendingLocalLibrarySyncWork())
+
+        try store.syncChangeRecorder.dirtyQueueStore.setPendingUpsert(
+            .init(
+                identity: .init(entryType: .movie, tmdbID: 700_003),
+                dirtyAt: Date(timeIntervalSince1970: 4_000)
+            )
+        )
+        #expect(store.hasPendingLocalLibrarySyncWork())
+    }
+
     @Test func testSingleTapDetailPreferenceDefaultsAndBackupInclusion() {
         let suiteName = "MyAnimeListTests.SingleTapDetailPreference"
         let defaults = UserDefaults(suiteName: suiteName)!

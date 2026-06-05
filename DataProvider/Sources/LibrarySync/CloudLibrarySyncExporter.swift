@@ -58,14 +58,16 @@ public struct CloudLibrarySyncExporter: @unchecked Sendable {
             localSnapshotsByIdentity: localSnapshotsByIdentity,
             settingsSnapshot: settingsSnapshot
         )
-        let recordsToSave = Array(preparedRecords.recordsByIdentity.values)
+        let recordsToSave =
+            Array(preparedRecords.recordsByIdentity.values)
             + (preparedRecords.settingsRecord.map { [$0] } ?? [])
         let savedRecordIDs = try await database.save(records: recordsToSave)
         let exportedIdentities = Set(
             savedRecordIDs.compactMap { recordID in
                 preparedRecords.recordsByIdentity.first { $0.value.recordID == recordID }?.key
             })
-        let preparedRecordCount = preparedRecords.recordsByIdentity.count + (preparedRecords.settingsRecord == nil ? 0 : 1)
+        let preparedRecordCount =
+            preparedRecords.recordsByIdentity.count + (preparedRecords.settingsRecord == nil ? 0 : 1)
         let partialFailureCount = max(0, preparedRecordCount - savedRecordIDs.count)
         if partialFailureCount > 0 {
             cloudLibrarySyncExportLogger.warning(

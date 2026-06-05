@@ -80,6 +80,10 @@ struct LibraryPreferences {
         saveOptional(status.lastTrigger, forKey: .libraryCloudSyncLastTrigger)
         saveOptional(status.lastAttemptDate, forKey: .libraryCloudSyncLastAttemptDate)
         saveOptional(status.lastSuccessfulSyncDate, forKey: .libraryCloudSyncLastSuccessfulSyncDate)
+        saveOptional(
+            status.lastReconciledCloudSyncedSettingsUpdatedAt,
+            forKey: .libraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt
+        )
         saveOptional(status.lastFailureReason, forKey: .libraryCloudSyncLastFailureReason)
         saveOptional(status.degradedReason, forKey: .libraryCloudSyncDegradedReason)
         saveCodable(status.pendingConflictSummary, forKey: .libraryCloudSyncConflictSummary)
@@ -196,6 +200,9 @@ struct LibraryPreferences {
         status.lastAttemptDate = defaults.object(forKey: .libraryCloudSyncLastAttemptDate) as? Date
         status.lastSuccessfulSyncDate =
             defaults.object(forKey: .libraryCloudSyncLastSuccessfulSyncDate) as? Date
+        status.lastReconciledCloudSyncedSettingsUpdatedAt =
+            defaults.object(forKey: .libraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt)
+            as? Date
         status.lastFailureReason = defaults.string(forKey: .libraryCloudSyncLastFailureReason)
         status.degradedReason = defaults.string(forKey: .libraryCloudSyncDegradedReason)
         return status

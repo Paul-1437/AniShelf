@@ -29,7 +29,7 @@ final class LibrarySyncCoordinator {
         case appLaunch
         case foreground
         case cloudNotification
-        case localDirtyQueueChange
+        case localChange
         case manualRetry
         case firstEnableBootstrap
     }
@@ -317,11 +317,17 @@ final class LibrarySyncCoordinator {
 
             let postImportSnapshots = try localSnapshotsByIdentity(for: store)
             let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
+            let localSettingsState = localSettingsSnapshotState(for: store)
             let settingsSnapshotForExport = settingsSnapshotForExport(
-                localState: localSettingsSnapshotState(for: store),
+                localState: localSettingsState,
                 remoteSnapshot: importBatch.settingsSnapshot,
                 store: store
             )
+            let reconciledCloudSyncedSettingsUpdatedAt =
+                reconciledCloudSyncedSettingsUpdatedAt(
+                    localState: localSettingsState,
+                    exportedSnapshot: settingsSnapshotForExport
+                )
             currentPhase = .export
             store.recordLibraryCloudSyncPhase(
                 trigger: trigger,
@@ -345,6 +351,7 @@ final class LibrarySyncCoordinator {
             store.recordLibraryCloudSyncSuccess(
                 trigger: trigger,
                 completedBootstrap: false,
+                reconciledCloudSyncedSettingsUpdatedAt: reconciledCloudSyncedSettingsUpdatedAt,
                 at: dateProvider()
             )
             return .success
@@ -637,11 +644,17 @@ final class LibrarySyncCoordinator {
 
             let postImportSnapshots = try localSnapshotsByIdentity(for: store)
             let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
+            let localSettingsState = localSettingsSnapshotState(for: store)
             let settingsSnapshotForExport = settingsSnapshotForExport(
-                localState: localSettingsSnapshotState(for: store),
+                localState: localSettingsState,
                 remoteSnapshot: importBatch.settingsSnapshot,
                 store: store
             )
+            let reconciledCloudSyncedSettingsUpdatedAt =
+                reconciledCloudSyncedSettingsUpdatedAt(
+                    localState: localSettingsState,
+                    exportedSnapshot: settingsSnapshotForExport
+                )
             currentPhase = .export
             store.recordLibraryCloudSyncPhase(
                 trigger: trigger,
@@ -663,6 +676,7 @@ final class LibrarySyncCoordinator {
             store.recordLibraryCloudSyncSuccess(
                 trigger: trigger,
                 completedBootstrap: true,
+                reconciledCloudSyncedSettingsUpdatedAt: reconciledCloudSyncedSettingsUpdatedAt,
                 at: dateProvider()
             )
             librarySyncCoordinatorLogger.info(
@@ -1077,6 +1091,17 @@ final class LibrarySyncCoordinator {
         guard let remoteSnapshot else { return localState.snapshot }
         guard localUpdatedAt > remoteSnapshot.updatedAt else { return nil }
         return localState.snapshot
+    }
+
+    private func reconciledCloudSyncedSettingsUpdatedAt(
+        localState: LocalSettingsSnapshotState,
+        exportedSnapshot: LibrarySettingsSyncSnapshot?
+    ) -> Date? {
+        if let exportedSnapshot {
+            return exportedSnapshot.updatedAt
+        }
+        guard !localState.snapshot.payload.isEmpty else { return nil }
+        return localState.updatedAt
     }
 
     /// Returns the local entry to update, hydrating a new one when needed.

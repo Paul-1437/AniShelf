@@ -13,13 +13,13 @@ fileprivate let librarySyncSchedulerLogger = Logger(
     category: "LibrarySync.Scheduler"
 )
 
-/// Coalesces local dirty-queue changes before asking CloudKit to sync.
+/// Coalesces local sync work before asking CloudKit to sync.
 @MainActor
 final class LibrarySyncScheduler {
     private let localDebounceInterval: TimeInterval
     private let failureRetryIntervals: [TimeInterval]
     private let maximumRetryAttemptsAtFinalInterval: Int
-    private let hasPendingDirtyWork: @MainActor () -> Bool
+    private let hasPendingLocalWork: @MainActor () -> Bool
     private let sync: @MainActor (LibrarySyncCoordinator.Trigger) async -> LibrarySyncCoordinator.SyncResult
     private let retryStateDidChange: @MainActor (LibraryCloudSyncRetryState) -> Void
     private let degradedStateDidChange: @MainActor (String) -> Void
@@ -42,7 +42,7 @@ final class LibrarySyncScheduler {
         localDebounceInterval: TimeInterval = 1.5,
         failureRetryIntervals: [TimeInterval] = [30, 60, 120, 300],
         maximumRetryAttemptsAtFinalInterval: Int = 3,
-        hasPendingDirtyWork: @escaping @MainActor () -> Bool,
+        hasPendingLocalWork: @escaping @MainActor () -> Bool,
         sync: @escaping @MainActor (LibrarySyncCoordinator.Trigger) async -> LibrarySyncCoordinator.SyncResult,
         retryStateDidChange: @escaping @MainActor (LibraryCloudSyncRetryState) -> Void = { _ in },
         degradedStateDidChange: @escaping @MainActor (String) -> Void = { _ in }
@@ -50,7 +50,7 @@ final class LibrarySyncScheduler {
         self.localDebounceInterval = localDebounceInterval
         self.failureRetryIntervals = failureRetryIntervals
         self.maximumRetryAttemptsAtFinalInterval = maximumRetryAttemptsAtFinalInterval
-        self.hasPendingDirtyWork = hasPendingDirtyWork
+        self.hasPendingLocalWork = hasPendingLocalWork
         self.sync = sync
         self.retryStateDidChange = retryStateDidChange
         self.degradedStateDidChange = degradedStateDidChange
@@ -61,13 +61,13 @@ final class LibrarySyncScheduler {
     }
 
     /// Schedules a local-change sync after the debounce window settles.
-    func scheduleLocalDirtyQueueSync() {
+    func schedulePendingLocalSync() {
         schedule(after: delayRespectingFailureBackoff(localDebounceInterval))
     }
 
-    /// Runs local dirty work as soon as possible, if there is any.
-    func flushLocalDirtyQueueSync() {
-        guard hasPendingDirtyWork() else { return }
+    /// Runs local sync work as soon as possible, if there is any.
+    func flushPendingLocalSync() {
+        guard hasPendingLocalWork() else { return }
         schedule(after: delayRespectingFailureBackoff(0))
     }
 
@@ -86,12 +86,12 @@ final class LibrarySyncScheduler {
                 scheduledTaskID = nil
             }
         }
-        guard hasPendingDirtyWork() else {
+        guard hasPendingLocalWork() else {
             resetFailureBackoff()
             return
         }
 
-        let result = await sync(.localDirtyQueueChange)
+        let result = await sync(.localChange)
         guard !Task.isCancelled, scheduledTaskID == taskID else { return }
         switch result {
         case .success:
@@ -105,7 +105,7 @@ final class LibrarySyncScheduler {
         case .permanentFailure:
             resetFailureBackoff()
             degradedStateDidChange(
-                "Automatic iCloud library sync stopped because a permanent failure blocked local dirty work."
+                "Automatic iCloud library sync stopped because a permanent failure blocked local work."
             )
             librarySyncSchedulerLogger.warning(
                 "Skipped automatic iCloud library sync retry after a non-retryable local-change sync failure."
@@ -114,7 +114,7 @@ final class LibrarySyncScheduler {
     }
 
     private func scheduleFailureRetryIfNeeded() {
-        guard hasPendingDirtyWork(), !failureRetryIntervals.isEmpty else { return }
+        guard hasPendingLocalWork(), !failureRetryIntervals.isEmpty else { return }
         let maximumRetryAttempts = max(
             0,
             failureRetryIntervals.count - 1 + maximumRetryAttemptsAtFinalInterval
@@ -124,7 +124,7 @@ final class LibrarySyncScheduler {
             automaticRetriesExhausted = true
             retryStateDidChange(retryState)
             degradedStateDidChange(
-                "Automatic iCloud library sync retries stopped after the local dirty queue retry policy was exhausted."
+                "Automatic iCloud library sync retries stopped after the local-change retry policy was exhausted."
             )
             librarySyncSchedulerLogger.warning(
                 "Stopped automatic iCloud library sync retries after exhausting the local-change failure retry policy."

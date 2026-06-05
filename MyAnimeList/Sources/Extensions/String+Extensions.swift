@@ -40,6 +40,8 @@ extension String {
     static let libraryCloudSyncLastTrigger = "LibraryCloudSyncLastTrigger"
     static let libraryCloudSyncLastAttemptDate = "LibraryCloudSyncLastAttemptDate"
     static let libraryCloudSyncLastSuccessfulSyncDate = "LibraryCloudSyncLastSuccessfulSyncDate"
+    static let libraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt =
+        "LibraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt"
     static let libraryCloudSyncLastFailureReason = "LibraryCloudSyncLastFailureReason"
     static let libraryCloudSyncDegradedReason = "LibraryCloudSyncDegradedReason"
     static let libraryCloudSyncedDefaultsUpdatedAt = "LibraryCloudSyncedDefaultsUpdatedAt"

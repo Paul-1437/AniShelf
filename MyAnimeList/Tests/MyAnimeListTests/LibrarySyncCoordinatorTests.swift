@@ -15,26 +15,26 @@ import Testing
 
 @Suite(.serialized)
 struct LibrarySyncCoordinatorTests {
-    @Test @MainActor func dirtyQueueSchedulerDebouncesLocalChanges() async throws {
+    @Test @MainActor func localSyncSchedulerDebouncesLocalChanges() async throws {
         var syncCount = 0
-        var hasPendingDirtyWork = true
+        var hasPendingLocalWork = true
         let scheduler = LibrarySyncScheduler(
             localDebounceInterval: 0.05,
             failureRetryIntervals: [0.1],
-            hasPendingDirtyWork: {
-                hasPendingDirtyWork
+            hasPendingLocalWork: {
+                hasPendingLocalWork
             },
             sync: { trigger in
-                #expect(trigger == .localDirtyQueueChange)
+                #expect(trigger == .localChange)
                 syncCount += 1
-                hasPendingDirtyWork = false
+                hasPendingLocalWork = false
                 return .success
             }
         )
 
-        scheduler.scheduleLocalDirtyQueueSync()
+        scheduler.schedulePendingLocalSync()
         try await Task.sleep(nanoseconds: 20_000_000)
-        scheduler.scheduleLocalDirtyQueueSync()
+        scheduler.schedulePendingLocalSync()
         try await Task.sleep(nanoseconds: 30_000_000)
 
         #expect(syncCount == 0)
@@ -44,31 +44,31 @@ struct LibrarySyncCoordinatorTests {
         #expect(syncCount == 1)
     }
 
-    @Test @MainActor func dirtyQueueSchedulerBacksOffAfterFailure() async throws {
+    @Test @MainActor func localSyncSchedulerBacksOffAfterFailure() async throws {
         var syncCount = 0
-        var hasPendingDirtyWork = true
+        var hasPendingLocalWork = true
         let scheduler = LibrarySyncScheduler(
             localDebounceInterval: 0.01,
             failureRetryIntervals: [0.08],
-            hasPendingDirtyWork: {
-                hasPendingDirtyWork
+            hasPendingLocalWork: {
+                hasPendingLocalWork
             },
             sync: { _ in
                 syncCount += 1
                 if syncCount == 1 {
                     return .retryableFailure
                 }
-                hasPendingDirtyWork = false
+                hasPendingLocalWork = false
                 return .success
             }
         )
 
-        scheduler.scheduleLocalDirtyQueueSync()
+        scheduler.schedulePendingLocalSync()
         try await Task.sleep(nanoseconds: 30_000_000)
 
         #expect(syncCount == 1)
 
-        scheduler.scheduleLocalDirtyQueueSync()
+        scheduler.schedulePendingLocalSync()
         try await Task.sleep(nanoseconds: 30_000_000)
 
         #expect(syncCount == 1)
@@ -78,7 +78,7 @@ struct LibrarySyncCoordinatorTests {
         #expect(syncCount == 2)
     }
 
-    @Test @MainActor func dirtyQueueSchedulerStopsAfterFinalIntervalRetryLimit() async throws {
+    @Test @MainActor func localSyncSchedulerStopsAfterFinalIntervalRetryLimit() async throws {
         var syncCount = 0
         var retryStates: [LibraryCloudSyncRetryState] = []
         var degradedReason: String?
@@ -86,7 +86,7 @@ struct LibrarySyncCoordinatorTests {
             localDebounceInterval: 0.001,
             failureRetryIntervals: [0.01, 0.02],
             maximumRetryAttemptsAtFinalInterval: 3,
-            hasPendingDirtyWork: {
+            hasPendingLocalWork: {
                 true
             },
             sync: { _ in
@@ -97,8 +97,10 @@ struct LibrarySyncCoordinatorTests {
             degradedStateDidChange: { degradedReason = $0 }
         )
 
-        scheduler.scheduleLocalDirtyQueueSync()
-        try await Task.sleep(nanoseconds: 110_000_000)
+        scheduler.schedulePendingLocalSync()
+        for _ in 0..<200 where retryStates.last?.automaticRetriesExhausted != true {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
 
         #expect(syncCount == 5)
         #expect(retryStates.last?.automaticRetriesExhausted == true)
@@ -109,14 +111,14 @@ struct LibrarySyncCoordinatorTests {
         #expect(syncCount == 5)
     }
 
-    @Test @MainActor func dirtyQueueSchedulerResetRestartsFailureRetryPolicy() async throws {
+    @Test @MainActor func localSyncSchedulerResetRestartsFailureRetryPolicy() async throws {
         var syncCount = 0
         var retryStates: [LibraryCloudSyncRetryState] = []
         let scheduler = LibrarySyncScheduler(
             localDebounceInterval: 0.001,
             failureRetryIntervals: [0.01, 0.02],
             maximumRetryAttemptsAtFinalInterval: 3,
-            hasPendingDirtyWork: {
+            hasPendingLocalWork: {
                 true
             },
             sync: { _ in
@@ -126,7 +128,7 @@ struct LibrarySyncCoordinatorTests {
             retryStateDidChange: { retryStates.append($0) }
         )
 
-        scheduler.scheduleLocalDirtyQueueSync()
+        scheduler.schedulePendingLocalSync()
         for _ in 0..<100 where retryStates.last?.automaticRetriesExhausted != true {
             try await Task.sleep(nanoseconds: 1_000_000)
         }
@@ -135,7 +137,7 @@ struct LibrarySyncCoordinatorTests {
         #expect(retryStates.last?.automaticRetriesExhausted == true)
 
         scheduler.resetRetryBackoff()
-        scheduler.scheduleLocalDirtyQueueSync()
+        scheduler.schedulePendingLocalSync()
         for _ in 0..<50 where syncCount < 6 {
             try await Task.sleep(nanoseconds: 1_000_000)
         }
@@ -145,13 +147,13 @@ struct LibrarySyncCoordinatorTests {
         #expect(retryStates.last?.automaticRetriesExhausted == false)
     }
 
-    @Test @MainActor func dirtyQueueSchedulerDoesNotRetryPermanentFailure() async throws {
+    @Test @MainActor func localSyncSchedulerDoesNotRetryPermanentFailure() async throws {
         var syncCount = 0
         var degradedReason: String?
         let scheduler = LibrarySyncScheduler(
             localDebounceInterval: 0.01,
             failureRetryIntervals: [0.02],
-            hasPendingDirtyWork: {
+            hasPendingLocalWork: {
                 true
             },
             sync: { _ in
@@ -161,14 +163,14 @@ struct LibrarySyncCoordinatorTests {
             degradedStateDidChange: { degradedReason = $0 }
         )
 
-        scheduler.scheduleLocalDirtyQueueSync()
+        scheduler.schedulePendingLocalSync()
         try await Task.sleep(nanoseconds: 40_000_000)
 
         #expect(syncCount == 1)
         #expect(degradedReason != nil)
     }
 
-    @Test @MainActor func dirtyQueueSchedulerResetCancelsInFlightSyncHandling() async throws {
+    @Test @MainActor func localSyncSchedulerResetCancelsInFlightSyncHandling() async throws {
         var syncCount = 0
         var syncStarted = false
         var syncContinuation: CheckedContinuation<Void, Never>?
@@ -176,7 +178,7 @@ struct LibrarySyncCoordinatorTests {
         let scheduler = LibrarySyncScheduler(
             localDebounceInterval: 0,
             failureRetryIntervals: [0.01],
-            hasPendingDirtyWork: {
+            hasPendingLocalWork: {
                 true
             },
             sync: { _ in
@@ -190,7 +192,7 @@ struct LibrarySyncCoordinatorTests {
             retryStateDidChange: { retryStates.append($0) }
         )
 
-        scheduler.flushLocalDirtyQueueSync()
+        scheduler.flushPendingLocalSync()
         while !syncStarted {
             try await Task.sleep(nanoseconds: 1_000_000)
         }
@@ -465,6 +467,67 @@ struct LibrarySyncCoordinatorTests {
             database.savedRecords.first { $0.recordID == client.librarySettingsRecordID }
         )
         #expect(try client.settingsSnapshot(from: savedSettingsRecord) == localSettings)
+    }
+
+    @Test @MainActor func settingsEditedDuringInFlightExportRemainPending() async throws {
+        let store = makeSyncReadyStore()
+        let originalSettings = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 5),
+            payload: [.useTMDbRelayServer: .bool(false)]
+        )
+        store.preferences.applyCloudSyncedSettingsSnapshot(originalSettings)
+        store.preferences.saveCloudSyncedDefaultsUpdatedAt(originalSettings.updatedAt)
+        store.reloadPersistedPreferences()
+
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            makeEmptyChangeBatch(),
+            makeEmptyChangeBatch()
+        ])
+        database.suspendNextSave = true
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let syncTask = Task {
+            await coordinator.syncResult(trigger: .localChange)
+        }
+        for _ in 0..<50 where !database.isSaveSuspended {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        #expect(database.isSaveSuspended)
+
+        let updatedSettings = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 6),
+            payload: [.useTMDbRelayServer: .bool(true)]
+        )
+        store.preferences.applyCloudSyncedSettingsSnapshot(updatedSettings)
+        store.preferences.saveCloudSyncedDefaultsUpdatedAt(updatedSettings.updatedAt)
+        store.reloadPersistedPreferences()
+
+        database.resumeSuspendedSave()
+        let firstResult = await syncTask.value
+
+        #expect(firstResult == .success)
+        var savedSettingsRecords = database.savedRecords.filter {
+            $0.recordID == client.librarySettingsRecordID
+        }
+        #expect(savedSettingsRecords.count == 1)
+        #expect(try client.settingsSnapshot(from: try #require(savedSettingsRecords.first)) == originalSettings)
+        #expect(store.hasPendingCloudSyncedSettingsSyncWork())
+
+        let followUpResult = await coordinator.syncResult(trigger: .localChange)
+
+        #expect(followUpResult == .success)
+        savedSettingsRecords = database.savedRecords.filter {
+            $0.recordID == client.librarySettingsRecordID
+        }
+        #expect(savedSettingsRecords.count == 2)
+        #expect(try client.settingsSnapshot(from: try #require(savedSettingsRecords.last)) == updatedSettings)
+        #expect(!store.hasPendingCloudSyncedSettingsSyncWork())
     }
 
     @Test @MainActor func remoteSettingsApplyDoesNotRestampLocalClockAsFreshEdit() async throws {

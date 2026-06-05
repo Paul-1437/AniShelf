@@ -183,7 +183,10 @@ struct CloudLibrarySyncImporterExporterTests {
         #expect(decoded == snapshot)
 
         record["schemaVersion"] = LibrarySettingsSyncSnapshot.currentSchemaVersion + 1
-        #expect(throws: CloudLibrarySyncDecodeError.unsupportedSchemaVersion(LibrarySettingsSyncSnapshot.currentSchemaVersion + 1)) {
+        #expect(
+            throws: CloudLibrarySyncDecodeError.unsupportedSchemaVersion(
+                LibrarySettingsSyncSnapshot.currentSchemaVersion + 1)
+        ) {
             try client.settingsSnapshot(from: record)
         }
     }
