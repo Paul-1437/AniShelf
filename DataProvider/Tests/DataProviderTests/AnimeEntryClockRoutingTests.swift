@@ -47,6 +47,16 @@ import Testing
     #expect(entry.trackingUpdatedAt == nil)
 }
 
+@Test func rawDisplayStateHelperDoesNotStampLibraryClock() async throws {
+    let entry = AnimeEntry.template()
+
+    entry.setDisplayState(false)
+
+    #expect(!entry.onDisplay)
+    #expect(entry.libraryUpdatedAt == nil)
+    #expect(entry.trackingUpdatedAt == nil)
+}
+
 @Test func rawUserInfoMutationHelpersDoNotStampClocks() async throws {
     let entry = AnimeEntry.template()
     let source = AnimeEntry.template(id: 1)

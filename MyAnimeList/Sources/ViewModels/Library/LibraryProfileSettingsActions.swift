@@ -155,7 +155,10 @@ final class LibraryProfileSettingsActions {
         for store: LibraryStore,
         options: LibraryRefreshOptions
     ) {
-        let metadataRefresher = LibraryMetadataRefresher(repository: store.repository)
+        let metadataRefresher = LibraryMetadataRefresher(
+            repository: store.repository,
+            saveMetadataRefresh: store.saveMetadataRefreshWithoutSyncRecording
+        )
         Task {
             do {
                 let entries = try getRefreshEntries(for: store)

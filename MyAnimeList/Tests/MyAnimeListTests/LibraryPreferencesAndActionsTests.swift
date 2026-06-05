@@ -846,6 +846,26 @@ struct LibraryPreferencesAndActionsTests {
         #expect(capturedEntries.filter { !$0.onDisplay && $0.tmdbID == 209_867 }.count == 1)
     }
 
+    @Test @MainActor func testMetadataRefreshSaveDoesNotEnqueueDirtyWork() throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let hiddenParent = AnimeEntry(
+            name: "Frieren",
+            type: .series,
+            tmdbID: 209_867
+        )
+        hiddenParent.updateDisplayState(false, at: referenceDate(year: 2026, month: 6, day: 5))
+        store.repository.insert(hiddenParent)
+
+        try store.saveMetadataRefreshWithoutSyncRecording()
+
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+
+        hiddenParent.name = "Frieren: Beyond Journey's End"
+        try store.saveMetadataRefreshWithoutSyncRecording()
+
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+    }
+
     @Test @MainActor func testHydrateHiddenHelperParentAppliesDefaultsAndDetail() throws {
         let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
         store.defaultNewEntryWatchStatus = .watching

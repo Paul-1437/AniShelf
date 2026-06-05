@@ -208,6 +208,13 @@ class LibraryStore {
         syncChangeRecorder.rebuildBaseline()
     }
 
+    func saveMetadataRefreshWithoutSyncRecording() throws {
+        try syncChangeRecorder.withSuppressedRecording {
+            try repository.save()
+        }
+        rebuildSyncChangeTracking()
+    }
+
     func syncLibrary(trigger: LibrarySyncCoordinator.Trigger) {
         Task {
             await performLibrarySyncResult(trigger: trigger)

@@ -2,6 +2,12 @@ import DataProvider
 import Foundation
 import SwiftData
 import SwiftUI
+import os
+
+fileprivate let libraryMetadataRefreshLogger = Logger(
+    subsystem: .bundleIdentifier,
+    category: "LibraryMetadataRefresh"
+)
 
 @MainActor
 final class LibraryMetadataRefresher {
@@ -17,9 +23,17 @@ final class LibraryMetadataRefresher {
     }
 
     private let repository: LibraryRepository
+    private let saveMetadataRefresh: () throws -> Void
 
-    init(repository: LibraryRepository) {
+    init(
+        repository: LibraryRepository,
+        saveMetadataRefresh: (() throws -> Void)? = nil
+    ) {
         self.repository = repository
+        self.saveMetadataRefresh =
+            saveMetadataRefresh ?? {
+                try repository.save()
+            }
     }
 
     func refreshInfos(
@@ -28,6 +42,9 @@ final class LibraryMetadataRefresher {
         language: Language,
         options: LibraryRefreshOptions = .toastDefault
     ) async {
+        libraryMetadataRefreshLogger.info(
+            "Starting library metadata refresh for \(library.count, privacy: .public) entries in \(language.rawValue, privacy: .public) with image prefetch \(options.prefetchImages, privacy: .public)."
+        )
         options.reporter.report(
             .metadataProgress(
                 current: 0,
@@ -41,7 +58,11 @@ final class LibraryMetadataRefresher {
         let totalCount = library.count
 
         do {
-            for chunk in chunkedEntries(library, chunkSize: 8) {
+            let chunks = chunkedEntries(library, chunkSize: 8)
+            for (chunkIndex, chunk) in chunks.enumerated() {
+                libraryMetadataRefreshLogger.debug(
+                    "Refreshing metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public) containing \(chunk.count, privacy: .public) entries."
+                )
                 let chunkInfos = await latestInfoForEntries(
                     entries: chunk,
                     fetcher: fetcher,
@@ -60,8 +81,14 @@ final class LibraryMetadataRefresher {
                     fetchedInfos[id] = (info, detail)
                 }
                 failures.append(contentsOf: chunkInfos.failures)
+                libraryMetadataRefreshLogger.info(
+                    "Finished metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public): refreshed \(chunkInfos.successes.count, privacy: .public), failed \(chunkInfos.failures.count, privacy: .public)."
+                )
             }
 
+            libraryMetadataRefreshLogger.info(
+                "Applying refreshed metadata for \(fetchedInfos.count, privacy: .public) entries."
+            )
             options.reporter.report(
                 .organizingLibrary(messageResource: "Organizing Library...")
             )
@@ -75,17 +102,29 @@ final class LibraryMetadataRefresher {
                     await resolveParentSeriesEntry(for: entry, fetcher: fetcher, language: language)
                 }
             }
-            try repository.save()
+            try saveMetadataRefresh()
+            libraryMetadataRefreshLogger.info(
+                "Saved library metadata refresh results for \(fetchedInfos.count, privacy: .public) refreshed entries."
+            )
             let metadataCompletion = metadataCompletion(
                 refreshedCount: fetchedInfos.count,
                 failureCount: failures.count
             )
+            libraryMetadataRefreshLogger.info(
+                "Library metadata refresh completed with state \(self.completionStateLabel(metadataCompletion.state), privacy: .public): refreshed \(fetchedInfos.count, privacy: .public), failed \(failures.count, privacy: .public)."
+            )
             options.reporter.report(.metadataPhaseComplete(metadataCompletion))
 
             if options.prefetchImages, !fetchedInfos.isEmpty {
+                libraryMetadataRefreshLogger.info(
+                    "Starting image prefetch for refreshed library content."
+                )
                 let imagePrefetchCompletion = await LibraryImageCacheService.prefetchImagesForRefreshPhaseNow(
                     for: library,
                     reporter: options.reporter
+                )
+                libraryMetadataRefreshLogger.info(
+                    "Library info refresh completed with image prefetch state \(self.completionStateLabel(imagePrefetchCompletion.state), privacy: .public)."
                 )
                 options.reporter.report(
                     .refreshComplete(
@@ -96,10 +135,19 @@ final class LibraryMetadataRefresher {
                     )
                 )
             } else {
+                if options.prefetchImages {
+                    libraryMetadataRefreshLogger.info(
+                        "Skipped image prefetch because no entries refreshed successfully."
+                    )
+                } else {
+                    libraryMetadataRefreshLogger.info(
+                        "Skipped image prefetch because it was disabled for this refresh."
+                    )
+                }
                 options.reporter.report(.refreshComplete(metadataCompletion))
             }
         } catch {
-            libraryStoreLogger.error("Error refreshing infos: \(error)")
+            libraryMetadataRefreshLogger.error("Error refreshing infos: \(error)")
             options.reporter.report(
                 .refreshComplete(
                     .init(
@@ -187,6 +235,17 @@ final class LibraryMetadataRefresher {
         }
     }
 
+    private func completionStateLabel(_ state: LibraryRefreshCompletionState) -> String {
+        switch state {
+        case .completed:
+            "completed"
+        case .failed:
+            "failed"
+        case .partialComplete:
+            "partialComplete"
+        }
+    }
+
     private func chunkedEntries(_ entries: [AnimeEntry], chunkSize: Int) -> [ArraySlice<AnimeEntry>] {
         var chunks: [ArraySlice<AnimeEntry>] = []
         var currentIndex = entries.startIndex
@@ -253,7 +312,7 @@ final class LibraryMetadataRefresher {
                     fetchedInfos.append((id, info, detail))
                 case .failure(let failure):
                     failures.append(failure)
-                    libraryStoreLogger.error(
+                    libraryMetadataRefreshLogger.error(
                         "Failed to refresh entry \(failure.tmdbID, privacy: .public), name: \(failure.name, privacy: .public): \(failure.message)"
                     )
                 }
@@ -310,7 +369,7 @@ final class LibraryMetadataRefresher {
             repository.insert(parentSeriesEntry)
             entry.parentSeriesEntry = parentSeriesEntry
         } catch {
-            libraryStoreLogger.warning(
+            libraryMetadataRefreshLogger.warning(
                 "Failed to resolve parent series \(parentSeriesID, privacy: .public) for entry \(entry.tmdbID, privacy: .public): \(error.localizedDescription)"
             )
         }

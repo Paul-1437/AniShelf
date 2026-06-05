@@ -258,9 +258,14 @@ extension AnimeEntry {
         libraryUpdatedAt = date
     }
 
+    /// Low-level display setter that does not advance `libraryUpdatedAt`.
+    public func setDisplayState(_ isOnDisplay: Bool) {
+        onDisplay = isOnDisplay
+    }
+
     /// User-facing display toggle that also advances `libraryUpdatedAt`.
     public func updateDisplayState(_ isOnDisplay: Bool, at date: Date = .now) {
-        onDisplay = isOnDisplay
+        setDisplayState(isOnDisplay)
         markLibraryModified(at: date)
     }
 
