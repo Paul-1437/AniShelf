@@ -292,6 +292,11 @@ struct LibrarySyncCoordinatorTests {
     @Test @MainActor func manualRetryClearsDegradedStateAfterSuccessfulSync() async throws {
         let store = makeSyncReadyStore()
         store.updateLibraryCloudSyncStatus { status in
+            status.retryState = .init(
+                failureRetryAttempt: 4,
+                nextRetryAllowedAt: referenceDate(year: 2026, month: 6, day: 2),
+                automaticRetriesExhausted: true
+            )
             status.degradedReason = "Automatic retries were exhausted."
         }
         let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
@@ -304,6 +309,7 @@ struct LibrarySyncCoordinatorTests {
         let succeeded = await store.retryLibraryCloudSync()
 
         #expect(succeeded)
+        #expect(store.libraryCloudSyncStatus.retryState == .idle)
         #expect(store.libraryCloudSyncStatus.degradedReason == nil)
         #expect(store.libraryCloudSyncStatus.lastResult == .success)
     }
@@ -530,6 +536,43 @@ struct LibrarySyncCoordinatorTests {
         #expect(!store.hasPendingCloudSyncedSettingsSyncWork())
     }
 
+    @Test @MainActor func partialSettingsExportDoesNotAdvanceReconciledSettingsWatermark() async throws {
+        let store = makeSyncReadyStore()
+        let previousReconciledUpdatedAt = referenceDate(year: 2026, month: 6, day: 4)
+        store.updateLibraryCloudSyncStatus { status in
+            status.lastReconciledCloudSyncedSettingsUpdatedAt = previousReconciledUpdatedAt
+        }
+        let localSettings = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 5),
+            payload: [.useTMDbRelayServer: .bool(true)]
+        )
+        store.preferences.applyCloudSyncedSettingsSnapshot(localSettings)
+        store.preferences.saveCloudSyncedDefaultsUpdatedAt(localSettings.updatedAt)
+        store.reloadPersistedPreferences()
+
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [makeEmptyChangeBatch()],
+            successfulSaveRecordIDs: []
+        )
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let result = await coordinator.syncResult(trigger: .manualRetry)
+
+        #expect(result == .success)
+        #expect(database.savedRecords.count == 1)
+        #expect(
+            store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
+                == previousReconciledUpdatedAt
+        )
+        #expect(store.hasPendingCloudSyncedSettingsSyncWork())
+    }
+
     @Test @MainActor func remoteSettingsApplyDoesNotRestampLocalClockAsFreshEdit() async throws {
         let store = makeSyncReadyStore()
         store.preferences.saveCloudSyncedDefaultsUpdatedAt(referenceDate(year: 2026, month: 6, day: 1))
@@ -557,6 +600,11 @@ struct LibrarySyncCoordinatorTests {
 
         #expect(result == .success)
         #expect(store.preferences.cloudSyncedDefaultsUpdatedAt() == remoteSettings.updatedAt)
+        #expect(
+            store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
+                == remoteSettings.updatedAt
+        )
+        #expect(!store.hasPendingCloudSyncedSettingsSyncWork())
         let savedSettingsRecords = database.savedRecords.filter { $0.recordID == client.librarySettingsRecordID }
         #expect(savedSettingsRecords.isEmpty)
     }

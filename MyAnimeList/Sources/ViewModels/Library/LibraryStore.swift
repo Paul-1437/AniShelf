@@ -243,6 +243,9 @@ class LibraryStore {
         }
         ordinarySyncTasks[taskID] = nil
         guard libraryCloudSyncStatus.isEnabled else { return .skipped(.disabled) }
+        if result == .success {
+            resetOrdinaryLibrarySyncRetryBackoff()
+        }
         return result
     }
 
@@ -477,6 +480,16 @@ class LibraryStore {
     func updateLibraryCloudSyncRetryState(_ retryState: LibraryCloudSyncRetryState) {
         updateLibraryCloudSyncStatus { status in
             status.retryState = retryState
+        }
+    }
+
+    private func resetOrdinaryLibrarySyncRetryBackoff() {
+        if let syncScheduler {
+            syncScheduler.resetRetryBackoff()
+            return
+        }
+        updateLibraryCloudSyncStatus { status in
+            status.retryState = .idle
         }
     }
 

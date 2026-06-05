@@ -323,11 +323,6 @@ final class LibrarySyncCoordinator {
                 remoteSnapshot: importBatch.settingsSnapshot,
                 store: store
             )
-            let reconciledCloudSyncedSettingsUpdatedAt =
-                reconciledCloudSyncedSettingsUpdatedAt(
-                    localState: localSettingsState,
-                    exportedSnapshot: settingsSnapshotForExport
-                )
             currentPhase = .export
             store.recordLibraryCloudSyncPhase(
                 trigger: trigger,
@@ -345,6 +340,12 @@ final class LibrarySyncCoordinator {
                 from: dirtyEntries,
                 in: store
             )
+            let reconciledCloudSyncedSettingsUpdatedAt =
+                reconciledCloudSyncedSettingsUpdatedAt(
+                    store: store,
+                    exportedSnapshot: settingsSnapshotForExport,
+                    settingsExported: exportResult.settingsExported
+                )
             librarySyncCoordinatorLogger.info(
                 "Finished iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
             )
@@ -650,11 +651,6 @@ final class LibrarySyncCoordinator {
                 remoteSnapshot: importBatch.settingsSnapshot,
                 store: store
             )
-            let reconciledCloudSyncedSettingsUpdatedAt =
-                reconciledCloudSyncedSettingsUpdatedAt(
-                    localState: localSettingsState,
-                    exportedSnapshot: settingsSnapshotForExport
-                )
             currentPhase = .export
             store.recordLibraryCloudSyncPhase(
                 trigger: trigger,
@@ -672,6 +668,12 @@ final class LibrarySyncCoordinator {
                 from: dirtyEntries,
                 in: store
             )
+            let reconciledCloudSyncedSettingsUpdatedAt =
+                reconciledCloudSyncedSettingsUpdatedAt(
+                    store: store,
+                    exportedSnapshot: settingsSnapshotForExport,
+                    settingsExported: exportResult.settingsExported
+                )
 
             store.recordLibraryCloudSyncSuccess(
                 trigger: trigger,
@@ -1094,14 +1096,22 @@ final class LibrarySyncCoordinator {
     }
 
     private func reconciledCloudSyncedSettingsUpdatedAt(
-        localState: LocalSettingsSnapshotState,
-        exportedSnapshot: LibrarySettingsSyncSnapshot?
+        store: LibraryStore,
+        exportedSnapshot: LibrarySettingsSyncSnapshot?,
+        settingsExported: Bool
     ) -> Date? {
-        if let exportedSnapshot {
+        if let exportedSnapshot, settingsExported {
             return exportedSnapshot.updatedAt
         }
-        guard !localState.snapshot.payload.isEmpty else { return nil }
-        return localState.updatedAt
+        if exportedSnapshot != nil {
+            return store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
+        }
+        guard let updatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() else { return nil }
+        let payload = store.preferences.loadCloudSyncedSettingsSnapshot(
+            fallbackUpdatedAt: updatedAt
+        ).payload
+        guard !payload.isEmpty else { return nil }
+        return updatedAt
     }
 
     /// Returns the local entry to update, hydrating a new one when needed.
