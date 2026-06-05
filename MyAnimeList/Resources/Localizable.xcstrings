@@ -469,6 +469,22 @@
         }
       }
     },
+    "Added iCloud sync for your library and user settings. Turn it on manually in Settings." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料庫とユーザー設定を同期できるiCloud同期機能を追加しました。設定で手動でオンにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加了 iCloud 同步功能，可同步资料库和用户设置。需要在设置中手动开启～"
+          }
+        }
+      }
+    },
     "Added multi-format export: you can now export your library in formats such as txt, csv, and xlsx." : {
       "localizations" : {
         "ja" : {
@@ -2624,6 +2640,22 @@
         }
       }
     },
+    "Fixed an occasional scrolling jitter issue on the poster selection page." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ポスター選択ページでまれにスクロールが揺れる問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了海报选择页面偶发滑动抖动的问题。"
+          }
+        }
+      }
+    },
     "Fixed bugs related to default poster selection." : {
       "localizations" : {
         "ja" : {
@@ -2877,6 +2909,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "优化了观看状态切换与日期选择体验。"
+          }
+        }
+      }
+    },
+    "Improved the rating UI." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評価UIを改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改善了评分 UI。"
           }
         }
       }
@@ -5838,6 +5886,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此版本包含功能更新和视觉改进。"
+          }
+        }
+      }
+    },
+    "This version adds iCloud sync and includes UI improvements." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバージョンではiCloud同期を追加し、UIを改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本添加了 iCloud 同步功能，并包含 UI 改进。"
           }
         }
       }

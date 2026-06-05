@@ -214,6 +214,25 @@ enum WhatsNewRegistry {
                     kind: .openURL(projectURL)
                 )
             ]
+        ),
+        "1.92": .init(
+            version: "1.92",
+            summary:
+                "This version adds iCloud sync and includes UI improvements.",
+            highlights: [
+                "Added iCloud sync for your library and user settings. Turn it on manually in Settings.",
+                "Improved the rating UI.",
+                "Fixed an occasional scrolling jitter issue on the poster selection page."
+            ],
+            primaryAction: nil,
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
         )
     ]
 
