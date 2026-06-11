@@ -2,9 +2,10 @@
 
 ## Workflow
 
-- Use the Makefile for routine tasks: `make clean`, `make refresh-packages`, `make format`, `make lint`, `make build` and `make test`.
-- Use `make run-device` for build, install, and launch on a connected iPhone.
-- If visual feedback is needed, run `make run-device`, then use Computer Use to open iPhone Mirroring or Quicktime and inspect the launched app there. Default to Quicktime, unless the user dictates otherwise.
+- Use the Makefile for routine tasks: `make clean`, `make refresh-packages`, `make format`, `make lint`, `make build`, `make test-sim`, and `make run-sim`.
+- Prefer `make test-sim` and `make run-sim` for validation unless the user explicitly asks for device-based verification.
+- Use `make run-device` for build, install, and launch on a connected iPhone only when the user explicitly asks for device-based verification.
+- If visual feedback is needed for a device run, use `make run-device`, then use Computer Use to open iPhone Mirroring or Quicktime and inspect the launched app there. Default to Quicktime, unless the user dictates otherwise.
 - Prefer the smallest relevant build or test command before broad verification.
 - If the user asks to perform a change in a new worktree, create that worktree under ../AniShelf-worktrees/.
 
@@ -26,7 +27,7 @@
 ## Testing
 
 - Unit tests live in `MyAnimeList/Tests/` and `DataProvider/Tests/`.
-- Run tests with `make test`. Do not attempt to run tests with custom commands unless you have a specific reason to do so. Even if you do use custom commands, ensure that you run tests on a connected physical device instead of on a simulator.
+- Run tests with `make test-sim` by default. Use `make test` only when the user explicitly asks for physical-device testing or there is a specific device-only reason.
 - Add or update tests with behavior changes when practical.
 
 ## Commits

@@ -40,18 +40,40 @@ private actor TMDbResourceCache {
 final class InfoFetcher: Sendable {
     let tmdbClient: TMDbClient
     private let cache: TMDbResourceCache
+    private let fetchTranslationResponseData: @Sendable (String) async throws -> Data
 
-    init(apiKey: String? = nil) {
+    convenience init(apiKey: String? = nil) {
+        self.init(
+            apiKey: apiKey,
+            httpClient: RedirectingHTTPClient.relayAware
+        )
+    }
+
+    init(
+        apiKey: String? = nil,
+        httpClient: some HTTPClient,
+        configuration: TMDbConfiguration = .system
+    ) {
         let key = apiKey ?? TMDbAPIKeyStorage().key
+        let trimmedKey = key?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         tmdbClient = .init(
-            apiKey: key ?? "",
-            httpClient: RedirectingHTTPClient.relayServer
+            apiKey: trimmedKey ?? "",
+            httpClient: httpClient,
+            configuration: configuration
+        )
+        fetchTranslationResponseData = Self.makeTranslationResponseDataFetcher(
+            apiKey: trimmedKey,
+            httpClient: httpClient
         )
         cache = .init()
     }
 
-    init(client: TMDbClient) {
+    init(
+        client: TMDbClient,
+        fetchTranslationResponseData: @escaping @Sendable (String) async throws -> Data
+    ) {
         tmdbClient = client
+        self.fetchTranslationResponseData = fetchTranslationResponseData
         cache = .init()
     }
 
@@ -195,6 +217,44 @@ final class InfoFetcher: Sendable {
                 return nil
             }
             return .init(metadata: resource, url: url)
+        }
+    }
+
+    func translationResponseData(path: String) async throws -> Data {
+        try await fetchTranslationResponseData(path)
+    }
+
+    private static func makeTranslationResponseDataFetcher<HTTPClientType: HTTPClient>(
+        apiKey: String?,
+        httpClient: HTTPClientType
+    ) -> @Sendable (String) async throws -> Data {
+        { path in
+            guard let apiKey else {
+                throw URLError(.userAuthenticationRequired)
+            }
+
+            var components = URLComponents()
+            components.scheme = "https"
+            components.host = "api.themoviedb.org"
+            components.path = "/3\(path)"
+            components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
+
+            guard let url = components.url else {
+                throw URLError(.badURL)
+            }
+
+            let response = try await httpClient.perform(
+                request: HTTPRequest(url: url)
+            )
+
+            guard
+                (200..<300).contains(response.statusCode),
+                let data = response.data
+            else {
+                throw URLError(.badServerResponse)
+            }
+
+            return data
         }
     }
 }

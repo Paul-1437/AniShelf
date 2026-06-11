@@ -409,6 +409,102 @@ struct InfoFetcherAndLibraryTests {
         #expect(result.overview == ["ja-JP": "概要"])
     }
 
+    @Test func testLenientTVSeriesTranslationDecoderAcceptsNullNameAndOverview() throws {
+        let data = Data(
+            #"""
+            {
+              "id": 35610,
+              "translations": [
+                {
+                  "iso_3166_1": "JP",
+                  "iso_639_1": "ja",
+                  "name": "日本語",
+                  "english_name": "Japanese",
+                  "data": {
+                    "name": "犬夜叉",
+                    "overview": "戦国時代を巡る物語"
+                  }
+                },
+                {
+                  "iso_3166_1": "TW",
+                  "iso_639_1": "zh",
+                  "name": "普通话",
+                  "english_name": "Mandarin",
+                  "data": {
+                    "name": null,
+                    "overview": null,
+                    "homepage": "",
+                    "tagline": ""
+                  }
+                }
+              ]
+            }
+            """#.utf8
+        )
+
+        let result = try fetcher.decodeLenientTranslationDictionaries(
+            from: data,
+            dataType: OptionalTranslationData.self,
+            name: \.name,
+            overview: \.overview
+        )
+
+        #expect(result.name == ["ja-JP": "犬夜叉"])
+        #expect(result.overview == ["ja-JP": "戦国時代を巡る物語"])
+    }
+
+    @Test func testTVSeriesTranslationsFallbackReusesInjectedHTTPClient() async throws {
+        let translationResponse = Data(
+            #"""
+            {
+              "id": 35610,
+              "translations": [
+                {
+                  "iso_3166_1": "JP",
+                  "iso_639_1": "ja",
+                  "name": "日本語",
+                  "english_name": "Japanese",
+                  "data": {
+                    "name": "犬夜叉",
+                    "overview": "戦国時代を巡る物語"
+                  }
+                },
+                {
+                  "iso_3166_1": "TW",
+                  "iso_639_1": "zh",
+                  "name": "普通话",
+                  "english_name": "Mandarin",
+                  "data": {
+                    "name": null,
+                    "overview": null,
+                    "homepage": "",
+                    "tagline": ""
+                  }
+                }
+              ]
+            }
+            """#.utf8
+        )
+        let httpClient = RecordingTMDbHTTPClient { request in
+            #expect(request.url.path == "/3/tv/35610/translations")
+            return HTTPResponse(data: translationResponse)
+        }
+        let fetcher = InfoFetcher(
+            apiKey: "test-key",
+            httpClient: httpClient,
+            configuration: .default
+        )
+
+        let result = try await fetcher.tvSeriesTranslations(tmdbID: 35_610)
+        let requests = await httpClient.requests
+
+        #expect(result.name == ["ja-JP": "犬夜叉"])
+        #expect(result.overview == ["ja-JP": "戦国時代を巡る物語"])
+        #expect(requests.count == 2)
+        #expect(requests.allSatisfy { $0.url.path == "/3/tv/35610/translations" })
+        #expect(requests.allSatisfy { $0.url.queryValue(named: "api_key") == "test-key" })
+    }
+
     @Test @MainActor func testBackup() throws {
         let backupURL = try backupManager.createBackup()
         let fileManager = FileManager.default
@@ -783,6 +879,15 @@ struct InfoFetcherAndLibraryTests {
 
     private final class RecordingTMDbHTTPClient: HTTPClient {
         private let recorder = TMDbHTTPRequestRecorder()
+        private let responseProvider: @Sendable (HTTPRequest) async throws -> HTTPResponse
+
+        init(
+            responseProvider: @escaping @Sendable (HTTPRequest) async throws -> HTTPResponse = { _ in
+                HTTPResponse(data: Data(#"{"id":1,"posters":[],"logos":[],"backdrops":[]}"#.utf8))
+            }
+        ) {
+            self.responseProvider = responseProvider
+        }
 
         var requests: [HTTPRequest] {
             get async {
@@ -792,7 +897,7 @@ struct InfoFetcherAndLibraryTests {
 
         func perform(request: HTTPRequest) async throws -> HTTPResponse {
             await recorder.record(request)
-            return HTTPResponse(data: Data(#"{"id":1,"posters":[],"logos":[],"backdrops":[]}"#.utf8))
+            return try await responseProvider(request)
         }
     }
 
