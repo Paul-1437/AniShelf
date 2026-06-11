@@ -34,6 +34,24 @@ enum LibraryImageCacheService {
         return await prefetchImagePhaseURLsNow(urls: urls, reporter: reporter)
     }
 
+    /// Prefetches the supplied image URLs as the image phase of a library refresh.
+    ///
+    /// Use this overload when refresh metadata has already been materialized outside the main
+    /// model context. Passing URLs directly lets callers prefetch the newly fetched remote assets
+    /// without depending on stale `AnimeEntry` instances.
+    ///
+    /// - Parameters:
+    ///   - urls: The poster, backdrop, hero, logo, or related image URLs to prefetch.
+    ///   - reporter: The reporter that receives image prefetch phase progress and completion.
+    /// - Returns: The completion summary for the image prefetch phase.
+    @discardableResult
+    static func prefetchImageURLsForRefreshPhaseNow(
+        _ urls: [URL],
+        reporter: LibraryRefreshReporter
+    ) async -> LibraryRefreshCompletion {
+        await prefetchImagePhaseURLsNow(urls: Array(Set(urls)), reporter: reporter)
+    }
+
     @discardableResult
     private static func prefetchImageURLsNow(
         urls: [URL],
