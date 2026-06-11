@@ -20,6 +20,52 @@ struct TMDbSearchServiceBatchTests {
         #expect(prompts == ["Frieren", "Spirited Away", "Kiki's Delivery Service"])
     }
 
+    @Test func testParsedBatchPromptsRecognizeStructuredFormats() {
+        let prompts = TMDbSearchService.parsedBatchPrompts(
+            from: "movie:4935\nseries:24835\nseason:24835:1\nFrieren"
+        )
+
+        #expect(
+            prompts == [
+                .movieID(displayText: "movie:4935", tmdbID: 4935),
+                .seriesID(displayText: "series:24835", tmdbID: 24835),
+                .season(displayText: "season:24835:1", seriesTMDbID: 24835, seasonNumber: 1),
+                .title(displayText: "Frieren")
+            ]
+        )
+    }
+
+    @Test func testParsedBatchPromptsTrimWhitespaceBeforeStructuredParsing() {
+        let prompts = TMDbSearchService.parsedBatchPrompts(
+            from: "\n  movie:4935  \n\tseries:24835\n  season:24835:2  \n"
+        )
+
+        #expect(
+            prompts == [
+                .movieID(displayText: "movie:4935", tmdbID: 4935),
+                .seriesID(displayText: "series:24835", tmdbID: 24835),
+                .season(displayText: "season:24835:2", seriesTMDbID: 24835, seasonNumber: 2)
+            ]
+        )
+    }
+
+    @Test func testParsedBatchPromptsFallbackMalformedStructuredTextToTitles() {
+        let prompts = TMDbSearchService.parsedBatchPrompts(
+            from: "movie:abc\nseries:\nseason:24835\nseason:24835:one\nmovie:4935:extra\nmovie: 4935"
+        )
+
+        #expect(
+            prompts == [
+                .title(displayText: "movie:abc"),
+                .title(displayText: "series:"),
+                .title(displayText: "season:24835"),
+                .title(displayText: "season:24835:one"),
+                .title(displayText: "movie:4935:extra"),
+                .title(displayText: "movie: 4935")
+            ]
+        )
+    }
+
     @Test func testBatchPromptChunkingSplitsIntoBatchesOfEight() {
         let prompts = (1...17).map { "Prompt \($0)" }
 
@@ -78,6 +124,222 @@ struct TMDbSearchServiceBatchTests {
         #expect(service.batchResults.count == 1)
         #expect(service.batchResults[0].series?.tmdbID == 201)
         #expect(service.batchResults[0].movie?.tmdbID == 101)
+    }
+
+    @MainActor
+    @Test func testBatchSearchResolvesDirectMovieID() async {
+        let movie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
+        let service = TMDbSearchService(
+            client: makeClient(
+                directMoviesByID: [
+                    4935: movie
+                ]
+            )
+        )
+
+        await service.performBatchSearch(input: "movie:4935", language: .english)
+
+        #expect(service.batchResults.count == 1)
+        #expect(service.batchResults[0].prompt == "movie:4935")
+        #expect(service.batchResults[0].movie?.tmdbID == 4935)
+        #expect(service.batchResults[0].series == nil)
+        #expect(service.batchRegisteredMovieCount == 1)
+        #expect(service.isBatchSelected(info: movie))
+    }
+
+    @MainActor
+    @Test func testBatchSearchResolvesDirectSeriesID() async {
+        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let service = TMDbSearchService(
+            client: makeClient(
+                directSeriesByID: [
+                    24835: series
+                ]
+            )
+        )
+
+        await service.performBatchSearch(input: "series:24835", language: .english)
+
+        #expect(service.batchResults.count == 1)
+        #expect(service.batchResults[0].prompt == "series:24835")
+        #expect(service.batchResults[0].series?.tmdbID == 24835)
+        #expect(service.batchResults[0].movie == nil)
+        #expect(service.batchRegisteredSeriesCount == 1)
+        #expect(service.isBatchSelected(info: series))
+    }
+
+    @MainActor
+    @Test func testBatchSearchResolvesDirectSeasonWithSeasonModePreselected() async {
+        let series = makeInfo("CLANNAD", tmdbID: 24835, type: .series)
+        let firstSeason = makeInfo(
+            "Season 1",
+            tmdbID: 248351,
+            type: .season(seasonNumber: 1, parentSeriesID: 24835)
+        )
+        let secondSeason = makeInfo(
+            "Season 2",
+            tmdbID: 248352,
+            type: .season(seasonNumber: 2, parentSeriesID: 24835)
+        )
+        let service = TMDbSearchService(
+            client: makeClient(
+                directSeriesByID: [
+                    24835: series
+                ],
+                seasonsBySeriesID: [
+                    24835: [firstSeason, secondSeason]
+                ]
+            )
+        )
+
+        await service.performBatchSearch(input: "season:24835:2", language: .english)
+
+        let state = service.seriesSelectionState(for: series, context: .batch)
+
+        #expect(service.batchResults.count == 1)
+        #expect(service.batchResults[0].prompt == "season:24835:2")
+        #expect(service.batchResults[0].series?.tmdbID == 24835)
+        #expect(service.batchRegisteredSeriesCount == 0)
+        #expect(service.batchRegisteredSeasonCount == 1)
+        #expect(state.selectedMode == .season)
+        #expect(state.seasonFetchStatus == .fetched)
+        #expect(state.seasons.map(\.tmdbID) == [248351, 248352])
+        #expect(state.selectedSeasonIDs == Set([248352]))
+        #expect(service.isBatchSelected(info: secondSeason))
+        #expect(!service.isBatchSelected(info: firstSeason))
+        #expect(!service.isBatchSelected(info: series))
+    }
+
+    @MainActor
+    @Test func testBatchSearchMixedTitleAndStructuredLinesPreserveInputOrder() async {
+        let titleMovie = makeInfo("Frieren Movie", tmdbID: 101, type: .movie)
+        let directMovie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
+        let directSeries = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let service = TMDbSearchService(
+            client: makeClient(
+                moviesByPrompt: [
+                    "Frieren": [titleMovie]
+                ],
+                directMoviesByID: [
+                    4935: directMovie
+                ],
+                directSeriesByID: [
+                    24835: directSeries
+                ]
+            )
+        )
+
+        await service.performBatchSearch(
+            input: "Frieren\nmovie:4935\nseries:24835",
+            language: .english
+        )
+
+        #expect(service.batchResults.map(\.prompt) == ["Frieren", "movie:4935", "series:24835"])
+        #expect(service.batchResults.map { $0.movie?.tmdbID } == [101, 4935, nil])
+        #expect(service.batchResults.map { $0.series?.tmdbID } == [nil, nil, 24835])
+    }
+
+    @MainActor
+    @Test func testBatchSearchMalformedStructuredTextUsesTitleSearch() async {
+        let movie = makeInfo("Movie Colon Text", tmdbID: 1101, type: .movie)
+        let recorder = SearchCallRecorder()
+        let service = TMDbSearchService(
+            client: makeClient(
+                moviesByPrompt: [
+                    "movie:abc": [movie]
+                ],
+                recorder: recorder
+            )
+        )
+
+        await service.performBatchSearch(input: "movie:abc", language: .english)
+        let counts = await recorder.snapshot()
+
+        #expect(service.batchResults.count == 1)
+        #expect(service.batchResults[0].movie?.tmdbID == 1101)
+        #expect(counts.movieCalls == 1)
+        #expect(counts.seriesCalls == 1)
+        #expect(counts.movieIDCalls == 0)
+        #expect(counts.seriesIDCalls == 0)
+    }
+
+    @MainActor
+    @Test func testBatchSearchStructuredIDMissesBecomeLineLocalNoResultRows() async {
+        let service = TMDbSearchService(
+            client: makeClient()
+        )
+
+        await service.performBatchSearch(input: "movie:4935\nseries:24835", language: .english)
+
+        #expect(service.batchStatus == .loaded)
+        #expect(service.batchResults.map(\.prompt) == ["movie:4935", "series:24835"])
+        #expect(service.batchResults.allSatisfy { $0.hasNoResults })
+        #expect(service.batchRegisteredCount == 0)
+    }
+
+    @MainActor
+    @Test func testBatchSearchStructuredSeasonMissingSeasonBecomesNoResultRow() async {
+        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let firstSeason = makeInfo(
+            "Season 1",
+            tmdbID: 248351,
+            type: .season(seasonNumber: 1, parentSeriesID: 24835)
+        )
+        let service = TMDbSearchService(
+            client: makeClient(
+                directSeriesByID: [
+                    24835: series
+                ],
+                seasonsBySeriesID: [
+                    24835: [firstSeason]
+                ]
+            )
+        )
+
+        await service.performBatchSearch(input: "season:24835:2", language: .english)
+
+        #expect(service.batchStatus == .loaded)
+        #expect(service.batchResults.count == 1)
+        #expect(service.batchResults[0].prompt == "season:24835:2")
+        #expect(service.batchResults[0].hasNoResults)
+        #expect(service.batchRegisteredCount == 0)
+    }
+
+    @MainActor
+    @Test func testBatchSearchStructuredLinesBypassTitleSearchClosures() async {
+        let recorder = SearchCallRecorder()
+        let movie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
+        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let season = makeInfo(
+            "Season 1",
+            tmdbID: 248351,
+            type: .season(seasonNumber: 1, parentSeriesID: 24835)
+        )
+        let service = TMDbSearchService(
+            client: makeClient(
+                directMoviesByID: [
+                    4935: movie
+                ],
+                directSeriesByID: [
+                    24835: series
+                ],
+                seasonsBySeriesID: [
+                    24835: [season]
+                ],
+                recorder: recorder
+            )
+        )
+
+        await service.performBatchSearch(
+            input: "movie:4935\nseries:24835\nseason:24835:1",
+            language: .english
+        )
+        let counts = await recorder.snapshot()
+
+        #expect(counts.movieCalls == 0)
+        #expect(counts.seriesCalls == 0)
+        #expect(counts.movieIDCalls == 1)
+        #expect(counts.seriesIDCalls == 2)
     }
 
     @MainActor
@@ -282,11 +544,40 @@ struct TMDbSearchServiceBatchTests {
         #expect(firstCounts == secondCounts)
         #expect(service.batchResults.map(\.prompt) == ["Frieren", "Spirited Away"])
     }
+
+    @MainActor
+    @Test func testSameNormalizedStructuredBatchInputReusesCachedResults() async {
+        let recorder = SearchCallRecorder()
+        let movie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
+        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let service = TMDbSearchService(
+            client: makeClient(
+                directMoviesByID: [
+                    4935: movie
+                ],
+                directSeriesByID: [
+                    24835: series
+                ],
+                recorder: recorder
+            )
+        )
+
+        await service.performBatchSearch(input: "  movie:4935  \n\nseries:24835 \n", language: .english)
+        let firstCounts = await recorder.snapshot()
+
+        await service.performBatchSearch(input: "movie:4935\nseries:24835", language: .english)
+        let secondCounts = await recorder.snapshot()
+
+        #expect(firstCounts == secondCounts)
+        #expect(service.batchResults.map(\.prompt) == ["movie:4935", "series:24835"])
+    }
 }
 
 private actor SearchCallRecorder {
     private(set) var movieCalls = 0
     private(set) var seriesCalls = 0
+    private(set) var movieIDCalls = 0
+    private(set) var seriesIDCalls = 0
 
     func recordMovie() {
         movieCalls += 1
@@ -296,14 +587,36 @@ private actor SearchCallRecorder {
         seriesCalls += 1
     }
 
-    func snapshot() -> (Int, Int) {
-        (movieCalls, seriesCalls)
+    func recordMovieID() {
+        movieIDCalls += 1
     }
+
+    func recordSeriesID() {
+        seriesIDCalls += 1
+    }
+
+    func snapshot() -> SearchCallCounts {
+        SearchCallCounts(
+            movieCalls: movieCalls,
+            seriesCalls: seriesCalls,
+            movieIDCalls: movieIDCalls,
+            seriesIDCalls: seriesIDCalls
+        )
+    }
+}
+
+fileprivate struct SearchCallCounts: Equatable {
+    let movieCalls: Int
+    let seriesCalls: Int
+    let movieIDCalls: Int
+    let seriesIDCalls: Int
 }
 
 fileprivate func makeClient(
     moviesByPrompt: [String: [BasicInfo]] = [:],
     seriesByPrompt: [String: [BasicInfo]] = [:],
+    directMoviesByID: [Int: BasicInfo?] = [:],
+    directSeriesByID: [Int: BasicInfo?] = [:],
     seasonsBySeriesID: [Int: [BasicInfo]] = [:],
     movieDelays: [String: UInt64] = [:],
     seriesDelays: [String: UInt64] = [:],
@@ -327,6 +640,18 @@ fileprivate func makeClient(
                 try? await Task.sleep(nanoseconds: delay)
             }
             return seriesByPrompt[query, default: []]
+        },
+        fetchMovieByID: { tmdbID, _ in
+            if let recorder {
+                await recorder.recordMovieID()
+            }
+            return directMoviesByID[tmdbID] ?? nil
+        },
+        fetchTVSeriesByID: { tmdbID, _ in
+            if let recorder {
+                await recorder.recordSeriesID()
+            }
+            return directSeriesByID[tmdbID] ?? nil
         },
         fetchSeasons: { seriesInfo, _ in
             seasonsBySeriesID[seriesInfo.tmdbID, default: []]

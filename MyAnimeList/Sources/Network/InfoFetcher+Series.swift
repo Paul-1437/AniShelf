@@ -32,6 +32,29 @@ fileprivate struct TVSeriesPayload {
 }
 
 extension InfoFetcher {
+    /// Returns localized TV series info only when the TMDb entry is tagged as animation.
+    ///
+    /// Non-animation series return `nil` so direct ID batch lookups obey AniShelf's anime-only policy.
+    func animeTVSeriesInfo(tmdbID: Int, language: Language) async throws -> BasicInfo? {
+        let payload = try await tvSeriesPayload(
+            tmdbID: tmdbID,
+            language: language,
+            includeTranslations: true
+        )
+
+        guard payload.series.genres?.contains(where: { $0.id == 16 }) == true else {
+            return nil
+        }
+
+        return tvSeriesBasicInfo(
+            from: payload.series,
+            imageResources: payload.imageResources,
+            translations: payload.requiredTranslations(),
+            imagesConfiguration: payload.imagesConfiguration,
+            language: language
+        )
+    }
+
     func tvSeriesInfo(tmdbID: Int, language: Language) async throws -> BasicInfo {
         let payload = try await tvSeriesPayload(
             tmdbID: tmdbID,

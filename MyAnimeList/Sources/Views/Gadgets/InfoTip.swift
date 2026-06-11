@@ -6,15 +6,17 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct InfoTip: View {
     @State private var showTip = false
+    @State private var copyHapticTrigger = false
     let title: LocalizedStringResource
     let message: LocalizedStringResource
+    var copyText: LocalizedStringResource?
     var width: CGFloat?
     var height: CGFloat?
     var iconFont: Font?
-
 
     var body: some View {
         Button(action: {
@@ -24,7 +26,7 @@ struct InfoTip: View {
                 .font(iconFont)
         }
         .popover(isPresented: $showTip) {
-            VStack {
+            VStack(spacing: 8) {
                 Text(title)
                     .font(.callout)
                     .bold()
@@ -33,9 +35,18 @@ struct InfoTip: View {
                     .font(.caption)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: copyTipText)
             .frame(width: width, height: height)
             .padding()
             .presentationCompactAdaptation(.popover)
         }
+        .sensoryFeedback(.lighterImpact, trigger: copyHapticTrigger)
+    }
+
+    private func copyTipText() {
+        guard let copyText else { return }
+        UIPasteboard.general.string = String(localized: copyText)
+        copyHapticTrigger.toggle()
     }
 }

@@ -28,6 +28,79 @@ struct TMDbBatchPromptResult: Identifiable, Equatable, Hashable, Sendable {
     var allInfos: [BasicInfo] { [series, movie].compactMap { $0 } }
 }
 
+enum TMDbBatchPrompt: Equatable, Sendable {
+    case title(displayText: String)
+    case movieID(displayText: String, tmdbID: Int)
+    case seriesID(displayText: String, tmdbID: Int)
+    case season(displayText: String, seriesTMDbID: Int, seasonNumber: Int)
+
+    var displayText: String {
+        switch self {
+        case .title(let displayText),
+            .movieID(let displayText, _),
+            .seriesID(let displayText, _),
+            .season(let displayText, _, _):
+            displayText
+        }
+    }
+
+    init(displayText: String) {
+        self = Self.parse(displayText: displayText)
+    }
+
+    private static func parse(displayText: String) -> Self {
+        let parts = displayText.split(separator: ":", omittingEmptySubsequences: false)
+
+        if parts.count == 2,
+            parts[0] == "movie",
+            let tmdbID = parseInteger(parts[1])
+        {
+            return .movieID(displayText: displayText, tmdbID: tmdbID)
+        }
+
+        if parts.count == 2,
+            parts[0] == "series",
+            let tmdbID = parseInteger(parts[1])
+        {
+            return .seriesID(displayText: displayText, tmdbID: tmdbID)
+        }
+
+        if parts.count == 3,
+            parts[0] == "season",
+            let seriesTMDbID = parseInteger(parts[1]),
+            let seasonNumber = parseInteger(parts[2])
+        {
+            return .season(
+                displayText: displayText,
+                seriesTMDbID: seriesTMDbID,
+                seasonNumber: seasonNumber
+            )
+        }
+
+        return .title(displayText: displayText)
+    }
+
+    private static func parseInteger(_ component: Substring) -> Int? {
+        let text = String(component)
+        guard !text.isEmpty else { return nil }
+
+        let digitCharacters: Substring
+        if text.hasPrefix("-") {
+            digitCharacters = text.dropFirst()
+        } else {
+            digitCharacters = Substring(text)
+        }
+
+        guard !digitCharacters.isEmpty,
+            digitCharacters.unicodeScalars.allSatisfy({ $0.value >= 48 && $0.value <= 57 })
+        else {
+            return nil
+        }
+
+        return Int(text)
+    }
+}
+
 enum TMDbSelectionContext: Sendable {
     case regular
     case batch
@@ -54,15 +127,21 @@ struct TMDbSeriesSelectionState: Equatable, Sendable {
 struct TMDbSearchClient: Sendable {
     let searchMovies: @Sendable (String, Language) async throws -> [BasicInfo]
     let searchTVSeries: @Sendable (String, Language) async throws -> [BasicInfo]
+    let fetchMovieByID: @Sendable (Int, Language) async -> BasicInfo?
+    let fetchTVSeriesByID: @Sendable (Int, Language) async -> BasicInfo?
     let fetchSeasons: @Sendable (BasicInfo, Language) async throws -> [BasicInfo]
 
     init(
         searchMovies: @escaping @Sendable (String, Language) async throws -> [BasicInfo],
         searchTVSeries: @escaping @Sendable (String, Language) async throws -> [BasicInfo],
+        fetchMovieByID: @escaping @Sendable (Int, Language) async -> BasicInfo? = { _, _ in nil },
+        fetchTVSeriesByID: @escaping @Sendable (Int, Language) async -> BasicInfo? = { _, _ in nil },
         fetchSeasons: @escaping @Sendable (BasicInfo, Language) async throws -> [BasicInfo]
     ) {
         self.searchMovies = searchMovies
         self.searchTVSeries = searchTVSeries
+        self.fetchMovieByID = fetchMovieByID
+        self.fetchTVSeriesByID = fetchTVSeriesByID
         self.fetchSeasons = fetchSeasons
     }
 
@@ -104,6 +183,22 @@ struct TMDbSearchClient: Sendable {
                         onAirDate: series.firstAirDate,
                         type: .series
                     )
+                }
+            },
+            fetchMovieByID: { tmdbID, language in
+                do {
+                    return try await fetcher.animeMovieInfo(tmdbID: tmdbID, language: language)
+                } catch {
+                    logger.info("Direct TMDb movie lookup missed for \(tmdbID): \(error)")
+                    return nil
+                }
+            },
+            fetchTVSeriesByID: { tmdbID, language in
+                do {
+                    return try await fetcher.animeTVSeriesInfo(tmdbID: tmdbID, language: language)
+                } catch {
+                    logger.info("Direct TMDb series lookup missed for \(tmdbID): \(error)")
+                    return nil
                 }
             },
             fetchSeasons: { seriesInfo, language in
@@ -181,6 +276,17 @@ class TMDbSearchService {
     private struct SearchRequest: Equatable {
         let query: String
         let language: Language
+    }
+
+    private struct BatchSeasonPreselection: Equatable, Sendable {
+        let seriesID: Int
+        let seasons: [BasicInfo]
+        let selectedSeason: BasicInfo
+    }
+
+    private struct BatchPromptResolution: Equatable, Sendable {
+        let result: TMDbBatchPromptResult
+        let seasonPreselection: BatchSeasonPreselection?
     }
 
     private static let batchPromptChunkSize = 8
@@ -346,7 +452,7 @@ class TMDbSearchService {
     }
 
     func performBatchSearch(input: String, language: Language) async {
-        let prompts = Self.batchPrompts(from: input)
+        let prompts = Self.parsedBatchPrompts(from: input)
 
         guard !prompts.isEmpty else {
             clearBatchSession()
@@ -397,7 +503,7 @@ class TMDbSearchService {
     }
 
     func canReuseBatchResults(for input: String) -> Bool {
-        let prompts = Self.batchPrompts(from: input)
+        let prompts = Self.parsedBatchPrompts(from: input)
         return canReuseBatchResults(for: prompts)
     }
 
@@ -406,6 +512,10 @@ class TMDbSearchService {
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    nonisolated static func parsedBatchPrompts(from input: String) -> [TMDbBatchPrompt] {
+        batchPrompts(from: input).map(TMDbBatchPrompt.init(displayText:))
     }
 
     nonisolated static func chunkedBatchPrompts(
@@ -419,39 +529,44 @@ class TMDbSearchService {
         }
     }
 
-    private func fetchBatchResults(prompts: [String], language: Language) async throws
-        -> [TMDbBatchPromptResult]
+    nonisolated static func chunkedBatchPrompts(
+        _ prompts: [TMDbBatchPrompt],
+        chunkSize: Int = 8
+    ) -> [[TMDbBatchPrompt]] {
+        let normalizedChunkSize = max(1, chunkSize)
+        return stride(from: 0, to: prompts.count, by: normalizedChunkSize).map { start in
+            let end = min(start + normalizedChunkSize, prompts.count)
+            return Array(prompts[start..<end])
+        }
+    }
+
+    private func fetchBatchResults(prompts: [TMDbBatchPrompt], language: Language) async throws
+        -> [BatchPromptResolution]
     {
         let chunks = Self.chunkedBatchPrompts(prompts)
-        var orderedResults = [TMDbBatchPromptResult?](repeating: nil, count: prompts.count)
+        var orderedResults = [BatchPromptResolution?](repeating: nil, count: prompts.count)
 
         for (chunkIndex, chunk) in chunks.enumerated() {
             let baseIndex = chunkIndex * Self.batchPromptChunkSize
             let chunkResults = try await withThrowingTaskGroup(
-                of: (Int, TMDbBatchPromptResult).self
+                of: (Int, BatchPromptResolution).self
             ) { group in
                 for (offset, prompt) in chunk.enumerated() {
                     let index = baseIndex + offset
                     group.addTask { [client] in
-                        async let seriesResults = client.searchTVSeries(prompt, language)
-                        async let movieResults = client.searchMovies(prompt, language)
-                        let resolvedSeriesResults = try await seriesResults
-                        let resolvedMovieResults = try await movieResults
-                        let topSeries = resolvedSeriesResults.first
-                        let topMovie = resolvedMovieResults.first
-                        return (
+                        (
                             index,
-                            TMDbBatchPromptResult(
+                            try await Self.resolveBatchPrompt(
+                                prompt,
                                 id: index,
-                                prompt: prompt,
-                                series: topSeries,
-                                movie: topMovie
+                                language: language,
+                                client: client
                             )
                         )
                     }
                 }
 
-                var results: [(Int, TMDbBatchPromptResult)] = []
+                var results: [(Int, BatchPromptResolution)] = []
                 for try await result in group {
                     results.append(result)
                 }
@@ -466,17 +581,116 @@ class TMDbSearchService {
         return orderedResults.compactMap { $0 }
     }
 
-    private func applyBatchResults(_ promptResults: [TMDbBatchPromptResult], prompts: [String]) {
-        batchResults = promptResults
-        batchPromptCacheKey = prompts
+    private nonisolated static func resolveBatchPrompt(
+        _ prompt: TMDbBatchPrompt,
+        id: Int,
+        language: Language,
+        client: TMDbSearchClient
+    ) async throws -> BatchPromptResolution {
+        switch prompt {
+        case .title(let displayText):
+            async let seriesResults = client.searchTVSeries(displayText, language)
+            async let movieResults = client.searchMovies(displayText, language)
+            let resolvedSeriesResults = try await seriesResults
+            let resolvedMovieResults = try await movieResults
+            return BatchPromptResolution(
+                result: TMDbBatchPromptResult(
+                    id: id,
+                    prompt: displayText,
+                    series: resolvedSeriesResults.first,
+                    movie: resolvedMovieResults.first
+                ),
+                seasonPreselection: nil
+            )
 
-        for info in promptResults.flatMap(\.allInfos) where !checkDuplicate(info.tmdbID) {
-            registerBatchSelection(info: info)
+        case .movieID(let displayText, let tmdbID):
+            let movie = await client.fetchMovieByID(tmdbID, language)
+            return BatchPromptResolution(
+                result: TMDbBatchPromptResult(
+                    id: id,
+                    prompt: displayText,
+                    series: nil,
+                    movie: movie
+                ),
+                seasonPreselection: nil
+            )
+
+        case .seriesID(let displayText, let tmdbID):
+            let series = await client.fetchTVSeriesByID(tmdbID, language)
+            return BatchPromptResolution(
+                result: TMDbBatchPromptResult(
+                    id: id,
+                    prompt: displayText,
+                    series: series,
+                    movie: nil
+                ),
+                seasonPreselection: nil
+            )
+
+        case .season(let displayText, let seriesTMDbID, let seasonNumber):
+            guard let series = await client.fetchTVSeriesByID(seriesTMDbID, language),
+                let seasons = try? await client.fetchSeasons(series, language),
+                let selectedSeason = seasons.first(where: { $0.type.seasonNumber == seasonNumber })
+            else {
+                return BatchPromptResolution(
+                    result: TMDbBatchPromptResult(
+                        id: id,
+                        prompt: displayText,
+                        series: nil,
+                        movie: nil
+                    ),
+                    seasonPreselection: nil
+                )
+            }
+
+            return BatchPromptResolution(
+                result: TMDbBatchPromptResult(
+                    id: id,
+                    prompt: displayText,
+                    series: series,
+                    movie: nil
+                ),
+                seasonPreselection: BatchSeasonPreselection(
+                    seriesID: series.tmdbID,
+                    seasons: seasons,
+                    selectedSeason: selectedSeason
+                )
+            )
         }
     }
 
-    private func canReuseBatchResults(for prompts: [String]) -> Bool {
-        batchStatus == .loaded && batchPromptCacheKey == prompts
+    private func applyBatchResults(_ resolutions: [BatchPromptResolution], prompts: [TMDbBatchPrompt]) {
+        batchResults = resolutions.map(\.result)
+        batchPromptCacheKey = prompts.map(\.displayText)
+
+        let structuredSeasonResultIDs = Set(
+            resolutions.compactMap { $0.seasonPreselection?.seriesID }
+        )
+        for resolution in resolutions where resolution.seasonPreselection == nil {
+            for info in resolution.result.allInfos {
+                if case .series = info.type, structuredSeasonResultIDs.contains(info.tmdbID) {
+                    continue
+                }
+                guard !checkDuplicate(info.tmdbID) else { continue }
+                registerBatchSelection(info: info)
+            }
+        }
+
+        for preselection in resolutions.compactMap(\.seasonPreselection) {
+            var state = seriesSelectionState(forSeriesID: preselection.seriesID, context: .batch)
+            state.selectedMode = .season
+            state.seasons = preselection.seasons
+            state.seasonFetchStatus = .fetched
+            setSeriesSelectionState(state, forSeriesID: preselection.seriesID, context: .batch)
+            _ = removeResult(.init(tmdbID: preselection.seriesID, type: .series), context: .batch)
+
+            guard !checkDuplicate(preselection.selectedSeason.tmdbID) else { continue }
+            registerBatchSelection(info: preselection.selectedSeason)
+        }
+    }
+
+    private func canReuseBatchResults(for prompts: [TMDbBatchPrompt]) -> Bool {
+        batchStatus == .loaded && batchPromptCacheKey == prompts.map(\.displayText)
     }
 
     private func batchRegisteredCount(for type: AnimeType) -> Int {

@@ -12,6 +12,10 @@ fileprivate enum TMDbBatchAddStep {
     case results
 }
 
+fileprivate enum TMDbBatchAddLayout {
+    static let promptHeight: CGFloat = 360
+}
+
 struct TMDbBatchAddView: View {
     @Environment(TMDbSearchService.self) private var tmdbSearchService: TMDbSearchService
 
@@ -54,32 +58,31 @@ struct TMDbBatchAddView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
-                        Text(inputSectionMessageResource)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(inputSectionMessageResource)
+                                .fixedSize(horizontal: false, vertical: true)
 
-                        ZStack(alignment: .topLeading) {
-                            if promptInput.isEmpty {
-                                Text(inputPlaceholderResource)
-                                    .foregroundStyle(.tertiary)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .allowsHitTesting(false)
-                            }
-
-                            TextEditor(text: $promptInput)
-                                .focused($isPromptEditorFocused)
-                                .scrollContentBackground(.hidden)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled(true)
-                                .frame(minHeight: 180)
-                                .padding(12)
-                                .background(
-                                    Color(.secondarySystemBackground),
-                                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                )
+                            InfoTip(
+                                title: inputTipTitleResource,
+                                message: inputTipMessageResource,
+                                copyText: inputTipCopyText,
+                                width: 300,
+                                iconFont: .caption
+                            )
                         }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                        PlaceholderTextEditor(
+                            text: $promptInput,
+                            placeholder: inputPlaceholderResource
+                        )
+                        .frame(height: TMDbBatchAddLayout.promptHeight)
+                        .padding(12)
+                        .background(
+                            Color(.secondarySystemBackground),
+                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        )
                     }
                 }
             }
@@ -511,14 +514,44 @@ struct TMDbBatchAddView: View {
     }
 
     private var inputSectionMessageResource: LocalizedStringResource {
-        "Enter one title per line. Only the top TMDb TV series result and top movie result are shown, so precise titles work best."
+        "Enter one title or structured TMDb ID per line."
     }
 
     private var inputPlaceholderResource: LocalizedStringResource {
         """
         Frieren
-        A Silent Voice
-        Kiki's Delivery Service
+        movie:4935
+        series:24835
+        season:24835:1
+        """
+    }
+
+    private var inputTipTitleResource: LocalizedStringResource {
+        "Batch input formats"
+    }
+
+    private var inputTipMessageResource: LocalizedStringResource {
+        """
+        Supported formats:
+        Title, for example Frieren
+        movie:<tmdb_id>, for example movie:4935
+        series:<tmdb_id>, for example series:24835
+        season:<series_tmdb_id>:<season_number>, for example season:24835:1
+
+        Unmatched formats automatically use normal title search.
+        Tap this tip to copy these supported formats.
+        """
+    }
+
+    private var inputTipCopyText: LocalizedStringResource {
+        """
+        Supported formats:
+        Title, for example Frieren
+        movie:<tmdb_id>, for example movie:4935
+        series:<tmdb_id>, for example series:24835
+        season:<series_tmdb_id>:<season_number>, for example season:24835:1
+
+        Unmatched formats automatically use normal title search.
         """
     }
 

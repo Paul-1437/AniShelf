@@ -983,6 +983,22 @@
         }
       }
     },
+    "Batch input formats" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一括入力の形式"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量输入格式"
+          }
+        }
+      }
+    },
     "Batch search failed" : {
       "localizations" : {
         "ja" : {
@@ -2058,18 +2074,18 @@
         }
       }
     },
-    "Enter one title per line. Only the top TMDb TV series result and top movie result are shown, so precise titles work best." : {
+    "Enter one title or structured TMDb ID per line." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1行に1タイトルずつ入力してください。各タイトルではTMDbのTVシリーズと映画の最上位結果のみを表示するため、できるだけ正確なタイトルを入力してください。"
+            "value" : "タイトルまたは構造化TMDb IDを1行に1件ずつ入力してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每行输入一个标题。每个标题只会显示TMDb排名最高的TV动画结果和电影结果，因此标题越准确越好。"
+            "value" : "每行输入一个标题或结构化 TMDb ID。"
           }
         }
       }
@@ -2688,18 +2704,18 @@
         }
       }
     },
-    "Frieren\nA Silent Voice\nKiki's Delivery Service" : {
+    "Frieren\nmovie:4935\nseries:24835\nseason:24835:1" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Frieren\nA Silent Voice\nKiki's Delivery Service"
+            "value" : "Frieren\nmovie:4935\nseries:24835\nseason:24835:1"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Frieren\nA Silent Voice\nKiki's Delivery Service"
+            "value" : "Frieren\nmovie:4935\nseries:24835\nseason:24835:1"
           }
         }
       }
@@ -5548,6 +5564,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更换海报"
+          }
+        }
+      }
+    },
+    "Supported formats:\nTitle, for example Frieren\nmovie:<tmdb_id>, for example movie:4935\nseries:<tmdb_id>, for example series:24835\nseason:<series_tmdb_id>:<season_number>, for example season:24835:1\n\nUnmatched formats automatically use normal title search." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応形式:\nタイトル (例: Frieren)\nmovie:<tmdb_id> (例: movie:4935)\nseries:<tmdb_id> (例: series:24835)\nseason:<series_tmdb_id>:<season_number> (例: season:24835:1)\n\n一致しない形式は自動的に通常のタイトル検索として扱われます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持的格式：\n标题，例如 Frieren\nmovie:<tmdb_id>，例如 movie:4935\nseries:<tmdb_id>，例如 series:24835\nseason:<series_tmdb_id>:<season_number>，例如 season:24835:1\n\n不匹配的格式会自动按普通标题搜索处理。"
+          }
+        }
+      }
+    },
+    "Supported formats:\nTitle, for example Frieren\nmovie:<tmdb_id>, for example movie:4935\nseries:<tmdb_id>, for example series:24835\nseason:<series_tmdb_id>:<season_number>, for example season:24835:1\n\nUnmatched formats automatically use normal title search.\nTap this tip to copy these supported formats." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応形式:\nタイトル (例: Frieren)\nmovie:<tmdb_id> (例: movie:4935)\nseries:<tmdb_id> (例: series:24835)\nseason:<series_tmdb_id>:<season_number> (例: season:24835:1)\n\n一致しない形式は自動的に通常のタイトル検索として扱われます。\nこのヒントをタップすると、対応形式をコピーできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持的格式：\n标题，例如 Frieren\nmovie:<tmdb_id>，例如 movie:4935\nseries:<tmdb_id>，例如 series:24835\nseason:<series_tmdb_id>:<season_number>，例如 season:24835:1\n\n不匹配的格式会自动按普通标题搜索处理。\n点按此提示可复制这些支持的格式。"
           }
         }
       }
