@@ -127,15 +127,19 @@ struct TMDbSeriesSelectionState: Equatable, Sendable {
 struct TMDbSearchClient: Sendable {
     let searchMovies: @Sendable (String, Language) async throws -> [BasicInfo]
     let searchTVSeries: @Sendable (String, Language) async throws -> [BasicInfo]
-    let fetchMovieByID: @Sendable (Int, Language) async -> BasicInfo?
-    let fetchTVSeriesByID: @Sendable (Int, Language) async -> BasicInfo?
+    let fetchMovieByID: @Sendable (Int, Language) async throws -> BasicInfo?
+    let fetchTVSeriesByID: @Sendable (Int, Language) async throws -> BasicInfo?
     let fetchSeasons: @Sendable (BasicInfo, Language) async throws -> [BasicInfo]
 
     init(
         searchMovies: @escaping @Sendable (String, Language) async throws -> [BasicInfo],
         searchTVSeries: @escaping @Sendable (String, Language) async throws -> [BasicInfo],
-        fetchMovieByID: @escaping @Sendable (Int, Language) async -> BasicInfo? = { _, _ in nil },
-        fetchTVSeriesByID: @escaping @Sendable (Int, Language) async -> BasicInfo? = { _, _ in nil },
+        fetchMovieByID: @escaping @Sendable (Int, Language) async throws -> BasicInfo? = {
+            _, _ in nil
+        },
+        fetchTVSeriesByID: @escaping @Sendable (Int, Language) async throws -> BasicInfo? = {
+            _, _ in nil
+        },
         fetchSeasons: @escaping @Sendable (BasicInfo, Language) async throws -> [BasicInfo]
     ) {
         self.searchMovies = searchMovies
@@ -188,17 +192,23 @@ struct TMDbSearchClient: Sendable {
             fetchMovieByID: { tmdbID, language in
                 do {
                     return try await fetcher.animeMovieInfo(tmdbID: tmdbID, language: language)
-                } catch {
-                    logger.info("Direct TMDb movie lookup missed for \(tmdbID): \(error)")
+                } catch TMDbError.notFound {
+                    logger.info("Direct TMDb movie lookup missed for \(tmdbID).")
                     return nil
+                } catch {
+                    logger.error("Direct TMDb movie lookup failed for \(tmdbID): \(error)")
+                    throw error
                 }
             },
             fetchTVSeriesByID: { tmdbID, language in
                 do {
                     return try await fetcher.animeTVSeriesInfo(tmdbID: tmdbID, language: language)
-                } catch {
-                    logger.info("Direct TMDb series lookup missed for \(tmdbID): \(error)")
+                } catch TMDbError.notFound {
+                    logger.info("Direct TMDb series lookup missed for \(tmdbID).")
                     return nil
+                } catch {
+                    logger.error("Direct TMDb series lookup failed for \(tmdbID): \(error)")
+                    throw error
                 }
             },
             fetchSeasons: { seriesInfo, language in
@@ -604,7 +614,7 @@ class TMDbSearchService {
             )
 
         case .movieID(let displayText, let tmdbID):
-            let movie = await client.fetchMovieByID(tmdbID, language)
+            let movie = try await client.fetchMovieByID(tmdbID, language)
             return BatchPromptResolution(
                 result: TMDbBatchPromptResult(
                     id: id,
@@ -616,7 +626,7 @@ class TMDbSearchService {
             )
 
         case .seriesID(let displayText, let tmdbID):
-            let series = await client.fetchTVSeriesByID(tmdbID, language)
+            let series = try await client.fetchTVSeriesByID(tmdbID, language)
             return BatchPromptResolution(
                 result: TMDbBatchPromptResult(
                     id: id,
@@ -628,9 +638,20 @@ class TMDbSearchService {
             )
 
         case .season(let displayText, let seriesTMDbID, let seasonNumber):
-            guard let series = await client.fetchTVSeriesByID(seriesTMDbID, language),
-                let seasons = try? await client.fetchSeasons(series, language),
-                let selectedSeason = seasons.first(where: { $0.type.seasonNumber == seasonNumber })
+            guard let series = try await client.fetchTVSeriesByID(seriesTMDbID, language) else {
+                return BatchPromptResolution(
+                    result: TMDbBatchPromptResult(
+                        id: id,
+                        prompt: displayText,
+                        series: nil,
+                        movie: nil
+                    ),
+                    seasonPreselection: nil
+                )
+            }
+
+            let seasons = try await client.fetchSeasons(series, language)
+            guard let selectedSeason = seasons.first(where: { $0.type.seasonNumber == seasonNumber })
             else {
                 return BatchPromptResolution(
                     result: TMDbBatchPromptResult(

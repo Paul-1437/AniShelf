@@ -10,6 +10,7 @@ import Testing
 
 @testable import DataProvider
 @testable import MyAnimeList
+import TMDb
 
 struct TMDbSearchServiceBatchTests {
     @Test func testBatchPromptsTrimWhitespaceDropEmptyLinesAndPreserveOrder() {
@@ -302,6 +303,73 @@ struct TMDbSearchServiceBatchTests {
         #expect(service.batchResults.count == 1)
         #expect(service.batchResults[0].prompt == "season:24835:2")
         #expect(service.batchResults[0].hasNoResults)
+        #expect(service.batchRegisteredCount == 0)
+    }
+
+    @MainActor
+    @Test func testBatchSearchDirectMovieFailureBecomesBatchError() async {
+        let service = TMDbSearchService(
+            client: makeClient(
+                directMovieErrorsByID: [
+                    4935: TMDbError.unauthorised("Invalid API key")
+                ]
+            )
+        )
+
+        await service.performBatchSearch(input: "movie:4935", language: .english)
+
+        guard case .error(let error) = service.batchStatus else {
+            Issue.record("Expected batchStatus to be .error")
+            return
+        }
+        #expect((error as? TMDbError) == .unauthorised("Invalid API key"))
+        #expect(service.batchResults.isEmpty)
+        #expect(service.batchRegisteredCount == 0)
+    }
+
+    @MainActor
+    @Test func testBatchSearchDirectSeriesFailureBecomesBatchError() async {
+        let service = TMDbSearchService(
+            client: makeClient(
+                directSeriesErrorsByID: [
+                    24835: TMDbError.network(URLError(.notConnectedToInternet))
+                ]
+            )
+        )
+
+        await service.performBatchSearch(input: "series:24835", language: .english)
+
+        guard case .error(let error) = service.batchStatus else {
+            Issue.record("Expected batchStatus to be .error")
+            return
+        }
+        #expect(error is TMDbError)
+        #expect(service.batchResults.isEmpty)
+        #expect(service.batchRegisteredCount == 0)
+    }
+
+    @MainActor
+    @Test func testBatchSearchStructuredSeasonFetchFailureBecomesBatchError() async {
+        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let service = TMDbSearchService(
+            client: makeClient(
+                directSeriesByID: [
+                    24835: series
+                ],
+                seasonErrorsBySeriesID: [
+                    24835: TMDbError.unknown
+                ]
+            )
+        )
+
+        await service.performBatchSearch(input: "season:24835:2", language: .english)
+
+        guard case .error(let error) = service.batchStatus else {
+            Issue.record("Expected batchStatus to be .error")
+            return
+        }
+        #expect((error as? TMDbError) == .unknown)
+        #expect(service.batchResults.isEmpty)
         #expect(service.batchRegisteredCount == 0)
     }
 
@@ -618,6 +686,9 @@ fileprivate func makeClient(
     directMoviesByID: [Int: BasicInfo?] = [:],
     directSeriesByID: [Int: BasicInfo?] = [:],
     seasonsBySeriesID: [Int: [BasicInfo]] = [:],
+    directMovieErrorsByID: [Int: any Error] = [:],
+    directSeriesErrorsByID: [Int: any Error] = [:],
+    seasonErrorsBySeriesID: [Int: any Error] = [:],
     movieDelays: [String: UInt64] = [:],
     seriesDelays: [String: UInt64] = [:],
     recorder: SearchCallRecorder? = nil
@@ -645,16 +716,25 @@ fileprivate func makeClient(
             if let recorder {
                 await recorder.recordMovieID()
             }
+            if let error = directMovieErrorsByID[tmdbID] {
+                throw error
+            }
             return directMoviesByID[tmdbID] ?? nil
         },
         fetchTVSeriesByID: { tmdbID, _ in
             if let recorder {
                 await recorder.recordSeriesID()
             }
+            if let error = directSeriesErrorsByID[tmdbID] {
+                throw error
+            }
             return directSeriesByID[tmdbID] ?? nil
         },
         fetchSeasons: { seriesInfo, _ in
-            seasonsBySeriesID[seriesInfo.tmdbID, default: []]
+            if let error = seasonErrorsBySeriesID[seriesInfo.tmdbID] {
+                throw error
+            }
+            return seasonsBySeriesID[seriesInfo.tmdbID, default: []]
         }
     )
 }

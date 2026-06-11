@@ -77,6 +77,8 @@ struct TMDbBatchAddView: View {
                             text: $promptInput,
                             placeholder: inputPlaceholderResource
                         )
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
                         .frame(height: TMDbBatchAddLayout.promptHeight)
                         .padding(12)
                         .background(
