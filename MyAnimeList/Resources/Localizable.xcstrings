@@ -2688,6 +2688,22 @@
         }
       }
     },
+    "Fixed an issue where deleted entries could sometimes reappear after sync." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除した項目が同期後に再び表示されることがある問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了已删除条目在同步后有时会重新出现的问题。"
+          }
+        }
+      }
+    },
     "Fixed bugs related to default poster selection." : {
       "localizations" : {
         "ja" : {
