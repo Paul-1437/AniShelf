@@ -949,9 +949,18 @@ final class LibrarySyncCoordinator {
         var appliedChangesCount = 0
         var hydratedEntriesCount = 0
         var applicationPlans: [ApplicationPlan] = []
+        let dirtyEntriesByIdentity = Self.coalescedDirtyEntriesByIdentity(
+            store.syncChangeRecorder.dirtyQueueStore.load().entries
+        )
         for change in batch.changes {
             switch change {
             case .snapshot(let snapshot):
+                if snapshot.isNotNewerThanPendingDelete(dirtyEntriesByIdentity[snapshot.identity]) {
+                    librarySyncCoordinatorLogger.info(
+                        "Skipped iCloud snapshot application for \(snapshot.identity.rawID, privacy: .private) because a newer local delete is pending export."
+                    )
+                    continue
+                }
                 let applicationTarget = try await entryForApplying(snapshot, store: store)
                 guard let applicationTarget else { continue }
                 appliedChangesCount += 1
@@ -1526,6 +1535,16 @@ extension LibraryEntrySyncRemoteChange {
             guard let latestSyncClock else { return false }
             return latestSyncClock > pendingDelete.tombstone.deletedAt
         }
+    }
+}
+
+extension LibraryEntrySyncSnapshot {
+    fileprivate func isNotNewerThanPendingDelete(
+        _ dirtyEntry: LibraryEntrySyncDirtyQueueEntry?
+    ) -> Bool {
+        guard case .delete(let pendingDelete) = dirtyEntry else { return false }
+        let snapshotClock = latestUserStateClock ?? .distantPast
+        return snapshotClock <= pendingDelete.tombstone.deletedAt
     }
 }
 

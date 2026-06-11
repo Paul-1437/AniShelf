@@ -776,6 +776,58 @@ struct LibrarySyncCoordinatorTests {
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 
+    @Test @MainActor func pendingLocalDeletePreventsStaleRemoteSnapshotHydration() async throws {
+        let store = makeSyncReadyStore()
+        let entry = AnimeEntry(
+            name: "Deleted Local",
+            type: .series,
+            tmdbID: 711,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 1)
+        )
+        entry.libraryUpdatedAt = referenceDate(year: 2026, month: 5, day: 1)
+        try store.repository.newEntry(entry)
+        let identity = entry.syncIdentity
+        try store.repository.deleteEntry(entry)
+
+        let client = CloudLibrarySyncClient()
+        let staleRemoteSnapshot = makeSnapshot(
+            identity: identity,
+            tmdbID: 711,
+            notes: "Stale remote",
+            trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 1)
+        )
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            .init(
+                modifiedRecordsByID: [
+                    client.recordID(for: identity): try client.record(from: staleRemoteSnapshot)
+                ],
+                deletedRecordIDs: [],
+                changeToken: makeToken(),
+                moreComing: false
+            )
+        ])
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let result = await coordinator.syncResult(trigger: .localChange)
+
+        #expect(result == .success)
+        #expect(store.repository.existingEntry(identity: identity) == nil)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: identity) == nil)
+        let savedRecord = try #require(
+            database.savedRecords.first { $0.recordID == client.recordID(for: identity) }
+        )
+        guard case .tombstone(let savedTombstone) = try client.remoteChange(from: savedRecord) else {
+            Issue.record("Expected the pending local delete to export a tombstone.")
+            return
+        }
+        #expect(savedTombstone.identity == identity)
+    }
+
     @Test @MainActor func staleTombstonePreservesNewerLocalState() async throws {
         let store = makeSyncReadyStore()
         let entry = AnimeEntry(
