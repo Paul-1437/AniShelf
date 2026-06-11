@@ -32,6 +32,7 @@ class LibraryStore {
     @ObservationIgnored private var isApplyingRemoteCloudSyncedPreferences = false
     @ObservationIgnored private var lastObservedCloudSyncedPreferencesHash = ""
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var saveObserver: ModelContextSaveObserver?
 
     // MARK: - State
 
@@ -192,16 +193,17 @@ class LibraryStore {
     }
 
     func setupUpdateLibrary() {
-        NotificationCenter.default
-            .publisher(for: ModelContext.didSave)
-            .sink { [weak self] _ in
-                do {
-                    try self?.refreshLibrary()
-                } catch {
-                    libraryStoreLogger.error("Error refreshing library: \(error)")
-                }
-            }
-            .store(in: &cancellables)
+        saveObserver = ModelContextSaveObserver { [weak self] _ in
+            self?.handleLibrarySaveNotification()
+        }
+    }
+
+    private func handleLibrarySaveNotification() {
+        do {
+            try refreshLibrary()
+        } catch {
+            libraryStoreLogger.error("Error refreshing library: \(error)")
+        }
     }
 
     func rebuildSyncChangeTracking() {

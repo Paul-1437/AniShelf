@@ -657,6 +657,50 @@ struct LibraryPreferencesAndActionsTests {
         #expect(dirtyQueueChangeCount == 1)
     }
 
+    @Test @MainActor func testLibrarySyncRecorderHandlesSaveNotificationsPostedOffMainActor()
+        async throws
+    {
+        let queueURL = makeTemporaryQueueURL(name: "off-main-save-notification")
+        defer { try? FileManager.default.removeItem(at: queueURL.deletingLastPathComponent()) }
+
+        let notificationCenter = NotificationCenter()
+        let dataProvider = DataProvider(inMemory: true)
+        let dirtyQueueStore = LibraryEntrySyncDirtyQueueStore(url: queueURL) { queue in
+            try persistQueue(queue, to: queueURL)
+        }
+        let recorder = LibrarySyncChangeRecorder(
+            dataProvider: dataProvider,
+            dirtyQueueStore: dirtyQueueStore,
+            notificationCenter: notificationCenter
+        )
+        let entry = AnimeEntry(
+            name: "Off Main Notification",
+            type: .movie,
+            tmdbID: 200_003
+        )
+        entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 6, day: 11))
+        try dataProvider.dataHandler.newEntry(entry)
+        let entryID = entry.id
+
+        await Task.detached {
+            notificationCenter.post(
+                name: ModelContext.didSave,
+                object: nil,
+                userInfo: [
+                    ModelContext.NotificationKey.insertedIdentifiers.rawValue: Set([entryID])
+                ]
+            )
+        }.value
+
+        for _ in 0..<20 where recorder.dirtyQueueStore.load().entries.isEmpty {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+
+        let queue = recorder.dirtyQueueStore.load()
+        #expect(queue.entries.count == 1)
+        #expect(queue.entries.first?.identity == entry.syncIdentity)
+    }
+
     @Test @MainActor func testLibrarySyncRecorderQueuesDeleteTombstonesAndBulkDeletes() throws {
         let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
         let first = AnimeEntry(
@@ -863,6 +907,102 @@ struct LibraryPreferencesAndActionsTests {
         hiddenParent.name = "Frieren: Beyond Journey's End"
         try store.saveMetadataRefreshWithoutSyncRecording()
 
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+    }
+
+    @Test @MainActor func testBackgroundMetadataRefreshWriterRepairsParentLinksWithoutSyncDirtyWork()
+        async throws
+    {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let oldParent = AnimeEntry(
+            name: "Old Parent",
+            type: .series,
+            tmdbID: 100
+        )
+        oldParent.setDisplayState(false)
+        let child = AnimeEntry(
+            name: "Season 1",
+            type: .season(seasonNumber: 1, parentSeriesID: 100),
+            tmdbID: 200
+        )
+        child.parentSeriesEntry = oldParent
+
+        try store.repository.newEntry(oldParent)
+        try store.repository.newEntry(child)
+        store.rebuildSyncChangeTracking()
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
+
+        let modelContainer = store.dataProvider.sharedModelContainer
+        let writer = await Task.detached(priority: .utility) {
+            LibraryMetadataRefreshWriter(modelContainer: modelContainer)
+        }.value
+        try await writer.apply(
+            updates: [
+                .init(
+                    entryID: child.id,
+                    info: BasicInfo(
+                        name: "Season 1 Refreshed",
+                        nameTranslations: [:],
+                        overview: nil,
+                        overviewTranslations: [:],
+                        posterURL: nil,
+                        backdropURL: nil,
+                        logoURL: nil,
+                        tmdbID: 200,
+                        onAirDate: nil,
+                        linkToDetails: nil,
+                        type: .season(seasonNumber: 1, parentSeriesID: 300)
+                    ),
+                    detail: AnimeEntryDetailDTO(
+                        language: "en-US",
+                        title: "Season 1 Refreshed"
+                    ),
+                    preservingCustomPoster: false
+                )
+            ],
+            parentUpdates: [
+                .init(
+                    childEntryID: child.id,
+                    parentSeriesID: 300,
+                    parentInfo: BasicInfo(
+                        name: "New Parent",
+                        nameTranslations: [:],
+                        overview: nil,
+                        overviewTranslations: [:],
+                        posterURL: nil,
+                        backdropURL: nil,
+                        logoURL: nil,
+                        tmdbID: 300,
+                        onAirDate: nil,
+                        linkToDetails: nil,
+                        type: .series
+                    ),
+                    parentDetail: AnimeEntryDetailDTO(
+                        language: "en-US",
+                        title: "New Parent"
+                    )
+                )
+            ]
+        )
+        store.rebuildSyncChangeTracking()
+        try store.refreshLibrary()
+
+        let refreshedChild = try #require(
+            store.dataProvider.getModels(
+                ofType: AnimeEntry.self,
+                predicate: #Predicate { $0.tmdbID == 200 }
+            ).first
+        )
+        let insertedParent = try #require(
+            store.dataProvider.getModels(
+                ofType: AnimeEntry.self,
+                predicate: #Predicate { $0.tmdbID == 300 }
+            ).first
+        )
+
+        #expect(refreshedChild.name == "Season 1 Refreshed")
+        #expect(refreshedChild.parentSeriesEntry?.tmdbID == 300)
+        #expect(insertedParent.onDisplay == false)
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 

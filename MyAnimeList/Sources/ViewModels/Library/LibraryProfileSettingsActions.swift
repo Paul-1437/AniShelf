@@ -155,9 +155,21 @@ final class LibraryProfileSettingsActions {
         for store: LibraryStore,
         options: LibraryRefreshOptions
     ) {
+        let modelContainer = store.dataProvider.sharedModelContainer
         let metadataRefresher = LibraryMetadataRefresher(
             repository: store.repository,
-            saveMetadataRefresh: store.saveMetadataRefreshWithoutSyncRecording
+            applyMetadataRefresh: { updates, parentUpdates in
+                try await Task.detached(priority: .medium) {
+                    let metadataRefreshWriter = LibraryMetadataRefreshWriter(
+                        modelContainer: modelContainer
+                    )
+                    try await metadataRefreshWriter.apply(
+                        updates: updates,
+                        parentUpdates: parentUpdates
+                    )
+                }.value
+                store.rebuildSyncChangeTracking()
+            }
         )
         Task {
             do {

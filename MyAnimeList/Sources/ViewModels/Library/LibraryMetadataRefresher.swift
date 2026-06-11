@@ -23,17 +23,19 @@ final class LibraryMetadataRefresher {
     }
 
     private let repository: LibraryRepository
-    private let saveMetadataRefresh: () throws -> Void
+    private let applyMetadataRefresh:
+        ([LibraryMetadataRefreshUpdate], [LibraryMetadataRefreshParentUpdate]) async throws -> Void
 
     init(
         repository: LibraryRepository,
-        saveMetadataRefresh: (() throws -> Void)? = nil
+        applyMetadataRefresh:
+            @escaping (
+                [LibraryMetadataRefreshUpdate],
+                [LibraryMetadataRefreshParentUpdate]
+            ) async throws -> Void
     ) {
         self.repository = repository
-        self.saveMetadataRefresh =
-            saveMetadataRefresh ?? {
-                try repository.save()
-            }
+        self.applyMetadataRefresh = applyMetadataRefresh
     }
 
     func refreshInfos(
@@ -92,17 +94,30 @@ final class LibraryMetadataRefresher {
             options.reporter.report(
                 .organizingLibrary(messageResource: "Organizing Library...")
             )
+            var updates: [LibraryMetadataRefreshUpdate] = []
+            var parentUpdates: [LibraryMetadataRefreshParentUpdate] = []
             for (id, fetchedInfo) in fetchedInfos {
                 if let entry = library[id] {
                     let (info, detailDTO) = fetchedInfo
-                    entry.replaceMetadata(
-                        from: info,
-                        preservingCustomPoster: entry.usingCustomPoster)
-                    entry.replaceDetail(from: detailDTO)
-                    await resolveParentSeriesEntry(for: entry, fetcher: fetcher, language: language)
+                    updates.append(
+                        .init(
+                            entryID: id,
+                            info: info,
+                            detail: detailDTO,
+                            preservingCustomPoster: entry.usingCustomPoster
+                        )
+                    )
+                    if let parentUpdate = await parentSeriesUpdate(
+                        for: entry,
+                        refreshedInfo: info,
+                        fetcher: fetcher,
+                        language: language)
+                    {
+                        parentUpdates.append(parentUpdate)
+                    }
                 }
             }
-            try saveMetadataRefresh()
+            try await applyMetadataRefresh(updates, parentUpdates)
             libraryMetadataRefreshLogger.info(
                 "Saved library metadata refresh results for \(fetchedInfos.count, privacy: .public) refreshed entries."
             )
@@ -343,35 +358,44 @@ final class LibraryMetadataRefresher {
         return (entryID, resolvedInfo, latestInfo.1)
     }
 
-    private func resolveParentSeriesEntry(
+    private func parentSeriesUpdate(
         for entry: AnimeEntry,
+        refreshedInfo: BasicInfo,
         fetcher: InfoFetcher,
         language: Language
-    ) async {
-        guard let parentSeriesID = entry.parentSeriesID else { return }
+    ) async -> LibraryMetadataRefreshParentUpdate? {
+        guard let parentSeriesID = refreshedInfo.type.parentSeriesID else { return nil }
 
         if entry.parentSeriesEntry?.tmdbID == parentSeriesID {
-            return
+            return nil
         }
 
-        if let parentSeriesEntry = repository.existingEntry(tmdbID: parentSeriesID) {
-            entry.parentSeriesEntry = parentSeriesEntry
-            return
+        if repository.existingEntry(tmdbID: parentSeriesID) != nil {
+            return .init(
+                childEntryID: entry.id,
+                parentSeriesID: parentSeriesID,
+                parentInfo: nil,
+                parentDetail: nil
+            )
         }
 
         do {
-            let parentSeriesEntry =
-                try await AnimeEntry
-                .generateParentSeriesEntryForSeason(
-                    parentSeriesID: parentSeriesID,
-                    fetcher: fetcher,
-                    infoLanguage: language)
-            repository.insert(parentSeriesEntry)
-            entry.parentSeriesEntry = parentSeriesEntry
+            let parentLatestInfo = try await fetcher.latestInfo(
+                entryType: .series,
+                tmdbID: parentSeriesID,
+                language: language
+            )
+            return .init(
+                childEntryID: entry.id,
+                parentSeriesID: parentSeriesID,
+                parentInfo: parentLatestInfo.0,
+                parentDetail: parentLatestInfo.1
+            )
         } catch {
             libraryMetadataRefreshLogger.warning(
                 "Failed to resolve parent series \(parentSeriesID, privacy: .public) for entry \(entry.tmdbID, privacy: .public): \(error.localizedDescription)"
             )
+            return nil
         }
     }
 }

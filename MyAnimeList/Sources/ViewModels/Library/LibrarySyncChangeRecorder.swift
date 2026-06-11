@@ -5,7 +5,6 @@
 //  Created by OpenAI Codex on behalf of Samuel He on 2026/5/30.
 //
 
-import Combine
 import DataProvider
 import Foundation
 import LibrarySync
@@ -64,7 +63,7 @@ final class LibrarySyncChangeRecorder {
 
     private let dataProvider: DataProvider
     private let notificationCenter: NotificationCenter
-    private var cancellables = Set<AnyCancellable>()
+    private var saveObserver: ModelContextSaveObserver?
     private var lastSeenClocksByIdentifier: [PersistentIdentifier: ClockBaseline]
     private var suppressionDepth = 0
 
@@ -97,13 +96,6 @@ final class LibrarySyncChangeRecorder {
         suppressionDepth += 1
         defer { suppressionDepth -= 1 }
         return try operation()
-    }
-
-    /// Executes an async operation without recording queue mutations.
-    func withSuppressedRecordingAsync<T>(_ operation: () async throws -> T) async rethrows -> T {
-        suppressionDepth += 1
-        defer { suppressionDepth -= 1 }
-        return try await operation()
     }
 
     /// Queues a tombstone for a single deleted entry.
@@ -229,12 +221,14 @@ final class LibrarySyncChangeRecorder {
 
     /// Converts one `didSave` notification into queue mutations.
     func processSaveNotification(_ notification: Notification) {
-        let insertedIdentifiers = persistentIdentifiers(for: .insertedIdentifiers, in: notification)
-        let updatedIdentifiers = persistentIdentifiers(for: .updatedIdentifiers, in: notification)
-        let deletedIdentifiers = persistentIdentifiers(
-            for: .deletedIdentifiers,
-            in: notification
-        )
+        processSaveNotificationChanges(.init(from: notification))
+    }
+
+    /// Converts one `didSave` notification payload into queue mutations.
+    private func processSaveNotificationChanges(_ changes: ModelContextSaveChanges) {
+        let insertedIdentifiers = changes.insertedIdentifiers
+        let updatedIdentifiers = changes.updatedIdentifiers
+        let deletedIdentifiers = changes.deletedIdentifiers
         guard suppressionDepth == 0 else { return }
 
         for identifier in deletedIdentifiers {
@@ -285,26 +279,9 @@ final class LibrarySyncChangeRecorder {
 
     /// Subscribes to SwiftData save notifications and routes them to recording.
     private func observeSaves() {
-        notificationCenter
-            .publisher(for: ModelContext.didSave)
-            .sink { [weak self] notification in
-                self?.processSaveNotification(notification)
-            }
-            .store(in: &cancellables)
-    }
-
-    /// Extracts persistent identifiers from a `didSave` notification payload.
-    private func persistentIdentifiers(
-        for key: ModelContext.NotificationKey,
-        in notification: Notification
-    ) -> Set<PersistentIdentifier> {
-        if let identifiers = notification.userInfo?[key.rawValue] as? Set<PersistentIdentifier> {
-            return identifiers
+        saveObserver = ModelContextSaveObserver(notificationCenter: notificationCenter) { [weak self] changes in
+            self?.processSaveNotificationChanges(changes)
         }
-        if let identifiers = notification.userInfo?[key.rawValue] as? [PersistentIdentifier] {
-            return Set(identifiers)
-        }
-        return []
     }
 
     /// Builds the initial clock baseline from the current library contents.
