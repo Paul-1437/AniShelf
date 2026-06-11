@@ -239,8 +239,9 @@ enum WhatsNewRegistry {
             summary:
                 "This version includes bug fixes and search improvements.",
             highlights: [
-                "Fixed an issue where adding certain anime could fail and occasionally crash the app.",
                 "Batch search now supports adding by TMDb ID.",
+                "Fixed a problem where info refresh could hang the app.",
+                "Fixed an issue where adding certain anime could fail and occasionally crash the app.",
                 "Fixed an issue where deleted entries could sometimes reappear after sync."
             ],
             primaryAction: nil,

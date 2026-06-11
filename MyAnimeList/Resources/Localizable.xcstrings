@@ -2704,6 +2704,22 @@
         }
       }
     },
+    "Fixed a problem where info refresh could hang the app." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情報更新中にアプリが固まることがある問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了刷新信息时应用可能卡住的问题。"
+          }
+        }
+      }
+    },
     "Fixed bugs related to default poster selection." : {
       "localizations" : {
         "ja" : {
