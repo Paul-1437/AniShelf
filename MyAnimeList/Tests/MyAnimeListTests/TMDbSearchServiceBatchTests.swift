@@ -6,11 +6,11 @@
 //
 
 import Foundation
+import TMDb
 import Testing
 
 @testable import DataProvider
 @testable import MyAnimeList
-import TMDb
 
 struct TMDbSearchServiceBatchTests {
     @Test func testBatchPromptsTrimWhitespaceDropEmptyLinesAndPreserveOrder() {

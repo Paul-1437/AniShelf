@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftData
+import TMDb
 import Testing
 
 import struct TMDb.ImagesConfiguration
@@ -72,6 +73,67 @@ func makeImagesConfiguration() -> ImagesConfiguration {
         posterSizes: ["w780"],
         profileSizes: ["w185"],
         stillSizes: ["w300"]
+    )
+}
+
+final class RecordingTMDbHTTPClient: HTTPClient {
+    private let recorder = TMDbHTTPRequestRecorder()
+    private let responseProvider: @Sendable (HTTPRequest) async throws -> HTTPResponse
+
+    init(
+        responseProvider: @escaping @Sendable (HTTPRequest) async throws -> HTTPResponse = { _ in
+            HTTPResponse(data: Data(#"{"id":1,"posters":[],"logos":[],"backdrops":[]}"#.utf8))
+        }
+    ) {
+        self.responseProvider = responseProvider
+    }
+
+    var requests: [HTTPRequest] {
+        get async {
+            await recorder.requests
+        }
+    }
+
+    func perform(request: HTTPRequest) async throws -> HTTPResponse {
+        await recorder.record(request)
+        return try await responseProvider(request)
+    }
+}
+
+private actor TMDbHTTPRequestRecorder {
+    private var capturedRequests: [HTTPRequest] = []
+
+    var requests: [HTTPRequest] {
+        capturedRequests
+    }
+
+    func record(_ request: HTTPRequest) {
+        capturedRequests.append(request)
+    }
+}
+
+extension URL {
+    func queryValue(named name: String) -> String? {
+        URLComponents(url: self, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == name })?
+            .value
+    }
+}
+
+func makeImageMetadata(
+    filePath: String,
+    width: Int,
+    languageCode: String?
+) -> ImageMetadata {
+    ImageMetadata(
+        filePath: URL(string: filePath)!,
+        width: width,
+        height: Int(Float(width) * 1.5),
+        aspectRatio: 2.0 / 3.0,
+        voteAverage: nil,
+        voteCount: nil,
+        languageCode: languageCode
     )
 }
 

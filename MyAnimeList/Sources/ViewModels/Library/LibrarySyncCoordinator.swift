@@ -12,7 +12,7 @@ import LibrarySync
 import SwiftUI
 import os
 
-fileprivate let librarySyncCoordinatorLogger = Logger(
+let librarySyncCoordinatorLogger = Logger(
     subsystem: .bundleIdentifier,
     category: "LibrarySync.Coordinator"
 )
@@ -63,10 +63,10 @@ final class LibrarySyncCoordinator {
 
     private weak var store: LibraryStore?
     private let importer: CloudLibrarySyncImporter
-    private let exporter: CloudLibrarySyncExporter
+    let exporter: CloudLibrarySyncExporter
     private let changeTokenStore: CloudLibrarySyncChangeTokenStore
     private let namespaceProvider: @MainActor () async throws -> CloudLibrarySyncChangeTokenStore.Namespace?
-    private let hydrateMissingEntry: @MainActor (LibraryEntrySyncSnapshot, LibraryStore) async throws -> AnimeEntry
+    let hydrateMissingEntry: @MainActor (LibraryEntrySyncSnapshot, LibraryStore) async throws -> AnimeEntry
     private let dateProvider: @MainActor @Sendable () -> Date
 
     private var isSyncing = false
@@ -76,12 +76,7 @@ final class LibrarySyncCoordinator {
     private var activeFirstEnableBootstrapIDs = Set<UUID>()
     private var canceledFirstEnableBootstrapIDs = Set<UUID>()
 
-    private typealias SyncPhase = LibraryCloudSyncPhase
-
-    private struct LocalSettingsSnapshotState {
-        var updatedAt: Date?
-        var snapshot: LibrarySettingsSyncSnapshot
-    }
+    typealias SyncPhase = LibraryCloudSyncPhase
 
     /// Creates the coordinator and wires the sync pipeline dependencies.
     ///
@@ -471,6 +466,107 @@ final class LibrarySyncCoordinator {
         try Task.checkCancellation()
     }
 
+    private func resolveNamespace(
+        reportingTo store: LibraryStore
+    ) async throws -> CloudLibrarySyncChangeTokenStore.Namespace? {
+        do {
+            let namespace = try await namespaceProvider()
+            store.updateLibraryCloudKitAvailability(namespace == nil ? .noAccount : .available)
+            return namespace
+        } catch {
+            store.updateLibraryCloudKitAvailability(error.libraryCloudKitAvailability)
+            throw error
+        }
+    }
+
+    private func checkFirstEnableBootstrapCancellation(_ bootstrapID: UUID) throws {
+        if canceledFirstEnableBootstrapIDs.contains(bootstrapID) {
+            throw FirstEnableBootstrapCancellation.cancelled
+        }
+    }
+
+    private func applyImportedSettingsIfNeeded(
+        _ remoteSnapshot: LibrarySettingsSyncSnapshot?,
+        to store: LibraryStore
+    ) {
+        guard let remoteSnapshot else { return }
+        let localUpdatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() ?? .distantPast
+        guard remoteSnapshot.updatedAt > localUpdatedAt else {
+            librarySyncCoordinatorLogger.debug(
+                "Skipped iCloud settings snapshot updated at \(remoteSnapshot.updatedAt, privacy: .public) because the local settings clock is not older."
+            )
+            return
+        }
+        store.applyRemoteCloudSyncedPreferences(remoteSnapshot)
+    }
+
+    private func localSettingsSnapshotState(for store: LibraryStore) -> LocalSettingsSnapshotState {
+        let updatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt()
+        return .init(
+            updatedAt: updatedAt,
+            snapshot: store.preferences.loadCloudSyncedSettingsSnapshot(
+                fallbackUpdatedAt: updatedAt ?? .distantPast
+            )
+        )
+    }
+
+    private func settingsSnapshotForExport(
+        localState: LocalSettingsSnapshotState,
+        remoteSnapshot: LibrarySettingsSyncSnapshot?,
+        store: LibraryStore
+    ) -> LibrarySettingsSyncSnapshot? {
+        guard let localUpdatedAt = localState.updatedAt else {
+            guard remoteSnapshot == nil, !localState.snapshot.payload.isEmpty else { return nil }
+            let updatedAt = dateProvider()
+            store.preferences.saveCloudSyncedDefaultsUpdatedAt(updatedAt)
+            let snapshot = store.preferences.loadCloudSyncedSettingsSnapshot(
+                fallbackUpdatedAt: updatedAt
+            )
+            librarySyncCoordinatorLogger.info(
+                "Initialized iCloud settings clock at \(updatedAt, privacy: .public) for first settings export with \(snapshot.payload.count, privacy: .public) keys."
+            )
+            return snapshot
+        }
+        guard let remoteSnapshot else { return localState.snapshot }
+        guard localUpdatedAt > remoteSnapshot.updatedAt else { return nil }
+        return localState.snapshot
+    }
+
+    func logSettingsExportResult(
+        _ snapshot: LibrarySettingsSyncSnapshot?,
+        exportResult: CloudLibrarySyncExportResult
+    ) {
+        guard let snapshot else { return }
+        if exportResult.settingsExported {
+            librarySyncCoordinatorLogger.info(
+                "Exported iCloud settings snapshot updated at \(snapshot.updatedAt, privacy: .public) with \(snapshot.payload.count, privacy: .public) keys."
+            )
+        } else {
+            librarySyncCoordinatorLogger.warning(
+                "CloudKit did not accept the iCloud settings snapshot updated at \(snapshot.updatedAt, privacy: .public); settings remain pending."
+            )
+        }
+    }
+
+    func reconciledCloudSyncedSettingsUpdatedAt(
+        store: LibraryStore,
+        exportedSnapshot: LibrarySettingsSyncSnapshot?,
+        settingsExported: Bool
+    ) -> Date? {
+        if let exportedSnapshot, settingsExported {
+            return exportedSnapshot.updatedAt
+        }
+        if exportedSnapshot != nil {
+            return store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
+        }
+        guard let updatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() else { return nil }
+        let payload = store.preferences.loadCloudSyncedSettingsSnapshot(
+            fallbackUpdatedAt: updatedAt
+        ).payload
+        guard !payload.isEmpty else { return nil }
+        return updatedAt
+    }
+
     private func runFirstEnableBootstrap(
         preference: LibraryCloudSyncConflictPreference?,
         bootstrapID: UUID
@@ -724,749 +820,11 @@ final class LibrarySyncCoordinator {
         }
     }
 
-    private func resolveNamespace(
-        reportingTo store: LibraryStore
-    ) async throws -> CloudLibrarySyncChangeTokenStore.Namespace? {
-        do {
-            let namespace = try await namespaceProvider()
-            store.updateLibraryCloudKitAvailability(namespace == nil ? .noAccount : .available)
-            return namespace
-        } catch {
-            store.updateLibraryCloudKitAvailability(error.libraryCloudKitAvailability)
-            throw error
-        }
-    }
-
-    private func checkFirstEnableBootstrapCancellation(_ bootstrapID: UUID) throws {
-        if canceledFirstEnableBootstrapIDs.contains(bootstrapID) {
-            throw FirstEnableBootstrapCancellation.cancelled
-        }
-    }
-
-    private func seedDirtyQueue(
-        with snapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot],
-        at date: Date,
-        in store: LibraryStore
-    ) throws {
-        var entriesByID = store.syncChangeRecorder.dirtyQueueStore.load().entries.reduce(
-            into: [String: LibraryEntrySyncDirtyQueueEntry]()
-        ) { entriesByID, entry in
-            entriesByID[entry.identity.rawID] = entry
-        }
-
-        for snapshot in snapshotsByIdentity.values {
-            let pendingUpsert = LibraryEntrySyncPendingUpsert(
-                identity: snapshot.identity,
-                dirtyAt: bootstrapDirtyClock(for: snapshot) ?? date
-            )
-            entriesByID[snapshot.identity.rawID] = .upsert(pendingUpsert)
-        }
-
-        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(Array(entriesByID.values))
-    }
-
-    private func resolvedBatch(
-        from batch: CloudLibrarySyncImportBatch,
-        localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot],
-        conflicts: AmbiguousConflictSet,
-        preference: LibraryCloudSyncConflictPreference
-    ) throws -> CloudLibrarySyncImportBatch {
-        let changes = try batch.remoteChanges.map { remoteChange -> LibraryEntrySyncRemoteChange in
-            var resolvedChange = try resolvedChange(
-                remoteChange,
-                localSnapshotsByIdentity: localSnapshotsByIdentity
-            )
-            guard case .snapshot(var resolvedSnapshot) = resolvedChange,
-                case .snapshot(let remoteSnapshot) = remoteChange,
-                let localSnapshot = localSnapshotsByIdentity[remoteSnapshot.identity],
-                let conflict = conflicts.conflictsByIdentity[remoteSnapshot.identity]
-            else {
-                return resolvedChange
-            }
-
-            switch preference {
-            case .preferCloud:
-                apply(conflict.domains, from: remoteSnapshot, to: &resolvedSnapshot)
-            case .preferLocal:
-                apply(conflict.domains, from: localSnapshot, to: &resolvedSnapshot)
-            }
-            resolvedChange = .snapshot(resolvedSnapshot)
-            return resolvedChange
-        }
-
-        return .init(
-            changes: changes,
-            remoteChanges: batch.remoteChanges,
-            settingsSnapshot: batch.settingsSnapshot,
-            ignoredDeletedRecordIDs: batch.ignoredDeletedRecordIDs,
-            changeToken: batch.changeToken,
-            namespace: batch.namespace,
-            zoneID: batch.zoneID
-        )
-    }
-
-    private func resolvedChange(
-        _ remoteChange: LibraryEntrySyncRemoteChange,
-        localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot]
-    ) throws -> LibraryEntrySyncRemoteChange {
-        guard case .snapshot(let remoteSnapshot) = remoteChange,
-            let localSnapshot = localSnapshotsByIdentity[remoteSnapshot.identity]
-        else {
-            return remoteChange
-        }
-        return .snapshot(try localSnapshot.merged(with: remoteSnapshot))
-    }
-
-    private func stampLocalClocks(
-        for conflicts: AmbiguousConflictSet,
-        at date: Date,
-        in store: LibraryStore
-    ) throws {
-        guard !conflicts.isEmpty else { return }
-        let entries = try store.dataProvider.getAllModels(ofType: AnimeEntry.self)
-        var changed = false
-        try store.syncChangeRecorder.withSuppressedRecording {
-            for entry in entries {
-                guard let conflict = conflicts.conflictsByIdentity[entry.syncIdentity] else {
-                    continue
-                }
-                if conflict.domains.contains(.library), entry.libraryUpdatedAt == nil {
-                    entry.libraryUpdatedAt = date
-                    changed = true
-                }
-                if conflict.domains.contains(.tracking), entry.trackingUpdatedAt == nil {
-                    entry.trackingUpdatedAt = date
-                    changed = true
-                }
-            }
-            if changed {
-                try store.repository.save()
-            }
-        }
-        if changed {
-            store.rebuildSyncChangeTracking()
-        }
-    }
-
-    private func dropCloudSupersededDirtyWork(
-        conflicts: AmbiguousConflictSet,
-        localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot],
-        remoteChanges: [LibraryEntrySyncRemoteChange],
-        in store: LibraryStore
-    ) throws {
-        guard !conflicts.isEmpty else { return }
-        let remoteSnapshotsByIdentity = remoteChanges.reduce(
-            into: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot]()
-        ) { snapshotsByIdentity, remoteChange in
-            guard case .snapshot(let snapshot) = remoteChange else { return }
-            snapshotsByIdentity[snapshot.identity] = snapshot
-        }
-
-        let retainedEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries.filter { entry in
-            guard let conflict = conflicts.conflictsByIdentity[entry.identity],
-                let localSnapshot = localSnapshotsByIdentity[entry.identity],
-                let remoteSnapshot = remoteSnapshotsByIdentity[entry.identity]
-            else {
-                return true
-            }
-            return hasAuthoritativeLocalWork(
-                localSnapshot,
-                remoteSnapshot: remoteSnapshot,
-                cloudPreferredDomains: conflict.domains
-            )
-        }
-        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(retainedEntries)
-    }
-
-    private func ambiguousConflicts(
-        localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot],
-        remoteChanges: [LibraryEntrySyncRemoteChange]
-    ) -> AmbiguousConflictSet {
-        var conflictsByIdentity: [LibraryEntrySyncIdentity: AmbiguousConflict] = [:]
-        for remoteChange in remoteChanges {
-            guard case .snapshot(let remoteSnapshot) = remoteChange,
-                let localSnapshot = localSnapshotsByIdentity[remoteSnapshot.identity]
-            else {
-                continue
-            }
-
-            var domains: Set<LibraryCloudSyncConflictDomain> = []
-            if localSnapshot.libraryUpdatedAt == nil,
-                remoteSnapshot.libraryUpdatedAt == nil,
-                libraryValuesDiffer(localSnapshot, remoteSnapshot)
-            {
-                domains.insert(.library)
-            }
-            if localSnapshot.trackingUpdatedAt == nil,
-                remoteSnapshot.trackingUpdatedAt == nil,
-                trackingValuesDiffer(localSnapshot, remoteSnapshot)
-            {
-                domains.insert(.tracking)
-            }
-
-            if !domains.isEmpty {
-                conflictsByIdentity[remoteSnapshot.identity] = .init(
-                    identity: remoteSnapshot.identity,
-                    domains: domains
-                )
-            }
-        }
-        return .init(conflictsByIdentity: conflictsByIdentity)
-    }
-
-    private func apply(
-        _ domains: Set<LibraryCloudSyncConflictDomain>,
-        from source: LibraryEntrySyncSnapshot,
-        to target: inout LibraryEntrySyncSnapshot
-    ) {
-        if domains.contains(.library) {
-            target.onDisplay = source.onDisplay
-            target.dateSaved = source.dateSaved
-            target.libraryUpdatedAt = source.libraryUpdatedAt
-        }
-        if domains.contains(.tracking) {
-            target.watchStatus = source.watchStatus
-            target.dateStarted = source.dateStarted
-            target.dateFinished = source.dateFinished
-            target.isDateTrackingEnabled = source.isDateTrackingEnabled
-            target.score = source.score
-            target.favorite = source.favorite
-            target.notes = source.notes
-            target.usingCustomPoster = source.usingCustomPoster
-            target.customPosterURL = source.usingCustomPoster ? source.customPosterURL : nil
-            target.trackingUpdatedAt = source.trackingUpdatedAt
-        }
-        if domains.contains(.episodeProgress) {
-            target.episodeProgresses = source.episodeProgresses
-        }
-    }
-
-    /// Applies remote changes to local entries, hydrating missing snapshots first.
-    ///
-    /// The method suppresses change recording while the imported changes are
-    /// written so the local save pass does not enqueue its own changes.
-    private func applyImportedChanges(
-        _ batch: CloudLibrarySyncImportBatch,
-        to store: LibraryStore,
-        forcedDomainsByIdentity: [LibraryEntrySyncIdentity: Set<LibraryCloudSyncConflictDomain>] = [:]
-    ) async throws -> (appliedChangesCount: Int, hydratedEntriesCount: Int) {
-        var appliedChangesCount = 0
-        var hydratedEntriesCount = 0
-        var applicationPlans: [ApplicationPlan] = []
-        let dirtyEntriesByIdentity = Self.coalescedDirtyEntriesByIdentity(
-            store.syncChangeRecorder.dirtyQueueStore.load().entries
-        )
-        for change in batch.changes {
-            switch change {
-            case .snapshot(let snapshot):
-                if snapshot.isNotNewerThanPendingDelete(dirtyEntriesByIdentity[snapshot.identity]) {
-                    librarySyncCoordinatorLogger.info(
-                        "Skipped iCloud snapshot application for \(snapshot.identity.rawID, privacy: .private) because a newer local delete is pending export."
-                    )
-                    continue
-                }
-                let applicationTarget = try await entryForApplying(snapshot, store: store)
-                guard let applicationTarget else { continue }
-                appliedChangesCount += 1
-                if applicationTarget.isInitialMaterialization {
-                    hydratedEntriesCount += 1
-                }
-                applicationPlans.append(
-                    .init(
-                        change: .snapshot(snapshot),
-                        target: applicationTarget,
-                        forcedDomains: forcedDomainsByIdentity[snapshot.identity] ?? []
-                    ))
-            case .tombstone(let tombstone):
-                guard let entry = store.repository.existingEntry(identity: tombstone.identity) else {
-                    continue
-                }
-                appliedChangesCount += 1
-                applicationPlans.append(
-                    .init(
-                        change: .tombstone(tombstone),
-                        target: .init(entry: entry, isInitialMaterialization: false),
-                        forcedDomains: []
-                    ))
-            }
-        }
-        try store.syncChangeRecorder.withSuppressedRecording {
-            for plan in applicationPlans {
-                try withAnimation {
-                    switch plan.change {
-                    case .snapshot(let snapshot):
-                        if plan.target.isInitialMaterialization {
-                            try plan.target.entry.applyInitialSyncSnapshot(snapshot)
-                        } else {
-                            try plan.target.entry.applySyncSnapshot(snapshot)
-                            if !plan.forcedDomains.isEmpty {
-                                plan.target.entry.applyForcedSyncDomains(
-                                    plan.forcedDomains,
-                                    from: snapshot
-                                )
-                            }
-                        }
-                    case .tombstone(let tombstone):
-                        try plan.target.entry.applySyncTombstone(tombstone)
-                    }
-                }
-            }
-            try store.repository.save()
-        }
-        store.rebuildSyncChangeTracking()
-        return (appliedChangesCount, hydratedEntriesCount)
-    }
-
-    private func removeExportedDirtyEntries(
-        _ exportedIdentities: Set<LibraryEntrySyncIdentity>,
-        from dirtyEntries: [LibraryEntrySyncDirtyQueueEntry],
-        in store: LibraryStore
-    ) throws {
-        let dirtyEntriesByIdentity = Self.coalescedDirtyEntriesByIdentity(dirtyEntries)
-        for identity in exportedIdentities {
-            guard let exportedEntry = dirtyEntriesByIdentity[identity] else { continue }
-            let removed: Bool
-            if dirtyEntries.filter({ $0.identity == identity }).count > 1 {
-                removed = try removeExportedDuplicateDirtyEntries(
-                    for: identity,
-                    matching: dirtyEntries.filter { $0.identity == identity },
-                    selectedEntry: exportedEntry,
-                    in: store
-                )
-            } else {
-                removed = try store.syncChangeRecorder.dirtyQueueStore.removeEntry(
-                    for: identity,
-                    ifCurrentEntryMatches: exportedEntry
-                )
-            }
-            if removed {
-                librarySyncCoordinatorLogger.info(
-                    "Removed \(identity.rawID, privacy: .private) from the iCloud sync dirty queue after export."
-                )
-            } else {
-                librarySyncCoordinatorLogger.info(
-                    "Kept \(identity.rawID, privacy: .private) in the iCloud sync dirty queue because newer local work was queued during export."
-                )
-            }
-        }
-    }
-
-    private func removeExportedDuplicateDirtyEntries(
-        for identity: LibraryEntrySyncIdentity,
-        matching observedEntries: [LibraryEntrySyncDirtyQueueEntry],
-        selectedEntry: LibraryEntrySyncDirtyQueueEntry,
-        in store: LibraryStore
-    ) throws -> Bool {
-        let currentEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
-        let currentEntriesForIdentity = currentEntries.filter { $0.identity == identity }
-        guard currentEntriesForIdentity == observedEntries || currentEntriesForIdentity == [selectedEntry] else {
-            librarySyncCoordinatorLogger.info(
-                "Kept duplicate dirty-queue entries for \(identity.rawID, privacy: .private) because local work changed during export confirmation."
-            )
-            return false
-        }
-
-        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(
-            currentEntries.filter { $0.identity != identity }
-        )
-        librarySyncCoordinatorLogger.info(
-            "Removed \(currentEntriesForIdentity.count, privacy: .public) duplicate dirty-queue entries for \(identity.rawID, privacy: .private) after export."
-        )
-        return true
-    }
-
-    private func export(
-        entries: [LibraryEntrySyncDirtyQueueEntry],
-        localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot],
-        settingsSnapshot: LibrarySettingsSyncSnapshot?,
-        observedDirtyEntries: [LibraryEntrySyncDirtyQueueEntry],
-        store: LibraryStore
-    ) async throws -> CloudLibrarySyncExportResult {
-        do {
-            return try await exporter.export(
-                entries: entries,
-                localSnapshotsByIdentity: localSnapshotsByIdentity,
-                settingsSnapshot: settingsSnapshot
-            )
-        } catch let failure as CloudLibrarySyncExportFailure {
-            try reconcilePartialExportFailure(
-                failure,
-                observedDirtyEntries: observedDirtyEntries,
-                settingsSnapshot: settingsSnapshot,
-                in: store
-            )
-            throw failure.underlyingError
-        }
-    }
-
-    private func reconcilePartialExportFailure(
-        _ failure: CloudLibrarySyncExportFailure,
-        observedDirtyEntries: [LibraryEntrySyncDirtyQueueEntry],
-        settingsSnapshot: LibrarySettingsSyncSnapshot?,
-        in store: LibraryStore
-    ) throws {
-        logSettingsExportResult(
-            settingsSnapshot,
-            exportResult: failure.partialResult
-        )
-        try removeExportedDirtyEntries(
-            failure.partialResult.exportedIdentities,
-            from: observedDirtyEntries,
-            in: store
-        )
-
-        guard settingsSnapshot != nil else { return }
-        let reconciledCloudSyncedSettingsUpdatedAt =
-            reconciledCloudSyncedSettingsUpdatedAt(
-                store: store,
-                exportedSnapshot: settingsSnapshot,
-                settingsExported: failure.partialResult.settingsExported
-            )
-        store.updateLibraryCloudSyncStatus { status in
-            status.lastReconciledCloudSyncedSettingsUpdatedAt =
-                reconciledCloudSyncedSettingsUpdatedAt
-        }
-    }
-
-    /// Refreshes derived library view state after imported changes are persisted.
-    private func refreshLibraryAfterImport(in store: LibraryStore) throws {
-        try store.refreshLibrary()
-    }
-
-    private func applyImportedSettingsIfNeeded(
-        _ remoteSnapshot: LibrarySettingsSyncSnapshot?,
-        to store: LibraryStore
-    ) {
-        guard let remoteSnapshot else { return }
-        let localUpdatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() ?? .distantPast
-        guard remoteSnapshot.updatedAt > localUpdatedAt else {
-            librarySyncCoordinatorLogger.debug(
-                "Skipped iCloud settings snapshot updated at \(remoteSnapshot.updatedAt, privacy: .public) because the local settings clock is not older."
-            )
-            return
-        }
-        store.applyRemoteCloudSyncedPreferences(remoteSnapshot)
-    }
-
-    private func localSettingsSnapshotState(for store: LibraryStore) -> LocalSettingsSnapshotState {
-        let updatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt()
-        return .init(
-            updatedAt: updatedAt,
-            snapshot: store.preferences.loadCloudSyncedSettingsSnapshot(
-                fallbackUpdatedAt: updatedAt ?? .distantPast
-            )
-        )
-    }
-
-    private func settingsSnapshotForExport(
-        localState: LocalSettingsSnapshotState,
-        remoteSnapshot: LibrarySettingsSyncSnapshot?,
-        store: LibraryStore
-    ) -> LibrarySettingsSyncSnapshot? {
-        guard let localUpdatedAt = localState.updatedAt else {
-            guard remoteSnapshot == nil, !localState.snapshot.payload.isEmpty else { return nil }
-            let updatedAt = dateProvider()
-            store.preferences.saveCloudSyncedDefaultsUpdatedAt(updatedAt)
-            let snapshot = store.preferences.loadCloudSyncedSettingsSnapshot(fallbackUpdatedAt: updatedAt)
-            librarySyncCoordinatorLogger.info(
-                "Initialized iCloud settings clock at \(updatedAt, privacy: .public) for first settings export with \(snapshot.payload.count, privacy: .public) keys."
-            )
-            return snapshot
-        }
-        guard let remoteSnapshot else { return localState.snapshot }
-        guard localUpdatedAt > remoteSnapshot.updatedAt else { return nil }
-        return localState.snapshot
-    }
-
-    private func logSettingsExportResult(
-        _ snapshot: LibrarySettingsSyncSnapshot?,
-        exportResult: CloudLibrarySyncExportResult
-    ) {
-        guard let snapshot else { return }
-        if exportResult.settingsExported {
-            librarySyncCoordinatorLogger.info(
-                "Exported iCloud settings snapshot updated at \(snapshot.updatedAt, privacy: .public) with \(snapshot.payload.count, privacy: .public) keys."
-            )
-        } else {
-            librarySyncCoordinatorLogger.warning(
-                "CloudKit did not accept the iCloud settings snapshot updated at \(snapshot.updatedAt, privacy: .public); settings remain pending."
-            )
-        }
-    }
-
-    private func reconciledCloudSyncedSettingsUpdatedAt(
-        store: LibraryStore,
-        exportedSnapshot: LibrarySettingsSyncSnapshot?,
-        settingsExported: Bool
-    ) -> Date? {
-        if let exportedSnapshot, settingsExported {
-            return exportedSnapshot.updatedAt
-        }
-        if exportedSnapshot != nil {
-            return store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
-        }
-        guard let updatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() else { return nil }
-        let payload = store.preferences.loadCloudSyncedSettingsSnapshot(
-            fallbackUpdatedAt: updatedAt
-        ).payload
-        guard !payload.isEmpty else { return nil }
-        return updatedAt
-    }
-
-    /// Returns the local entry to update, hydrating a new one when needed.
-    private func entryForApplying(
-        _ snapshot: LibraryEntrySyncSnapshot,
-        store: LibraryStore
-    ) async throws -> ApplicationTarget? {
-        if let entry = store.repository.existingEntry(identity: snapshot.identity) {
-            return .init(entry: entry, isInitialMaterialization: false)
-        }
-
-        return .init(
-            entry: try await hydrateMissingEntry(snapshot, store),
-            isInitialMaterialization: true
-        )
-    }
-
-    /// Rebuilds a missing local entry from TMDb before remote data is applied.
-    static func hydrateMissingEntry(
-        _ snapshot: LibraryEntrySyncSnapshot,
-        store: LibraryStore
-    ) async throws -> AnimeEntry {
-        let latestInfo = try await store.infoFetcher.latestInfo(
-            entryType: snapshot.entryType,
-            tmdbID: snapshot.tmdbID,
-            language: store.language
-        )
-        let entry = AnimeEntry(fromInfo: latestInfo.0)
-        entry.dateSaved = snapshot.dateSaved
-        entry.replaceDetail(from: latestInfo.1)
-
-        if let parentSeriesID = snapshot.parentSeriesID {
-            if let parentSeriesEntry = store.repository.existingEntry(
-                identity: .init(entryType: .series, tmdbID: parentSeriesID)
-            ) ?? store.repository.existingEntry(tmdbID: parentSeriesID) {
-                entry.parentSeriesEntry = parentSeriesEntry
-            } else {
-                let parentSeriesEntry = try await AnimeEntry.generateParentSeriesEntryForSeason(
-                    parentSeriesID: parentSeriesID,
-                    fetcher: store.infoFetcher,
-                    infoLanguage: store.language
-                )
-                store.repository.insert(parentSeriesEntry)
-                entry.parentSeriesEntry = parentSeriesEntry
-            }
-        }
-
-        store.repository.insert(entry)
-        return entry
-    }
-
-    /// Drops queued local edits that were superseded by newer remote changes.
-    ///
-    /// - Returns: Pre/post dirty counts plus diagnostic counts for queue
-    ///   reconciliation decisions.
-    private func reconcileDirtyQueue(
-        with batch: CloudLibrarySyncImportBatch,
-        in store: LibraryStore
-    ) throws -> (
-        dirtyEntriesBefore: Int,
-        dirtyEntriesAfter: Int,
-        removedRemoteWonCount: Int,
-        keptLocalWonCount: Int,
-        importUnaffectedCount: Int
-    ) {
-        let remoteChangesByIdentity = try Self.coalescedRemoteChangesByIdentity(batch.changes)
-        let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
-        var removedRemoteWonCount = 0
-        var keptLocalWonCount = 0
-        var importUnaffectedCount = 0
-        let entries = dirtyEntries.filter { dirtyEntry in
-            guard let remoteChange = remoteChangesByIdentity[dirtyEntry.identity] else {
-                importUnaffectedCount += 1
-                return true
-            }
-            if remoteChange.isNewer(than: dirtyEntry) {
-                removedRemoteWonCount += 1
-                return false
-            }
-            keptLocalWonCount += 1
-            return true
-        }
-        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(entries)
-        return (
-            dirtyEntriesBefore: dirtyEntries.count,
-            dirtyEntriesAfter: entries.count,
-            removedRemoteWonCount: removedRemoteWonCount,
-            keptLocalWonCount: keptLocalWonCount,
-            importUnaffectedCount: importUnaffectedCount
-        )
-    }
-
-    /// Builds the current local snapshot map used by importer and exporter.
-    private func localSnapshotsByIdentity(
-        for store: LibraryStore
-    ) throws -> [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot] {
-        let entries = try store.dataProvider.getAllModels(ofType: AnimeEntry.self)
-        var entriesByIdentity: [LibraryEntrySyncIdentity: AnimeEntry] = [:]
-        var duplicateCountsByIdentity: [LibraryEntrySyncIdentity: Int] = [:]
-
-        for entry in entries {
-            let identity = entry.syncIdentity
-            guard let existingEntry = entriesByIdentity[identity] else {
-                entriesByIdentity[identity] = entry
-                duplicateCountsByIdentity[identity] = 1
-                continue
-            }
-
-            duplicateCountsByIdentity[identity, default: 1] += 1
-            if Self.prefersLocalSnapshotEntry(entry, over: existingEntry) {
-                entriesByIdentity[identity] = entry
-            }
-        }
-
-        for (identity, count) in duplicateCountsByIdentity where count > 1 {
-            librarySyncCoordinatorLogger.warning(
-                "Found \(count, privacy: .public) local library rows for iCloud sync identity \(identity.rawID, privacy: .private); using the preferred local row for sync snapshot generation."
-            )
-        }
-
-        return entriesByIdentity.reduce(into: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot]()) {
-            snapshotsByIdentity, pair in
-            snapshotsByIdentity[pair.key] = LibraryEntrySyncSnapshot(entry: pair.value)
-        }
-    }
-
-    private static func coalescedDirtyEntriesByIdentity(
-        _ dirtyEntries: [LibraryEntrySyncDirtyQueueEntry]
-    ) -> [LibraryEntrySyncIdentity: LibraryEntrySyncDirtyQueueEntry] {
-        var entriesByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncDirtyQueueEntry] = [:]
-        var duplicateCountsByIdentity: [LibraryEntrySyncIdentity: Int] = [:]
-
-        for entry in dirtyEntries {
-            let identity = entry.identity
-            if entriesByIdentity[identity] != nil {
-                duplicateCountsByIdentity[identity, default: 1] += 1
-            } else {
-                duplicateCountsByIdentity[identity] = 1
-            }
-            entriesByIdentity[identity] = entry
-        }
-
-        for (identity, count) in duplicateCountsByIdentity where count > 1 {
-            librarySyncCoordinatorLogger.warning(
-                "Found \(count, privacy: .public) dirty-queue entries for iCloud sync identity \(identity.rawID, privacy: .private); using the last queued entry for export confirmation."
-            )
-        }
-
-        return entriesByIdentity
-    }
-
-    static func coalescedRemoteChangesByIdentity(
-        _ remoteChanges: [LibraryEntrySyncRemoteChange]
-    ) throws -> [LibraryEntrySyncIdentity: LibraryEntrySyncRemoteChange] {
-        var changesByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncRemoteChange] = [:]
-        var duplicateCountsByIdentity: [LibraryEntrySyncIdentity: Int] = [:]
-
-        for remoteChange in remoteChanges {
-            let identity = remoteChange.identity
-            if let existingChange = changesByIdentity[identity] {
-                changesByIdentity[identity] = try existingChange.merged(with: remoteChange)
-                duplicateCountsByIdentity[identity, default: 1] += 1
-            } else {
-                changesByIdentity[identity] = remoteChange
-                duplicateCountsByIdentity[identity] = 1
-            }
-        }
-
-        for (identity, count) in duplicateCountsByIdentity where count > 1 {
-            librarySyncCoordinatorLogger.warning(
-                "Found \(count, privacy: .public) remote changes for iCloud sync identity \(identity.rawID, privacy: .private); merged them before dirty-queue reconciliation."
-            )
-        }
-
-        return changesByIdentity
-    }
-
-    private static func prefersLocalSnapshotEntry(_ lhs: AnimeEntry, over rhs: AnimeEntry) -> Bool {
-        if lhs.onDisplay != rhs.onDisplay {
-            return lhs.onDisplay && !rhs.onDisplay
-        }
-
-        if lhs.childSeasonEntries.count != rhs.childSeasonEntries.count {
-            return lhs.childSeasonEntries.count > rhs.childSeasonEntries.count
-        }
-
-        if (lhs.detail != nil) != (rhs.detail != nil) {
-            return lhs.detail != nil
-        }
-
-        if lhs.dateSaved != rhs.dateSaved {
-            return lhs.dateSaved > rhs.dateSaved
-        }
-
-        return lhs.name < rhs.name
-    }
 }
 
-extension LibrarySyncCoordinator.SyncResult {
-    fileprivate func merged(with nextResult: Self) -> Self {
-        switch (self, nextResult) {
-        case (.retryableFailure, _), (_, .retryableFailure):
-            return .retryableFailure
-        case (.permanentFailure, _), (_, .permanentFailure):
-            return .permanentFailure
-        case (.conflictChoiceRequired, _), (_, .conflictChoiceRequired):
-            return .conflictChoiceRequired
-        case (.skipped(_), _):
-            return nextResult
-        case (_, .skipped(_)):
-            return self
-        case (.success, .success):
-            return .success
-        }
-    }
-}
-
-fileprivate struct ApplicationTarget {
-    let entry: AnimeEntry
-    let isInitialMaterialization: Bool
-}
-
-fileprivate struct ApplicationPlan {
-    let change: LibraryEntrySyncRemoteChange
-    let target: ApplicationTarget
-    let forcedDomains: Set<LibraryCloudSyncConflictDomain>
-}
-
-fileprivate struct AmbiguousConflict {
-    var identity: LibraryEntrySyncIdentity
-    var domains: Set<LibraryCloudSyncConflictDomain>
-}
-
-fileprivate struct AmbiguousConflictSet {
-    var conflictsByIdentity: [LibraryEntrySyncIdentity: AmbiguousConflict]
-
-    var isEmpty: Bool {
-        conflictsByIdentity.isEmpty
-    }
-
-    var summary: LibraryCloudSyncConflictSummary {
-        LibraryCloudSyncConflictSummary(
-            entryCount: conflictsByIdentity.count,
-            libraryDomainCount: domainCount(.library),
-            trackingDomainCount: domainCount(.tracking),
-            episodeProgressDomainCount: domainCount(.episodeProgress)
-        )
-    }
-
-    var domainsByIdentity: [LibraryEntrySyncIdentity: Set<LibraryCloudSyncConflictDomain>] {
-        conflictsByIdentity.mapValues(\.domains)
-    }
-
-    private func domainCount(_ domain: LibraryCloudSyncConflictDomain) -> Int {
-        conflictsByIdentity.values.filter { $0.domains.contains(domain) }.count
-    }
+fileprivate struct LocalSettingsSnapshotState {
+    var updatedAt: Date?
+    var snapshot: LibrarySettingsSyncSnapshot
 }
 
 extension Error {
@@ -1498,156 +856,6 @@ extension Error {
     }
 }
 
-fileprivate func bootstrapDirtyClock(for snapshot: LibraryEntrySyncSnapshot) -> Date? {
-    [
-        snapshot.libraryUpdatedAt,
-        snapshot.trackingUpdatedAt,
-        snapshot.episodeProgresses.map(\.updatedAt).max()
-    ]
-    .compactMap(\.self)
-    .max()
-}
-
-fileprivate func libraryValuesDiffer(
-    _ lhs: LibraryEntrySyncSnapshot,
-    _ rhs: LibraryEntrySyncSnapshot
-) -> Bool {
-    lhs.onDisplay != rhs.onDisplay
-        || lhs.dateSaved != rhs.dateSaved
-}
-
-fileprivate func trackingValuesDiffer(
-    _ lhs: LibraryEntrySyncSnapshot,
-    _ rhs: LibraryEntrySyncSnapshot
-) -> Bool {
-    lhs.watchStatus != rhs.watchStatus
-        || lhs.dateStarted != rhs.dateStarted
-        || lhs.dateFinished != rhs.dateFinished
-        || lhs.isDateTrackingEnabled != rhs.isDateTrackingEnabled
-        || lhs.score != rhs.score
-        || lhs.favorite != rhs.favorite
-        || lhs.notes != rhs.notes
-        || lhs.usingCustomPoster != rhs.usingCustomPoster
-        || lhs.customPosterURL != rhs.customPosterURL
-}
-
-fileprivate func hasAuthoritativeLocalWork(
-    _ localSnapshot: LibraryEntrySyncSnapshot,
-    remoteSnapshot: LibraryEntrySyncSnapshot,
-    cloudPreferredDomains: Set<LibraryCloudSyncConflictDomain>
-) -> Bool {
-    if !cloudPreferredDomains.contains(.library),
-        isNewer(localSnapshot.libraryUpdatedAt, than: remoteSnapshot.libraryUpdatedAt)
-    {
-        return true
-    }
-    if !cloudPreferredDomains.contains(.tracking),
-        isNewer(localSnapshot.trackingUpdatedAt, than: remoteSnapshot.trackingUpdatedAt)
-    {
-        return true
-    }
-    return hasNewerLocalEpisodeProgress(localSnapshot, remoteSnapshot: remoteSnapshot)
-}
-
-fileprivate func hasNewerLocalEpisodeProgress(
-    _ localSnapshot: LibraryEntrySyncSnapshot,
-    remoteSnapshot: LibraryEntrySyncSnapshot
-) -> Bool {
-    let remoteProgresses = Dictionary(
-        uniqueKeysWithValues: remoteSnapshot.episodeProgresses.map { ($0.seasonNumber, $0) }
-    )
-    for localProgress in localSnapshot.episodeProgresses {
-        guard let remoteProgress = remoteProgresses[localProgress.seasonNumber] else {
-            return true
-        }
-        if localProgress.updatedAt > remoteProgress.updatedAt {
-            return true
-        }
-        if localProgress.updatedAt == remoteProgress.updatedAt,
-            localProgress.watchedThroughEpisode > remoteProgress.watchedThroughEpisode
-        {
-            return true
-        }
-    }
-    return false
-}
-
-fileprivate func isNewer(_ candidate: Date?, than existing: Date?) -> Bool {
-    guard let candidate else { return false }
-    guard let existing else { return true }
-    return candidate > existing
-}
-
-extension LibraryEntrySyncRemoteChange {
-    /// Returns true when this remote snapshot is newer than the queued local work.
-    ///
-    /// Upserts compare against the local dirty timestamp, while deletes compare
-    /// against the tombstone's delete clock.
-    fileprivate func isNewer(than dirtyEntry: LibraryEntrySyncDirtyQueueEntry) -> Bool {
-        switch dirtyEntry {
-        case .upsert(let pendingUpsert):
-            guard let latestSyncClock else { return false }
-            return latestSyncClock > pendingUpsert.dirtyAt
-        case .delete(let pendingDelete):
-            guard let latestSyncClock else { return false }
-            return latestSyncClock > pendingDelete.tombstone.deletedAt
-        }
-    }
-}
-
-extension LibraryEntrySyncSnapshot {
-    fileprivate func isNotNewerThanPendingDelete(
-        _ dirtyEntry: LibraryEntrySyncDirtyQueueEntry?
-    ) -> Bool {
-        guard case .delete(let pendingDelete) = dirtyEntry else { return false }
-        let snapshotClock = latestUserStateClock ?? .distantPast
-        return snapshotClock <= pendingDelete.tombstone.deletedAt
-    }
-}
-
-extension AnimeEntry {
-    fileprivate func applyForcedSyncDomains(
-        _ domains: Set<LibraryCloudSyncConflictDomain>,
-        from snapshot: LibraryEntrySyncSnapshot
-    ) {
-        if domains.contains(.library) {
-            onDisplay = snapshot.onDisplay
-            dateSaved = snapshot.dateSaved
-            libraryUpdatedAt = snapshot.libraryUpdatedAt
-        }
-        if domains.contains(.tracking) {
-            watchStatus = snapshot.watchStatus
-            dateStarted = snapshot.dateStarted
-            dateFinished = snapshot.dateFinished
-            isDateTrackingEnabled = snapshot.isDateTrackingEnabled
-            score = snapshot.score
-            favorite = snapshot.favorite
-            notes = snapshot.notes
-            let wasUsingCustomPoster = usingCustomPoster
-            usingCustomPoster = snapshot.usingCustomPoster
-            if snapshot.usingCustomPoster {
-                posterURL = snapshot.customPosterURL
-            } else if wasUsingCustomPoster {
-                posterURL = nil
-            }
-            trackingUpdatedAt = snapshot.trackingUpdatedAt
-        }
-        if domains.contains(.episodeProgress) {
-            for progress in episodeProgresses {
-                modelContext?.delete(progress)
-            }
-            episodeProgresses.removeAll()
-            for progress in snapshot.episodeProgresses {
-                applyEpisodeProgressSnapshot(
-                    seasonNumber: progress.seasonNumber,
-                    watchedThroughEpisode: progress.watchedThroughEpisode,
-                    updatedAt: progress.updatedAt
-                )
-            }
-        }
-    }
-}
-
 fileprivate struct DisabledCloudLibrarySyncDatabase: CloudLibrarySyncDatabase {
     enum DisabledError: Error {
         case unavailable
@@ -1674,4 +882,23 @@ fileprivate struct DisabledCloudLibrarySyncDatabase: CloudLibrarySyncDatabase {
 
 fileprivate enum FirstEnableBootstrapCancellation: Error {
     case cancelled
+}
+
+extension LibrarySyncCoordinator.SyncResult {
+    fileprivate func merged(with nextResult: Self) -> Self {
+        switch (self, nextResult) {
+        case (.retryableFailure, _), (_, .retryableFailure):
+            return .retryableFailure
+        case (.permanentFailure, _), (_, .permanentFailure):
+            return .permanentFailure
+        case (.conflictChoiceRequired, _), (_, .conflictChoiceRequired):
+            return .conflictChoiceRequired
+        case (.skipped(_), _):
+            return nextResult
+        case (_, .skipped(_)):
+            return self
+        case (.success, .success):
+            return .success
+        }
+    }
 }

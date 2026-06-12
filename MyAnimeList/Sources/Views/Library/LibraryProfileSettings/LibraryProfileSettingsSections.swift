@@ -187,12 +187,51 @@ struct LibraryProfileSettingsCard: View {
             panelTint: sectionCardTint
         ) {
             VStack(spacing: 14) {
-                languagePickerRow
-                defaultLibraryBehaviorRow
-                tmdbConnectionRow
-                iCloudSyncRow
-                backupManagementRow
-                maintenanceActions
+                LibraryProfileLanguageSettingsSection(
+                    followsSystemLanguage: $followsSystemLanguage,
+                    preferredLanguage: $preferredLanguage
+                )
+                LibraryProfileDefaultSettingsSection(
+                    hideDroppedByDefault: $hideDroppedByDefault,
+                    defaultNewEntryWatchStatus: $defaultNewEntryWatchStatus,
+                    defaultFilters: $defaultFilters,
+                    openDetailWithSingleTap: $openDetailWithSingleTap,
+                    entryDetailCharactersExpandedByDefault: $entryDetailCharactersExpandedByDefault,
+                    entryDetailStaffExpandedByDefault: $entryDetailStaffExpandedByDefault,
+                    scoringEnabled: $scoringEnabled,
+                    episodeProgressTrackingEnabled: $episodeProgressTrackingEnabled,
+                    posterProgressBarOverlayEnabled: $posterProgressBarOverlayEnabled,
+                    autoPrefetchImagesOnAddAndRestore: $autoPrefetchImagesOnAddAndRestore
+                )
+                LibraryProfileTMDbConnectionSection(useTMDbRelayServer: $useTMDbRelayServer)
+                LibraryProfileICloudSyncSection(
+                    libraryCloudSyncStatus: libraryCloudSyncStatus,
+                    cloudSyncToggleBinding: cloudSyncToggleBinding,
+                    cloudSyncToggleDisabled: cloudSyncToggleDisabled,
+                    cloudSyncToggleSubtitle: cloudSyncToggleSubtitle,
+                    cloudSyncIsBusy: cloudSyncIsBusy,
+                    cloudSyncStatusTitleColor: cloudSyncStatusTitleColor,
+                    cloudSyncManualRetryDisabled: cloudSyncManualRetryDisabled,
+                    onRetryLibraryCloudSync: retryLibraryCloudSync
+                )
+                LibraryProfileBackupExportSection(
+                    libraryCloudSyncStatus: libraryCloudSyncStatus,
+                    restoreCompleted: restoreCompleted,
+                    createBackupItems: createBackupItems,
+                    onExportLibrary: onExportLibrary,
+                    onRestoreButtonPress: handleRestoreButtonPress
+                )
+                LibraryProfileMaintenanceActionsSection(
+                    onChangeAPIKey: onChangeAPIKey,
+                    onCheckMetadataCacheSize: onCheckMetadataCacheSize,
+                    onRefreshInfos: onRefreshInfos,
+                    onPrefetchImages: onPrefetchImages,
+                    onShowSupport: onShowSupport,
+                    whatsNewVersion: whatsNewVersion,
+                    onShowWhatsNew: onShowWhatsNew,
+                    onShowAbout: onShowAbout,
+                    onDeleteAllAnimes: onDeleteAllAnimes
+                )
             }
         }
         .alert("Resolve iCloud Sync Conflict", isPresented: $showCloudSyncConflictAlert) {
@@ -219,471 +258,12 @@ struct LibraryProfileSettingsCard: View {
         }
     }
 
-    private var languagePickerRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LibraryProfileSettingHeader(
-                title: "Anime Info Language",
-                subtitle: "Choose the language used for future metadata fetches.",
-                systemImage: "globe",
-                tint: .blue
-            )
-
-            HStack {
-                Text("Follow System")
-                    .font(.subheadline.weight(.semibold))
-                Spacer(minLength: 12)
-                Toggle("Follow System", isOn: $followsSystemLanguage)
-                    .labelsHidden()
-                    .tint(.blue)
-                    .scaleEffect(0.78, anchor: .trailing)
-                    .frame(width: 42, height: 26, alignment: .trailing)
-            }
-            .padding(.vertical, 2)
-
-            if !followsSystemLanguage {
-                Picker("Anime Info Language", selection: $preferredLanguage) {
-                    ForEach(Language.allCases, id: \.rawValue) { language in
-                        Text(language.localizedStringResource).tag(language)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.top, 2)
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
-                    )
-                )
-            }
-        }
-        .padding(14)
-        .libraryProfileInsetPanel(cornerRadius: 22, tint: .blue)
-    }
-
-    private var defaultLibraryBehaviorRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LibraryProfileSettingHeader(
-                title: "Library Defaults",
-                systemImage: "line.3.horizontal.decrease.circle",
-                tint: .mint
-            )
-
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("New Entries Start As")
-                    .font(.subheadline.weight(.semibold))
-                Spacer(minLength: 12)
-                Menu {
-                    ForEach(AnimeEntry.WatchStatus.allCases, id: \.self) { status in
-                        Button {
-                            defaultNewEntryWatchStatus = status
-                        } label: {
-                            if status == defaultNewEntryWatchStatus {
-                                Label(status.localizedStringResource, systemImage: "checkmark")
-                            } else {
-                                Text(status.localizedStringResource)
-                            }
-                        }
-                    }
-                } label: {
-                    LibraryProfileSelectionCapsule(
-                        title: defaultNewEntryWatchStatus.localizedStringResource,
-                        tint: defaultNewEntryWatchStatus.defaultPickerTintColor
-                    )
-                }
-            }
-            .padding(.vertical, 2)
-
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text("Default Filters")
-                    .font(.subheadline.weight(.semibold))
-                Spacer(minLength: 12)
-                Menu {
-                    Toggle(
-                        "All",
-                        isOn: .init(
-                            get: { defaultFilters.isEmpty },
-                            set: {
-                                if $0 {
-                                    defaultFilters.removeAll()
-                                }
-                            }
-                        )
-                    )
-                    ForEach(LibraryStore.AnimeFilter.typeCases, id: \.self) { filter in
-                        defaultFilterToggle(for: filter)
-                    }
-                    Menu("Watch Status") {
-                        ForEach(LibraryStore.AnimeFilter.watchStatusCases, id: \.self) { filter in
-                            defaultFilterToggle(for: filter)
-                        }
-                    }
-                    defaultFilterToggle(for: .favorited)
-                } label: {
-                    LibraryProfileSelectionCapsule(
-                        title: defaultFiltersSummaryResource,
-                        tint: .mint
-                    )
-                }
-                .menuActionDismissBehavior(.disabled)
-            }
-            .padding(.vertical, 2)
-
-            settingToggleRow(
-                title: "Open Detail with Single Tap",
-                subtitle: "By default, double tap opens detail. Turn this on to use single tap instead.",
-                isOn: $openDetailWithSingleTap
-            )
-
-            settingToggleRow(
-                title: "Expand Characters by Default",
-                subtitle: "Open the Characters section automatically in entry detail view.",
-                isOn: $entryDetailCharactersExpandedByDefault
-            )
-
-            settingToggleRow(
-                title: "Expand Staff by Default",
-                subtitle: "Open the Staff section automatically in entry detail view.",
-                isOn: $entryDetailStaffExpandedByDefault
-            )
-
-            settingToggleRow(
-                title: "Enable Scoring",
-                subtitle: "Turning this off does not delete previously saved scores.",
-                isOn: $scoringEnabled
-            )
-
-            settingToggleRow(
-                title: "Track Episode Progress",
-                subtitle: "Turning this off hides episode progress without deleting saved progress.",
-                isOn: $episodeProgressTrackingEnabled
-            )
-
-            if episodeProgressTrackingEnabled {
-                settingToggleRow(
-                    title: "Show Poster Progress Bar",
-                    subtitle: "Show episode progress as a poster overlay in the library.",
-                    isOn: $posterProgressBarOverlayEnabled
-                )
-            }
-
-            settingToggleRow(
-                title: "Hide Dropped Entries",
-                subtitle: "Only show dropped entries after you explicitly enable the Dropped filter.",
-                isOn: $hideDroppedByDefault
-            )
-
-            settingToggleRow(
-                title: "Auto Prefetch Images",
-                subtitle: "Prefetch images when adding titles or restoring a backup.",
-                isOn: $autoPrefetchImagesOnAddAndRestore
-            )
-        }
-        .padding(14)
-        .libraryProfileInsetPanel(cornerRadius: 22, tint: .mint)
-    }
-
-    private func settingToggleRow(
-        title: LocalizedStringResource,
-        subtitle: LocalizedStringResource,
-        isOn: Binding<Bool>,
-        tint: Color = .mint
-    ) -> some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 12)
-            Toggle(title, isOn: isOn)
-                .labelsHidden()
-                .tint(tint)
-                .scaleEffect(0.78, anchor: .trailing)
-                .frame(width: 42, height: 26, alignment: .trailing)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var tmdbConnectionRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LibraryProfileSettingHeader(
-                title: "TMDb Connection",
-                subtitle: "Turn this on if direct TMDb access is unstable on your network.",
-                systemImage: "network",
-                tint: .cyan
-            )
-
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Use TMDb Proxy")
-                        .font(.subheadline.weight(.semibold))
-                    Text("Turn this off if you use a VPN or another proxy.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 12)
-                Toggle("Use TMDb Proxy", isOn: $useTMDbRelayServer)
-                    .labelsHidden()
-                    .tint(.cyan)
-                    .scaleEffect(0.78, anchor: .trailing)
-                    .frame(width: 42, height: 26, alignment: .trailing)
-            }
-            .padding(.vertical, 2)
-        }
-        .padding(14)
-        .libraryProfileInsetPanel(cornerRadius: 22, tint: .cyan)
-    }
-
-    private var iCloudSyncRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LibraryProfileSettingHeader(
-                title: "iCloud Sync",
-                subtitle: "Keep your library available across devices.",
-                systemImage: "icloud",
-                tint: .indigo
-            )
-
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Master Switch")
-                        .font(.subheadline.weight(.semibold))
-                    Text(cloudSyncToggleSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 12)
-                Toggle("Master Switch", isOn: cloudSyncToggleBinding)
-                    .labelsHidden()
-                    .tint(.indigo)
-                    .scaleEffect(0.78, anchor: .trailing)
-                    .frame(width: 42, height: 26, alignment: .trailing)
-                    .disabled(cloudSyncToggleDisabled)
-            }
-            .padding(.vertical, 2)
-
-            if libraryCloudSyncStatus.isEnabled {
-                VStack(alignment: .leading, spacing: 10) {
-                    cloudSyncStatusRow
-                }
-            }
-        }
-        .animation(.default, value: cloudSyncIsBusy)
-        .padding(14)
-        .libraryProfileInsetPanel(cornerRadius: 22, tint: .indigo)
-    }
-
-    private var cloudSyncStatusRow: some View {
-        HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(libraryCloudSyncStatus.statusDisplay.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(cloudSyncStatusTitleColor)
-
-                Text(libraryCloudSyncStatus.detailDisplayResource)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let failureReason = libraryCloudSyncStatus.failureReasonDisplay {
-                    Text(failureReason)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Spacer(minLength: 10)
-
-            Button(action: retryLibraryCloudSync) {
-                Label(libraryCloudSyncStatus.actionTitleResource, systemImage: "arrow.clockwise")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.indigo.opacity(colorScheme == .dark ? 0.92 : 0.82))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-            }
-            .buttonStyle(.plain)
-            .background {
-                Capsule(style: .continuous)
-                    .fill(.indigo.opacity(colorScheme == .dark ? 0.12 : 0.07))
-            }
-            .overlay {
-                Capsule(style: .continuous)
-                    .stroke(.indigo.opacity(0.14), lineWidth: 1)
-            }
-            .padding(.top, 4)
-            .disabled(cloudSyncManualRetryDisabled)
-            .opacity(cloudSyncManualRetryDisabled ? 0.52 : 1)
-        }
-        .padding(.top, 4)
-        .padding(.vertical, 1)
-    }
-
-    private var backupManagementRow: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LibraryProfileSettingHeader(
-                title: "Backup & Restore",
-                subtitle:
-                    "App backups keep AniShelf data and settings for restore. Library exports create user-facing files in standard formats.",
-                systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-                tint: .orange
-            )
-
-            HStack(spacing: 10) {
-                backupButton
-                    .frame(maxWidth: .infinity)
-                restoreButton
-                    .frame(maxWidth: .infinity)
-            }
-            .disabled(restoreCompleted)
-
-            if restoreCompleted {
-                HStack {
-                    Spacer()
-                    Text("Restore completed!")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.green)
-                        .transition(.opacity)
-                    Spacer()
-                }
-            }
-
-            libraryExportMenu
-
-            Text("* For security reasons, your TMDb API Key will not be exported.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .libraryProfileInsetPanel(cornerRadius: 22, tint: .orange)
-    }
-
-    private var maintenanceActions: some View {
-        VStack(spacing: 0) {
-            LibraryProfileActionRow(
-                title: "Change API Key",
-                subtitle: "Update the TMDb key used for metadata.",
-                systemImage: "person.badge.key",
-                tint: LibraryProfileMaintenancePalette.apiKey,
-                action: onChangeAPIKey
-            )
-            LibraryProfileActionDivider()
-            LibraryProfileActionRow(
-                title: "Check Metadata Cache Size",
-                subtitle: "Review image and metadata cache usage.",
-                systemImage: "archivebox",
-                tint: LibraryProfileMaintenancePalette.cache,
-                action: onCheckMetadataCacheSize
-            )
-            LibraryProfileActionDivider()
-            LibraryProfileActionRow(
-                title: "Refresh Infos",
-                subtitle: "Fetch latest TMDb metadata for every entry.",
-                systemImage: "arrow.clockwise",
-                tint: LibraryProfileMaintenancePalette.refresh,
-                action: onRefreshInfos
-            )
-            LibraryProfileActionDivider()
-            LibraryProfileActionRow(
-                title: "Prefetch Images",
-                subtitle: "Cache posters and artwork without refreshing metadata.",
-                systemImage: "photo.stack",
-                tint: LibraryProfileMaintenancePalette.prefetch,
-                action: onPrefetchImages
-            )
-            LibraryProfileActionDivider()
-            if let whatsNewVersion {
-                LibraryProfileActionRow(
-                    title: "What's New",
-                    subtitle: whatsNewSubtitleResource(for: whatsNewVersion),
-                    systemImage: "sparkles.rectangle.stack",
-                    tint: LibraryProfileMaintenancePalette.whatsNew,
-                    action: onShowWhatsNew
-                )
-                LibraryProfileActionDivider()
-            }
-            LibraryProfileActionRow(
-                title: "Support AniShelf",
-                subtitle: "Optional tip jar. No features are unlocked.",
-                systemImage: "heart.circle",
-                tint: LibraryProfileMaintenancePalette.support,
-                action: onShowSupport
-            )
-            LibraryProfileActionDivider()
-            LibraryProfileActionRow(
-                title: "About AniShelf",
-                subtitle: "Version, links, and credits.",
-                systemImage: "info.circle",
-                tint: LibraryProfileMaintenancePalette.about,
-                action: onShowAbout
-            )
-            LibraryProfileActionDivider()
-            LibraryProfileActionRow(
-                title: "Delete All Animes",
-                subtitle: "Remove every saved library entry.",
-                systemImage: "trash",
-                role: .destructive,
-                tint: .red,
-                action: onDeleteAllAnimes
-            )
-        }
-        .padding(.vertical, 4)
-        .libraryProfileInsetPanel(cornerRadius: 22, tint: LibraryProfileMaintenancePalette.panel)
-    }
-
-    @ViewBuilder
-    private var backupButton: some View {
-        LazyShareLink(prepareData: createBackupItems) {
-            Label("Backup", systemImage: "archivebox")
-        }
-        .buttonStyle(LibraryProfileCommandButtonStyle(tint: .blue, filled: false))
-    }
-
-    private var restoreButton: some View {
-        Button(role: .destructive, action: handleRestoreButtonPress) {
-            Label("Restore", systemImage: restoreButtonSystemImage)
-        }
-        .buttonStyle(LibraryProfileCommandButtonStyle(tint: .red, filled: false))
-        .opacity(libraryCloudSyncStatus.blocksBackupRestore ? 0.52 : 1)
-        .accessibilityHint(Text(restoreButtonAccessibilityHint))
-    }
-
-    private var restoreButtonSystemImage: String {
-        libraryCloudSyncStatus.blocksBackupRestore ? "icloud.slash" : "document.badge.clock"
-    }
-
-    private var restoreButtonAccessibilityHint: LocalizedStringResource {
-        if libraryCloudSyncStatus.blocksBackupRestore {
-            "Turn off iCloud Sync before restoring a backup. You can turn it on again after restore."
-        } else {
-            "Restore a library backup."
-        }
-    }
-
     private func handleRestoreButtonPress() {
         if libraryCloudSyncStatus.blocksBackupRestore {
             showRestoreUnavailableAlert = true
         } else {
             onRestore()
         }
-    }
-
-    private var libraryExportMenu: some View {
-        Menu {
-            ForEach(LibraryExportFormat.allCases) { format in
-                Button {
-                    onExportLibrary(format)
-                } label: {
-                    Label(format.menuTitleResource, systemImage: format.menuSystemImage)
-                }
-            }
-        } label: {
-            Label("Export as...", systemImage: "square.and.arrow.up.on.square")
-        }
-        .buttonStyle(LibraryProfileCommandButtonStyle(tint: .teal, filled: false))
     }
 
     private var sectionCardTint: Color {
@@ -774,6 +354,184 @@ struct LibraryProfileSettingsCard: View {
     private func updateCloudSyncConflictAlertPresentation() {
         showCloudSyncConflictAlert = libraryCloudSyncStatus.bootstrapState == .needsConflictChoice
     }
+}
+
+fileprivate struct LibraryProfileLanguageSettingsSection: View {
+    @Binding var followsSystemLanguage: Bool
+    @Binding var preferredLanguage: Language
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LibraryProfileSettingHeader(
+                title: "Anime Info Language",
+                subtitle: "Choose the language used for future metadata fetches.",
+                systemImage: "globe",
+                tint: .blue
+            )
+
+            HStack {
+                Text("Follow System")
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 12)
+                Toggle("Follow System", isOn: $followsSystemLanguage)
+                    .labelsHidden()
+                    .tint(.blue)
+                    .scaleEffect(0.78, anchor: .trailing)
+                    .frame(width: 42, height: 26, alignment: .trailing)
+            }
+            .padding(.vertical, 2)
+
+            if !followsSystemLanguage {
+                Picker("Anime Info Language", selection: $preferredLanguage) {
+                    ForEach(Language.allCases, id: \.rawValue) { language in
+                        Text(language.localizedStringResource).tag(language)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.top, 2)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+                    )
+                )
+            }
+        }
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .blue)
+    }
+}
+
+fileprivate struct LibraryProfileDefaultSettingsSection: View {
+    @Binding var hideDroppedByDefault: Bool
+    @Binding var defaultNewEntryWatchStatus: AnimeEntry.WatchStatus
+    @Binding var defaultFilters: Set<LibraryStore.AnimeFilter>
+    @Binding var openDetailWithSingleTap: Bool
+    @Binding var entryDetailCharactersExpandedByDefault: Bool
+    @Binding var entryDetailStaffExpandedByDefault: Bool
+    @Binding var scoringEnabled: Bool
+    @Binding var episodeProgressTrackingEnabled: Bool
+    @Binding var posterProgressBarOverlayEnabled: Bool
+    @Binding var autoPrefetchImagesOnAddAndRestore: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LibraryProfileSettingHeader(
+                title: "Library Defaults",
+                systemImage: "line.3.horizontal.decrease.circle",
+                tint: .mint
+            )
+
+            defaultWatchStatusRow
+            defaultFiltersRow
+
+            LibraryProfileSettingsToggleRow(
+                title: "Open Detail with Single Tap",
+                subtitle: "By default, double tap opens detail. Turn this on to use single tap instead.",
+                isOn: $openDetailWithSingleTap
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Expand Characters by Default",
+                subtitle: "Open the Characters section automatically in entry detail view.",
+                isOn: $entryDetailCharactersExpandedByDefault
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Expand Staff by Default",
+                subtitle: "Open the Staff section automatically in entry detail view.",
+                isOn: $entryDetailStaffExpandedByDefault
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Enable Scoring",
+                subtitle: "Turning this off does not delete previously saved scores.",
+                isOn: $scoringEnabled
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Track Episode Progress",
+                subtitle: "Turning this off hides episode progress without deleting saved progress.",
+                isOn: $episodeProgressTrackingEnabled
+            )
+
+            if episodeProgressTrackingEnabled {
+                LibraryProfileSettingsToggleRow(
+                    title: "Show Poster Progress Bar",
+                    subtitle: "Show episode progress as a poster overlay in the library.",
+                    isOn: $posterProgressBarOverlayEnabled
+                )
+            }
+
+            LibraryProfileSettingsToggleRow(
+                title: "Hide Dropped Entries",
+                subtitle: "Only show dropped entries after you explicitly enable the Dropped filter.",
+                isOn: $hideDroppedByDefault
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Auto Prefetch Images",
+                subtitle: "Prefetch images when adding titles or restoring a backup.",
+                isOn: $autoPrefetchImagesOnAddAndRestore
+            )
+        }
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .mint)
+    }
+
+    private var defaultWatchStatusRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("New Entries Start As")
+                .font(.subheadline.weight(.semibold))
+            Spacer(minLength: 12)
+            Menu {
+                ForEach(AnimeEntry.WatchStatus.allCases, id: \.self) { status in
+                    Button {
+                        defaultNewEntryWatchStatus = status
+                    } label: {
+                        if status == defaultNewEntryWatchStatus {
+                            Label(status.localizedStringResource, systemImage: "checkmark")
+                        } else {
+                            Text(status.localizedStringResource)
+                        }
+                    }
+                }
+            } label: {
+                LibraryProfileSelectionCapsule(
+                    title: defaultNewEntryWatchStatus.localizedStringResource,
+                    tint: defaultNewEntryWatchStatus.defaultPickerTintColor
+                )
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var defaultFiltersRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text("Default Filters")
+                .font(.subheadline.weight(.semibold))
+            Spacer(minLength: 12)
+            Menu {
+                Toggle("All", isOn: allDefaultFiltersBinding)
+                ForEach(LibraryStore.AnimeFilter.typeCases, id: \.self) { filter in
+                    defaultFilterToggle(for: filter)
+                }
+                Menu("Watch Status") {
+                    ForEach(LibraryStore.AnimeFilter.watchStatusCases, id: \.self) { filter in
+                        defaultFilterToggle(for: filter)
+                    }
+                }
+                defaultFilterToggle(for: .favorited)
+            } label: {
+                LibraryProfileSelectionCapsule(
+                    title: defaultFiltersSummaryResource,
+                    tint: .mint
+                )
+            }
+            .menuActionDismissBehavior(.disabled)
+        }
+        .padding(.vertical, 2)
+    }
 
     private var orderedDefaultFilters: [LibraryStore.AnimeFilter] {
         LibraryStore.AnimeFilter.allCases.filter { defaultFilters.contains($0) }
@@ -788,6 +546,30 @@ struct LibraryProfileSettingsCard: View {
         default:
             return "\(orderedDefaultFilters.count) Filters"
         }
+    }
+
+    private var allDefaultFiltersBinding: Binding<Bool> {
+        .init(
+            get: { defaultFilters.isEmpty },
+            set: {
+                if $0 {
+                    defaultFilters.removeAll()
+                }
+            }
+        )
+    }
+
+    private func defaultFilterBinding(for filter: LibraryStore.AnimeFilter) -> Binding<Bool> {
+        .init(
+            get: { defaultFilters.contains(filter) },
+            set: {
+                if $0 {
+                    defaultFilters.insert(filter)
+                } else {
+                    defaultFilters.remove(filter)
+                }
+            }
+        )
     }
 
     private func defaultFilterSummaryResource(
@@ -816,22 +598,322 @@ struct LibraryProfileSettingsCard: View {
             label: { Text(filter.name) }
         )
     }
+}
 
-    private func defaultFilterBinding(for filter: LibraryStore.AnimeFilter) -> Binding<Bool> {
-        .init(
-            get: { defaultFilters.contains(filter) },
-            set: {
-                if $0 {
-                    defaultFilters.insert(filter)
-                } else {
-                    defaultFilters.remove(filter)
+fileprivate struct LibraryProfileTMDbConnectionSection: View {
+    @Binding var useTMDbRelayServer: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LibraryProfileSettingHeader(
+                title: "TMDb Connection",
+                subtitle: "Turn this on if direct TMDb access is unstable on your network.",
+                systemImage: "network",
+                tint: .cyan
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Use TMDb Proxy",
+                subtitle: "Turn this off if you use a VPN or another proxy.",
+                isOn: $useTMDbRelayServer,
+                tint: .cyan
+            )
+        }
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .cyan)
+    }
+}
+
+fileprivate struct LibraryProfileICloudSyncSection: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    let libraryCloudSyncStatus: LibraryCloudSyncStatus
+    let cloudSyncToggleBinding: Binding<Bool>
+    let cloudSyncToggleDisabled: Bool
+    let cloudSyncToggleSubtitle: LocalizedStringResource
+    let cloudSyncIsBusy: Bool
+    let cloudSyncStatusTitleColor: Color
+    let cloudSyncManualRetryDisabled: Bool
+    let onRetryLibraryCloudSync: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LibraryProfileSettingHeader(
+                title: "iCloud Sync",
+                subtitle: "Keep your library available across devices.",
+                systemImage: "icloud",
+                tint: .indigo
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Master Switch",
+                subtitle: cloudSyncToggleSubtitle,
+                isOn: cloudSyncToggleBinding,
+                tint: .indigo
+            )
+            .disabled(cloudSyncToggleDisabled)
+
+            if libraryCloudSyncStatus.isEnabled {
+                VStack(alignment: .leading, spacing: 10) {
+                    cloudSyncStatusRow
                 }
             }
-        )
+        }
+        .animation(.default, value: cloudSyncIsBusy)
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .indigo)
+    }
+
+    private var cloudSyncStatusRow: some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(libraryCloudSyncStatus.statusDisplay.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(cloudSyncStatusTitleColor)
+
+                Text(libraryCloudSyncStatus.detailDisplayResource)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let failureReason = libraryCloudSyncStatus.failureReasonDisplay {
+                    Text(failureReason)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 10)
+
+            Button(action: onRetryLibraryCloudSync) {
+                Label(libraryCloudSyncStatus.actionTitleResource, systemImage: "arrow.clockwise")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.indigo.opacity(colorScheme == .dark ? 0.92 : 0.82))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(.indigo.opacity(colorScheme == .dark ? 0.12 : 0.07))
+            }
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(.indigo.opacity(0.14), lineWidth: 1)
+            }
+            .padding(.top, 4)
+            .disabled(cloudSyncManualRetryDisabled)
+            .opacity(cloudSyncManualRetryDisabled ? 0.52 : 1)
+        }
+        .padding(.top, 4)
+        .padding(.vertical, 1)
+    }
+}
+
+fileprivate struct LibraryProfileBackupExportSection: View {
+    let libraryCloudSyncStatus: LibraryCloudSyncStatus
+    let restoreCompleted: Bool
+    let createBackupItems: () -> [Any]?
+    let onExportLibrary: (LibraryExportFormat) -> Void
+    let onRestoreButtonPress: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LibraryProfileSettingHeader(
+                title: "Backup & Restore",
+                subtitle:
+                    "App backups keep AniShelf data and settings for restore. Library exports create user-facing files in standard formats.",
+                systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+                tint: .orange
+            )
+
+            HStack(spacing: 10) {
+                backupButton
+                    .frame(maxWidth: .infinity)
+                restoreButton
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(restoreCompleted)
+
+            if restoreCompleted {
+                HStack {
+                    Spacer()
+                    Text("Restore completed!")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                        .transition(.opacity)
+                    Spacer()
+                }
+            }
+
+            libraryExportMenu
+
+            Text("* For security reasons, your TMDb API Key will not be exported.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .orange)
+    }
+
+    @ViewBuilder
+    private var backupButton: some View {
+        LazyShareLink(prepareData: createBackupItems) {
+            Label("Backup", systemImage: "archivebox")
+        }
+        .buttonStyle(LibraryProfileCommandButtonStyle(tint: .blue, filled: false))
+    }
+
+    private var restoreButton: some View {
+        Button(role: .destructive, action: onRestoreButtonPress) {
+            Label("Restore", systemImage: restoreButtonSystemImage)
+        }
+        .buttonStyle(LibraryProfileCommandButtonStyle(tint: .red, filled: false))
+        .opacity(libraryCloudSyncStatus.blocksBackupRestore ? 0.52 : 1)
+        .accessibilityHint(Text(restoreButtonAccessibilityHint))
+    }
+
+    private var restoreButtonSystemImage: String {
+        libraryCloudSyncStatus.blocksBackupRestore ? "icloud.slash" : "document.badge.clock"
+    }
+
+    private var restoreButtonAccessibilityHint: LocalizedStringResource {
+        if libraryCloudSyncStatus.blocksBackupRestore {
+            "Turn off iCloud Sync before restoring a backup. You can turn it on again after restore."
+        } else {
+            "Restore a library backup."
+        }
+    }
+
+    private var libraryExportMenu: some View {
+        Menu {
+            ForEach(LibraryExportFormat.allCases) { format in
+                Button {
+                    onExportLibrary(format)
+                } label: {
+                    Label(format.menuTitleResource, systemImage: format.menuSystemImage)
+                }
+            }
+        } label: {
+            Label("Export as...", systemImage: "square.and.arrow.up.on.square")
+        }
+        .buttonStyle(LibraryProfileCommandButtonStyle(tint: .teal, filled: false))
+    }
+}
+
+fileprivate struct LibraryProfileMaintenanceActionsSection: View {
+    let onChangeAPIKey: () -> Void
+    let onCheckMetadataCacheSize: () -> Void
+    let onRefreshInfos: () -> Void
+    let onPrefetchImages: () -> Void
+    let onShowSupport: () -> Void
+    let whatsNewVersion: String?
+    let onShowWhatsNew: () -> Void
+    let onShowAbout: () -> Void
+    let onDeleteAllAnimes: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            LibraryProfileActionRow(
+                title: "Change API Key",
+                subtitle: "Update the TMDb key used for metadata.",
+                systemImage: "person.badge.key",
+                tint: LibraryProfileMaintenancePalette.apiKey,
+                action: onChangeAPIKey
+            )
+            LibraryProfileActionDivider()
+            LibraryProfileActionRow(
+                title: "Check Metadata Cache Size",
+                subtitle: "Review image and metadata cache usage.",
+                systemImage: "archivebox",
+                tint: LibraryProfileMaintenancePalette.cache,
+                action: onCheckMetadataCacheSize
+            )
+            LibraryProfileActionDivider()
+            LibraryProfileActionRow(
+                title: "Refresh Infos",
+                subtitle: "Fetch latest TMDb metadata for every entry.",
+                systemImage: "arrow.clockwise",
+                tint: LibraryProfileMaintenancePalette.refresh,
+                action: onRefreshInfos
+            )
+            LibraryProfileActionDivider()
+            LibraryProfileActionRow(
+                title: "Prefetch Images",
+                subtitle: "Cache posters and artwork without refreshing metadata.",
+                systemImage: "photo.stack",
+                tint: LibraryProfileMaintenancePalette.prefetch,
+                action: onPrefetchImages
+            )
+            LibraryProfileActionDivider()
+            if let whatsNewVersion {
+                LibraryProfileActionRow(
+                    title: "What's New",
+                    subtitle: whatsNewSubtitleResource(for: whatsNewVersion),
+                    systemImage: "sparkles.rectangle.stack",
+                    tint: LibraryProfileMaintenancePalette.whatsNew,
+                    action: onShowWhatsNew
+                )
+                LibraryProfileActionDivider()
+            }
+            LibraryProfileActionRow(
+                title: "Support AniShelf",
+                subtitle: "Optional tip jar. No features are unlocked.",
+                systemImage: "heart.circle",
+                tint: LibraryProfileMaintenancePalette.support,
+                action: onShowSupport
+            )
+            LibraryProfileActionDivider()
+            LibraryProfileActionRow(
+                title: "About AniShelf",
+                subtitle: "Version, links, and credits.",
+                systemImage: "info.circle",
+                tint: LibraryProfileMaintenancePalette.about,
+                action: onShowAbout
+            )
+            LibraryProfileActionDivider()
+            LibraryProfileActionRow(
+                title: "Delete All Animes",
+                subtitle: "Remove every saved library entry.",
+                systemImage: "trash",
+                role: .destructive,
+                tint: .red,
+                action: onDeleteAllAnimes
+            )
+        }
+        .padding(.vertical, 4)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: LibraryProfileMaintenancePalette.panel)
     }
 
     private func whatsNewSubtitleResource(for version: String) -> LocalizedStringResource {
         "Reopen the release note for version \(version)."
+    }
+}
+
+fileprivate struct LibraryProfileSettingsToggleRow: View {
+    let title: LocalizedStringResource
+    let subtitle: LocalizedStringResource
+    @Binding var isOn: Bool
+    var tint: Color = .mint
+
+    var body: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .tint(tint)
+                .scaleEffect(0.78, anchor: .trailing)
+                .frame(width: 42, height: 26, alignment: .trailing)
+        }
+        .padding(.vertical, 2)
     }
 }
 
