@@ -329,10 +329,12 @@ final class LibrarySyncCoordinator {
                 phase: .export,
                 at: dateProvider()
             )
-            let exportResult = try await exporter.export(
+            let exportResult = try await export(
                 entries: dirtyEntries,
                 localSnapshotsByIdentity: postImportSnapshots,
-                settingsSnapshot: settingsSnapshotForExport
+                settingsSnapshot: settingsSnapshotForExport,
+                observedDirtyEntries: dirtyEntries,
+                store: store
             )
             logSettingsExportResult(
                 settingsSnapshotForExport,
@@ -662,10 +664,12 @@ final class LibrarySyncCoordinator {
                 at: dateProvider()
             )
             try checkFirstEnableBootstrapCancellation(bootstrapID)
-            let exportResult = try await exporter.export(
+            let exportResult = try await export(
                 entries: dirtyEntries,
                 localSnapshotsByIdentity: postImportSnapshots,
-                settingsSnapshot: settingsSnapshotForExport
+                settingsSnapshot: settingsSnapshotForExport,
+                observedDirtyEntries: dirtyEntries,
+                store: store
             )
             logSettingsExportResult(
                 settingsSnapshotForExport,
@@ -1069,6 +1073,59 @@ final class LibrarySyncCoordinator {
             "Removed \(currentEntriesForIdentity.count, privacy: .public) duplicate dirty-queue entries for \(identity.rawID, privacy: .private) after export."
         )
         return true
+    }
+
+    private func export(
+        entries: [LibraryEntrySyncDirtyQueueEntry],
+        localSnapshotsByIdentity: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot],
+        settingsSnapshot: LibrarySettingsSyncSnapshot?,
+        observedDirtyEntries: [LibraryEntrySyncDirtyQueueEntry],
+        store: LibraryStore
+    ) async throws -> CloudLibrarySyncExportResult {
+        do {
+            return try await exporter.export(
+                entries: entries,
+                localSnapshotsByIdentity: localSnapshotsByIdentity,
+                settingsSnapshot: settingsSnapshot
+            )
+        } catch let failure as CloudLibrarySyncExportFailure {
+            try reconcilePartialExportFailure(
+                failure,
+                observedDirtyEntries: observedDirtyEntries,
+                settingsSnapshot: settingsSnapshot,
+                in: store
+            )
+            throw failure.underlyingError
+        }
+    }
+
+    private func reconcilePartialExportFailure(
+        _ failure: CloudLibrarySyncExportFailure,
+        observedDirtyEntries: [LibraryEntrySyncDirtyQueueEntry],
+        settingsSnapshot: LibrarySettingsSyncSnapshot?,
+        in store: LibraryStore
+    ) throws {
+        logSettingsExportResult(
+            settingsSnapshot,
+            exportResult: failure.partialResult
+        )
+        try removeExportedDirtyEntries(
+            failure.partialResult.exportedIdentities,
+            from: observedDirtyEntries,
+            in: store
+        )
+
+        guard settingsSnapshot != nil else { return }
+        let reconciledCloudSyncedSettingsUpdatedAt =
+            reconciledCloudSyncedSettingsUpdatedAt(
+                store: store,
+                exportedSnapshot: settingsSnapshot,
+                settingsExported: failure.partialResult.settingsExported
+            )
+        store.updateLibraryCloudSyncStatus { status in
+            status.lastReconciledCloudSyncedSettingsUpdatedAt =
+                reconciledCloudSyncedSettingsUpdatedAt
+        }
     }
 
     /// Refreshes derived library view state after imported changes are persisted.

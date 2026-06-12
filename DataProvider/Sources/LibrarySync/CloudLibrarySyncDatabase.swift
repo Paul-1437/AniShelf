@@ -63,6 +63,8 @@ public protocol CloudLibrarySyncDatabase: Sendable {
 
 /// Live `CloudLibrarySyncDatabase` backed by a `CKDatabase`.
 public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unchecked Sendable {
+    static let recordZoneChangeResultsLimit = 350
+
     private let database: CKDatabase
 
     /// Creates a live database adapter.
@@ -100,7 +102,8 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
     ) async throws -> CloudLibrarySyncZoneChangeBatch {
         let result = try await database.recordZoneChanges(
             inZoneWith: zoneID,
-            since: changeToken
+            since: changeToken,
+            resultsLimit: Self.recordZoneChangeResultsLimit
         )
 
         var modifiedRecordsByID: [CKRecord.ID: CKRecord] = [:]

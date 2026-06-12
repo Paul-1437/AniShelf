@@ -67,6 +67,7 @@ struct CloudLibrarySyncImporterExporterTests {
         } else {
             #expect(Bool(false))
         }
+        #expect(database.requestedTokens.count == 2)
         #expect(tokenStore.token(for: CloudLibrarySyncClient.recordZoneID, namespace: namespace) == nil)
 
         importer.commit(batch)
@@ -263,6 +264,93 @@ struct CloudLibrarySyncImporterExporterTests {
         #expect(!savedTombstoneRecord.allKeys().contains("watchStatus"))
     }
 
+    @Test func exporterBatchesLargeLibrariesUnderCloudKitRequestLimit() async throws {
+        let payload = makeExportPayload(count: 574)
+        let settingsSnapshot = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 12),
+            payload: ["UseTMDbRelayServer": .bool(true)]
+        )
+        let database = FakeCloudLibrarySyncDatabase(changes: [])
+        let exporter = CloudLibrarySyncExporter(client: client, database: database)
+
+        let result = try await exporter.export(
+            entries: payload.entries,
+            localSnapshotsByIdentity: payload.snapshots,
+            settingsSnapshot: settingsSnapshot
+        )
+
+        #expect(database.saveBatchSizes == [350, 225])
+        #expect(
+            database.saveBatchSizes.allSatisfy {
+                $0 <= CloudLibrarySyncExporter.maxRecordsPerModifyRequest
+            }
+        )
+        #expect(database.savedRecords.count == 575)
+        #expect(result.exportedIdentities == Set(payload.identities))
+        #expect(result.settingsExported)
+    }
+
+    @Test func exporterBatchedPartialSuccessReportsOnlyAcceptedRecords() async throws {
+        let payload = makeExportPayload(count: 401, startingTMDbID: 20_000)
+        let rejectedIdentity = try #require(payload.identities.last)
+        let acceptedRecordIDs = payload.identities
+            .filter { $0 != rejectedIdentity }
+            .map(client.recordID(for:))
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [],
+            successfulSaveRecordIDs: acceptedRecordIDs
+        )
+        let exporter = CloudLibrarySyncExporter(client: client, database: database)
+
+        let result = try await exporter.export(
+            entries: payload.entries,
+            localSnapshotsByIdentity: payload.snapshots
+        )
+
+        #expect(database.saveBatchSizes == [350, 51])
+        #expect(result.exportedIdentities == Set(payload.identities.filter { $0 != rejectedIdentity }))
+    }
+
+    @Test func exporterRecursivelySplitsBatchesWhenCloudKitLimitChanges() async throws {
+        let payload = makeExportPayload(count: 360, startingTMDbID: 30_000)
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [],
+            maxSaveBatchSizeBeforeLimitExceeded: 100
+        )
+        let exporter = CloudLibrarySyncExporter(client: client, database: database)
+
+        let result = try await exporter.export(
+            entries: payload.entries,
+            localSnapshotsByIdentity: payload.snapshots
+        )
+
+        #expect(database.saveBatchSizes == [350, 175, 87, 88, 175, 87, 88, 10])
+        #expect(database.savedRecords.count == 360)
+        #expect(result.exportedIdentities == Set(payload.identities))
+    }
+
+    @Test func exporterFailurePreservesAcceptedIDsFromEarlierBatches() async throws {
+        let payload = makeExportPayload(count: 360, startingTMDbID: 40_000)
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [],
+            saveErrorsByCallIndex: [2: CKError(.networkFailure)]
+        )
+        let exporter = CloudLibrarySyncExporter(client: client, database: database)
+
+        do {
+            _ = try await exporter.export(
+                entries: payload.entries,
+                localSnapshotsByIdentity: payload.snapshots
+            )
+            Issue.record("Expected export to fail after preserving the first accepted batch.")
+        } catch let failure as CloudLibrarySyncExportFailure {
+            #expect(database.saveBatchSizes == [350, 10])
+            #expect(failure.partialResult.exportedIdentities.count == 350)
+            #expect(!failure.partialResult.settingsExported)
+            #expect((failure.underlyingError as? CKError)?.code == .networkFailure)
+        }
+    }
+
     @Test func exporterIncludesOptionalSettingsSnapshot() async throws {
         let identity = LibraryEntrySyncIdentity(entryType: .series, tmdbID: 907)
         let snapshot = makeSnapshot(identity: identity, tmdbID: 907)
@@ -292,20 +380,28 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
     private var changes: [CloudLibrarySyncZoneChangeBatch]
     private let firstFetchError: Error?
     private let successfulSaveRecordIDs: [CKRecord.ID]?
+    private let maxSaveBatchSizeBeforeLimitExceeded: Int?
+    private let saveErrorsByCallIndex: [Int: any Error]
     private var didThrowFirstFetchError = false
+    private var saveCallCount = 0
 
     var requestedTokens: [CKServerChangeToken?] = []
     var savedRecords: [CKRecord] = []
+    var saveBatchSizes: [Int] = []
     var ensureCallCount = 0
 
     init(
         changes: [CloudLibrarySyncZoneChangeBatch],
         firstFetchError: Error? = nil,
-        successfulSaveRecordIDs: [CKRecord.ID]? = nil
+        successfulSaveRecordIDs: [CKRecord.ID]? = nil,
+        maxSaveBatchSizeBeforeLimitExceeded: Int? = nil,
+        saveErrorsByCallIndex: [Int: any Error] = [:]
     ) {
         self.changes = changes
         self.firstFetchError = firstFetchError
         self.successfulSaveRecordIDs = successfulSaveRecordIDs
+        self.maxSaveBatchSizeBeforeLimitExceeded = maxSaveBatchSizeBeforeLimitExceeded
+        self.saveErrorsByCallIndex = saveErrorsByCallIndex
     }
 
     func ensureZoneAndSubscription(
@@ -328,8 +424,22 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
     }
 
     func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
+        saveCallCount += 1
+        saveBatchSizes.append(records.count)
+        if let error = saveErrorsByCallIndex[saveCallCount] {
+            throw error
+        }
+        if let maxSaveBatchSizeBeforeLimitExceeded,
+            records.count > maxSaveBatchSizeBeforeLimitExceeded
+        {
+            throw CKError(.limitExceeded)
+        }
         savedRecords.append(contentsOf: records)
-        return successfulSaveRecordIDs ?? records.map(\.recordID)
+        guard let successfulSaveRecordIDs else {
+            return records.map(\.recordID)
+        }
+        let successfulSaveRecordIDSet = Set(successfulSaveRecordIDs)
+        return records.map(\.recordID).filter { successfulSaveRecordIDSet.contains($0) }
     }
 }
 
@@ -342,6 +452,31 @@ fileprivate func makeNamespace() -> CloudLibrarySyncChangeTokenStore.Namespace {
 
 fileprivate func makeToken() throws -> CKServerChangeToken {
     try #require(class_createInstance(CKServerChangeToken.self, 0) as? CKServerChangeToken)
+}
+
+fileprivate func makeExportPayload(
+    count: Int,
+    startingTMDbID: Int = 10_000
+) -> (
+    entries: [LibraryEntrySyncDirtyQueueEntry],
+    snapshots: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot],
+    identities: [LibraryEntrySyncIdentity]
+) {
+    var entries: [LibraryEntrySyncDirtyQueueEntry] = []
+    var snapshots: [LibraryEntrySyncIdentity: LibraryEntrySyncSnapshot] = [:]
+    var identities: [LibraryEntrySyncIdentity] = []
+
+    for offset in 0..<count {
+        let tmdbID = startingTMDbID + offset
+        let identity = LibraryEntrySyncIdentity(entryType: .series, tmdbID: tmdbID)
+        entries.append(
+            .upsert(.init(identity: identity, dirtyAt: referenceDate(year: 2026, month: 6, day: 12)))
+        )
+        snapshots[identity] = makeSnapshot(identity: identity, tmdbID: tmdbID)
+        identities.append(identity)
+    }
+
+    return (entries, snapshots, identities)
 }
 
 fileprivate func makeSnapshot(

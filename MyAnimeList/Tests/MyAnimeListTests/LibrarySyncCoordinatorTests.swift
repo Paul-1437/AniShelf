@@ -1014,6 +1014,50 @@ struct LibrarySyncCoordinatorTests {
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: first.syncIdentity) == nil)
     }
 
+    @Test @MainActor func partialExportFailureDequeuesAcceptedBatchesBeforeRetry() async throws {
+        let store = makeSyncReadyStore()
+        var dirtyEntries: [LibraryEntrySyncDirtyQueueEntry] = []
+        for offset in 0..<360 {
+            let tmdbID = 10_000 + offset
+            let entry = AnimeEntry(
+                name: "Large Export \(offset)",
+                type: .series,
+                tmdbID: tmdbID
+            )
+            entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
+            try store.repository.newEntry(entry)
+            dirtyEntries.append(
+                .upsert(
+                    .init(
+                        identity: entry.syncIdentity,
+                        dirtyAt: referenceDate(year: 2026, month: 5, day: 8)
+                    ))
+            )
+        }
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(dirtyEntries)
+        store.rebuildSyncChangeTracking()
+
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [makeEmptyChangeBatch()],
+            saveErrorsByCallIndex: [2: CKError(.networkFailure)]
+        )
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let result = await coordinator.sync(trigger: .manualRetry)
+
+        #expect(!result)
+        #expect(store.libraryCloudSyncStatus.lastResult == .retryableFailure)
+        #expect(database.saveBatchSizes == [350, 10])
+        #expect(database.savedRecords.count == 350)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.count == 10)
+    }
+
     @Test @MainActor func duplicateDirtyQueueEntriesDoNotCrashExportConfirmation() async throws {
         let store = makeSyncReadyStore()
         let entry = AnimeEntry(name: "Duplicate Dirty", type: .movie, tmdbID: 713)
@@ -1647,9 +1691,12 @@ fileprivate func makeClocklessTrackingConflictFixture(
 fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked Sendable {
     private var changes: [CloudLibrarySyncZoneChangeBatch]
     private let successfulSaveRecordIDs: [CKRecord.ID]?
+    private let saveErrorsByCallIndex: [Int: any Error]
     private var fetchContinuation: CheckedContinuation<Void, Never>?
     private var saveContinuation: CheckedContinuation<Void, Never>?
+    private var saveCallCount = 0
     var savedRecords: [CKRecord] = []
+    var saveBatchSizes: [Int] = []
     var ensureZoneCallCount = 0
     var suspendNextFetch = false
     var suspendNextSave = false
@@ -1659,10 +1706,12 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
 
     init(
         changes: [CloudLibrarySyncZoneChangeBatch],
-        successfulSaveRecordIDs: [CKRecord.ID]? = nil
+        successfulSaveRecordIDs: [CKRecord.ID]? = nil,
+        saveErrorsByCallIndex: [Int: any Error] = [:]
     ) {
         self.changes = changes
         self.successfulSaveRecordIDs = successfulSaveRecordIDs
+        self.saveErrorsByCallIndex = saveErrorsByCallIndex
     }
 
     func ensureZoneAndSubscription(
@@ -1693,6 +1742,11 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
     }
 
     func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
+        saveCallCount += 1
+        saveBatchSizes.append(records.count)
+        if let error = saveErrorsByCallIndex[saveCallCount] {
+            throw error
+        }
         savedRecords.append(contentsOf: records)
         if suspendNextSave {
             suspendNextSave = false
