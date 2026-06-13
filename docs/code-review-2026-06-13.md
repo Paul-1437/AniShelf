@@ -39,12 +39,7 @@ The new hand-written `encode(to:)` writes `customPosterPath` but never `customPo
 
 ### F3 — `resolveLibraryDisplayFaultsBeforeDeletion` no longer accesses `detail.heroImagePath`, leaving the stored field un-faulted before context deletion
 
-**File:** `MyAnimeList/Sources/Extensions/AnimeEntry+Extensions.swift` line ~143  
-**Severity:** Medium
-
-Old code accessed `detail.heroImageURL` and `detail.logoImageURL`, which forced SwiftData to fault in both backing stored fields. The new code accesses only `detail.logoImagePath`. In V2_8_0, `heroImagePath` is a new stored field on `AnimeEntryDetail`. Any view-model reference to `detail.heroImagePath` or the computed `heroImageURL` that survives the delete can receive a fault error.
-
-**Fix:** Add `_ = detail.heroImagePath` alongside `detail.logoImagePath` in the fault-resolution block.
+**Status:** Invalid
 
 ---
 
@@ -91,11 +86,13 @@ Both types define an identical `posterTargetSize(width:) -> CGSize` that returns
 **Severity:** Low
 
 The path-then-URL fallback pattern:
+
 ```swift
 self.xyzPath =
     TMDbImagePath.storagePath(from: xyzPath)
     ?? TMDbImagePath.storagePath(from: xyzURL)
 ```
+
 appears in at least 6 DTO inits. Any change to the fallback logic (scheme normalization, logging, etc.) requires touching all sites. A single helper — e.g. `TMDbImagePath.storagePath(from path: String?, fallback url: URL?) -> String?` — would centralize the precedence rule.
 
 ---
