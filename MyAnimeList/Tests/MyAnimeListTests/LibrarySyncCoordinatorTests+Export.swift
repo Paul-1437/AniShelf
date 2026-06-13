@@ -75,7 +75,7 @@ extension LibrarySyncCoordinatorTests {
                 tmdbID: tmdbID
             )
             entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
-            try store.repository.newEntry(entry)
+            store.repository.insert(entry)
             dirtyEntries.append(
                 .upsert(
                     .init(
@@ -84,6 +84,7 @@ extension LibrarySyncCoordinatorTests {
                     ))
             )
         }
+        try store.repository.save()
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(dirtyEntries)
         store.rebuildSyncChangeTracking()
 
