@@ -13,7 +13,10 @@ struct LibraryMetadataRefreshUpdate: Sendable {
     var entryID: PersistentIdentifier
     var info: EntryMetadata
     var detail: AnimeEntryDetailDTO
+    /// Keeps a user's selected poster intact while replacing TMDb-owned metadata.
     var preservingCustomPoster: Bool
+    /// The selected poster path to continue prefetching when `preservingCustomPoster` is true.
+    var customPosterPath: String? = nil
 }
 
 struct LibraryMetadataRefreshParentUpdate: Sendable {

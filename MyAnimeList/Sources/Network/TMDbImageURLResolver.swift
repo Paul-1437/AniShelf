@@ -64,6 +64,8 @@ extension ImagesConfiguration {
 }
 
 extension AnimeEntry {
+    /// Resolves the poster URL through `selectedPosterPath`, so callers automatically use
+    /// `customPosterPath` when `usingCustomPoster` is true and `posterPath` otherwise.
     var posterURL: URL? {
         TMDbImageURLResolver.current.url(for: selectedPosterPath, role: .poster)
     }
