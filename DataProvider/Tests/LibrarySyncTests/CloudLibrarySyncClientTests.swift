@@ -68,7 +68,9 @@ struct CloudLibrarySyncClientTests {
         #expect(record.recordType == CloudLibrarySyncClient.recordType)
         #expect(record.recordID == client.recordID(for: snapshot.identity))
         #expect(record["customPosterPath"] as? String == "/custom.jpg")
-        #expect(!record.allKeys().contains("customPosterURL"))
+        // The legacy `customPosterURL` is still written so retired-but-live old builds can read
+        // it. It must mirror the path. Drop this expectation once the old build is retired.
+        #expect(record["customPosterURL"] as? String == "https://image.tmdb.org/t/p/original/custom.jpg")
         #expect(decoded == snapshot)
     }
 
