@@ -13,22 +13,22 @@ import os
 fileprivate let logger = Logger(subsystem: .bundleIdentifier, category: "TMDbSearchService")
 
 struct TMDbSearchClient: Sendable {
-    let searchMovies: @Sendable (String, Language) async throws -> [BasicInfo]
-    let searchTVSeries: @Sendable (String, Language) async throws -> [BasicInfo]
-    let fetchMovieByID: @Sendable (Int, Language) async throws -> BasicInfo?
-    let fetchTVSeriesByID: @Sendable (Int, Language) async throws -> BasicInfo?
-    let fetchSeasons: @Sendable (BasicInfo, Language) async throws -> [BasicInfo]
+    let searchMovies: @Sendable (String, Language) async throws -> [EntryMetadata]
+    let searchTVSeries: @Sendable (String, Language) async throws -> [EntryMetadata]
+    let fetchMovieByID: @Sendable (Int, Language) async throws -> EntryMetadata?
+    let fetchTVSeriesByID: @Sendable (Int, Language) async throws -> EntryMetadata?
+    let fetchSeasons: @Sendable (EntryMetadata, Language) async throws -> [EntryMetadata]
 
     init(
-        searchMovies: @escaping @Sendable (String, Language) async throws -> [BasicInfo],
-        searchTVSeries: @escaping @Sendable (String, Language) async throws -> [BasicInfo],
-        fetchMovieByID: @escaping @Sendable (Int, Language) async throws -> BasicInfo? = {
+        searchMovies: @escaping @Sendable (String, Language) async throws -> [EntryMetadata],
+        searchTVSeries: @escaping @Sendable (String, Language) async throws -> [EntryMetadata],
+        fetchMovieByID: @escaping @Sendable (Int, Language) async throws -> EntryMetadata? = {
             _, _ in nil
         },
-        fetchTVSeriesByID: @escaping @Sendable (Int, Language) async throws -> BasicInfo? = {
+        fetchTVSeriesByID: @escaping @Sendable (Int, Language) async throws -> EntryMetadata? = {
             _, _ in nil
         },
-        fetchSeasons: @escaping @Sendable (BasicInfo, Language) async throws -> [BasicInfo]
+        fetchSeasons: @escaping @Sendable (EntryMetadata, Language) async throws -> [EntryMetadata]
     ) {
         self.searchMovies = searchMovies
         self.searchTVSeries = searchTVSeries
@@ -46,7 +46,7 @@ struct TMDbSearchClient: Sendable {
                     from: movies.map { (tmdbID: $0.id, path: $0.posterPath) }
                 )
                 return movies.map { movie in
-                    BasicInfo(
+                    EntryMetadata(
                         name: movie.title,
                         nameTranslations: [:],
                         overview: movie.overview,
@@ -65,7 +65,7 @@ struct TMDbSearchClient: Sendable {
                     from: tvSeries.map { (tmdbID: $0.id, path: $0.posterPath) }
                 )
                 return tvSeries.map { series in
-                    BasicInfo(
+                    EntryMetadata(
                         name: series.name,
                         nameTranslations: [:],
                         overview: series.overview,
@@ -103,12 +103,12 @@ struct TMDbSearchClient: Sendable {
                 let series = try await fetcher.tvSeries(seriesInfo.tmdbID, language: language)
                 guard let seasons = series.seasons else { return [] }
 
-                let infos = try await withThrowingTaskGroup(of: BasicInfo.self) { group in
+                let infos = try await withThrowingTaskGroup(of: EntryMetadata.self) { group in
                     for season in seasons {
                         group.addTask {
                             let posterURL = try await fetcher.tmdbClient.imagesConfiguration
                                 .posterURL(for: season.posterPath, idealWidth: 200)
-                            return BasicInfo(
+                            return EntryMetadata(
                                 name: season.name,
                                 nameTranslations: [:],
                                 overview: season.overview,
@@ -124,7 +124,7 @@ struct TMDbSearchClient: Sendable {
                         }
                     }
 
-                    var results: [BasicInfo] = []
+                    var results: [EntryMetadata] = []
                     for try await result in group {
                         results.append(result)
                     }

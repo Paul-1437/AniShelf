@@ -83,9 +83,9 @@ struct TMDbSearchServiceBatchTests {
         let service = TMDbSearchService(
             client: makeClient(
                 moviesByPrompt: [
-                    "First": [makeInfo("First Movie", tmdbID: 101, type: .movie)],
-                    "Second": [makeInfo("Second Movie", tmdbID: 201, type: .movie)],
-                    "Third": [makeInfo("Third Movie", tmdbID: 301, type: .movie)]
+                    "First": [makeEntryMetadata("First Movie", tmdbID: 101, type: .movie)],
+                    "Second": [makeEntryMetadata("Second Movie", tmdbID: 201, type: .movie)],
+                    "Third": [makeEntryMetadata("Third Movie", tmdbID: 301, type: .movie)]
                 ],
                 movieDelays: [
                     "First": 60_000_000,
@@ -107,14 +107,14 @@ struct TMDbSearchServiceBatchTests {
             client: makeClient(
                 moviesByPrompt: [
                     "Frieren": [
-                        makeInfo("Frieren Movie 1", tmdbID: 101, type: .movie),
-                        makeInfo("Frieren Movie 2", tmdbID: 102, type: .movie)
+                        makeEntryMetadata("Frieren Movie 1", tmdbID: 101, type: .movie),
+                        makeEntryMetadata("Frieren Movie 2", tmdbID: 102, type: .movie)
                     ]
                 ],
                 seriesByPrompt: [
                     "Frieren": [
-                        makeInfo("Frieren Series 1", tmdbID: 201, type: .series),
-                        makeInfo("Frieren Series 2", tmdbID: 202, type: .series)
+                        makeEntryMetadata("Frieren Series 1", tmdbID: 201, type: .series),
+                        makeEntryMetadata("Frieren Series 2", tmdbID: 202, type: .series)
                     ]
                 ]
             )
@@ -129,7 +129,7 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchResolvesDirectMovieID() async {
-        let movie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
+        let movie = makeEntryMetadata("Direct Movie", tmdbID: 4935, type: .movie)
         let service = TMDbSearchService(
             client: makeClient(
                 directMoviesByID: [
@@ -150,7 +150,7 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchResolvesDirectSeriesID() async {
-        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let series = makeEntryMetadata("Direct Series", tmdbID: 24835, type: .series)
         let service = TMDbSearchService(
             client: makeClient(
                 directSeriesByID: [
@@ -171,13 +171,13 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchResolvesDirectSeasonWithSeasonModePreselected() async {
-        let series = makeInfo("CLANNAD", tmdbID: 24835, type: .series)
-        let firstSeason = makeInfo(
+        let series = makeEntryMetadata("CLANNAD", tmdbID: 24835, type: .series)
+        let firstSeason = makeEntryMetadata(
             "Season 1",
             tmdbID: 248351,
             type: .season(seasonNumber: 1, parentSeriesID: 24835)
         )
-        let secondSeason = makeInfo(
+        let secondSeason = makeEntryMetadata(
             "Season 2",
             tmdbID: 248352,
             type: .season(seasonNumber: 2, parentSeriesID: 24835)
@@ -213,9 +213,9 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchMixedTitleAndStructuredLinesPreserveInputOrder() async {
-        let titleMovie = makeInfo("Frieren Movie", tmdbID: 101, type: .movie)
-        let directMovie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
-        let directSeries = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let titleMovie = makeEntryMetadata("Frieren Movie", tmdbID: 101, type: .movie)
+        let directMovie = makeEntryMetadata("Direct Movie", tmdbID: 4935, type: .movie)
+        let directSeries = makeEntryMetadata("Direct Series", tmdbID: 24835, type: .series)
         let service = TMDbSearchService(
             client: makeClient(
                 moviesByPrompt: [
@@ -242,7 +242,7 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchMalformedStructuredTextUsesTitleSearch() async {
-        let movie = makeInfo("Movie Colon Text", tmdbID: 1101, type: .movie)
+        let movie = makeEntryMetadata("Movie Colon Text", tmdbID: 1101, type: .movie)
         let recorder = SearchCallRecorder()
         let service = TMDbSearchService(
             client: makeClient(
@@ -280,8 +280,8 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchStructuredSeasonMissingSeasonBecomesNoResultRow() async {
-        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
-        let firstSeason = makeInfo(
+        let series = makeEntryMetadata("Direct Series", tmdbID: 24835, type: .series)
+        let firstSeason = makeEntryMetadata(
             "Season 1",
             tmdbID: 248351,
             type: .season(seasonNumber: 1, parentSeriesID: 24835)
@@ -350,7 +350,7 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchStructuredSeasonFetchFailureBecomesBatchError() async {
-        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let series = makeEntryMetadata("Direct Series", tmdbID: 24835, type: .series)
         let service = TMDbSearchService(
             client: makeClient(
                 directSeriesByID: [
@@ -376,9 +376,9 @@ struct TMDbSearchServiceBatchTests {
     @MainActor
     @Test func testBatchSearchStructuredLinesBypassTitleSearchClosures() async {
         let recorder = SearchCallRecorder()
-        let movie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
-        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
-        let season = makeInfo(
+        let movie = makeEntryMetadata("Direct Movie", tmdbID: 4935, type: .movie)
+        let series = makeEntryMetadata("Direct Series", tmdbID: 24835, type: .series)
+        let season = makeEntryMetadata(
             "Season 1",
             tmdbID: 248351,
             type: .season(seasonNumber: 1, parentSeriesID: 24835)
@@ -412,8 +412,8 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchAutoSelectsNonDuplicateResultsInBatchStateOnly() async {
-        let movie = makeInfo("Frieren Movie", tmdbID: 101, type: .movie)
-        let series = makeInfo("Frieren Series", tmdbID: 201, type: .series)
+        let movie = makeEntryMetadata("Frieren Movie", tmdbID: 101, type: .movie)
+        let series = makeEntryMetadata("Frieren Series", tmdbID: 201, type: .series)
         let service = TMDbSearchService(
             client: makeClient(
                 moviesByPrompt: [
@@ -437,7 +437,7 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSearchLeavesDuplicatesVisibleButUnselectedInBatchState() async {
-        let duplicateMovie = makeInfo("Ghost in the Shell", tmdbID: 301, type: .movie)
+        let duplicateMovie = makeEntryMetadata("Ghost in the Shell", tmdbID: 301, type: .movie)
         let service = TMDbSearchService(
             client: makeClient(
                 moviesByPrompt: [
@@ -457,8 +457,8 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSessionStaysIndependentFromRegularSelectionAndSubmission() async {
-        let regularMovie = makeInfo("Regular Movie", tmdbID: 401, type: .movie)
-        let batchSeries = makeInfo("Batch Series", tmdbID: 402, type: .series)
+        let regularMovie = makeEntryMetadata("Regular Movie", tmdbID: 401, type: .movie)
+        let batchSeries = makeEntryMetadata("Batch Series", tmdbID: 402, type: .series)
         var submittedResults: [SearchResult] = []
         let service = TMDbSearchService(
             client: makeClient(
@@ -482,8 +482,8 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testChangingBatchSeriesModeDoesNotClearMatchingRegularSelection() async {
-        let sharedSeries = makeInfo("Shared Series", tmdbID: 501, type: .series)
-        let firstSeason = makeInfo(
+        let sharedSeries = makeEntryMetadata("Shared Series", tmdbID: 501, type: .series)
+        let firstSeason = makeEntryMetadata(
             "Season 1",
             tmdbID: 511,
             type: .season(seasonNumber: 1, parentSeriesID: 501)
@@ -516,13 +516,13 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testBatchSeasonSelectionStatePersistsInServiceModel() async {
-        let sharedSeries = makeInfo("Frieren", tmdbID: 601, type: .series)
-        let firstSeason = makeInfo(
+        let sharedSeries = makeEntryMetadata("Frieren", tmdbID: 601, type: .series)
+        let firstSeason = makeEntryMetadata(
             "Season 1",
             tmdbID: 611,
             type: .season(seasonNumber: 1, parentSeriesID: 601)
         )
-        let secondSeason = makeInfo(
+        let secondSeason = makeEntryMetadata(
             "Season 2",
             tmdbID: 612,
             type: .season(seasonNumber: 2, parentSeriesID: 601)
@@ -559,8 +559,8 @@ struct TMDbSearchServiceBatchTests {
 
     @MainActor
     @Test func testClearingBatchSessionUnregistersOnlyBatchOwnedSelections() async {
-        let sharedMovie = makeInfo("Shared Movie", tmdbID: 701, type: .movie)
-        let batchSeries = makeInfo("Batch Series", tmdbID: 702, type: .series)
+        let sharedMovie = makeEntryMetadata("Shared Movie", tmdbID: 701, type: .movie)
+        let batchSeries = makeEntryMetadata("Batch Series", tmdbID: 702, type: .series)
         let service = TMDbSearchService(
             client: makeClient(
                 moviesByPrompt: [
@@ -596,8 +596,8 @@ struct TMDbSearchServiceBatchTests {
         let service = TMDbSearchService(
             client: makeClient(
                 moviesByPrompt: [
-                    "Frieren": [makeInfo("Frieren Movie", tmdbID: 801, type: .movie)],
-                    "Spirited Away": [makeInfo("Spirited Away", tmdbID: 802, type: .movie)]
+                    "Frieren": [makeEntryMetadata("Frieren Movie", tmdbID: 801, type: .movie)],
+                    "Spirited Away": [makeEntryMetadata("Spirited Away", tmdbID: 802, type: .movie)]
                 ],
                 recorder: recorder
             )
@@ -616,8 +616,8 @@ struct TMDbSearchServiceBatchTests {
     @MainActor
     @Test func testSameNormalizedStructuredBatchInputReusesCachedResults() async {
         let recorder = SearchCallRecorder()
-        let movie = makeInfo("Direct Movie", tmdbID: 4935, type: .movie)
-        let series = makeInfo("Direct Series", tmdbID: 24835, type: .series)
+        let movie = makeEntryMetadata("Direct Movie", tmdbID: 4935, type: .movie)
+        let series = makeEntryMetadata("Direct Series", tmdbID: 24835, type: .series)
         let service = TMDbSearchService(
             client: makeClient(
                 directMoviesByID: [
@@ -681,11 +681,11 @@ fileprivate struct SearchCallCounts: Equatable {
 }
 
 fileprivate func makeClient(
-    moviesByPrompt: [String: [BasicInfo]] = [:],
-    seriesByPrompt: [String: [BasicInfo]] = [:],
-    directMoviesByID: [Int: BasicInfo?] = [:],
-    directSeriesByID: [Int: BasicInfo?] = [:],
-    seasonsBySeriesID: [Int: [BasicInfo]] = [:],
+    moviesByPrompt: [String: [EntryMetadata]] = [:],
+    seriesByPrompt: [String: [EntryMetadata]] = [:],
+    directMoviesByID: [Int: EntryMetadata?] = [:],
+    directSeriesByID: [Int: EntryMetadata?] = [:],
+    seasonsBySeriesID: [Int: [EntryMetadata]] = [:],
     directMovieErrorsByID: [Int: any Error] = [:],
     directSeriesErrorsByID: [Int: any Error] = [:],
     seasonErrorsBySeriesID: [Int: any Error] = [:],
@@ -739,8 +739,8 @@ fileprivate func makeClient(
     )
 }
 
-fileprivate func makeInfo(_ name: String, tmdbID: Int, type: AnimeType) -> BasicInfo {
-    BasicInfo(
+fileprivate func makeEntryMetadata(_ name: String, tmdbID: Int, type: AnimeType) -> EntryMetadata {
+    EntryMetadata(
         name: name,
         nameTranslations: [:],
         overview: nil,

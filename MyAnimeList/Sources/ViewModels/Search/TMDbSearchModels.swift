@@ -16,10 +16,10 @@ struct SearchResult: Hashable, Sendable {
 struct TMDbBatchPromptResult: Identifiable, Equatable, Hashable, Sendable {
     let id: Int
     let prompt: String
-    let series: BasicInfo?
-    let movie: BasicInfo?
+    let series: EntryMetadata?
+    let movie: EntryMetadata?
     var hasNoResults: Bool { series == nil && movie == nil }
-    var allInfos: [BasicInfo] { [series, movie].compactMap { $0 } }
+    var allInfos: [EntryMetadata] { [series, movie].compactMap { $0 } }
 }
 
 enum TMDbBatchPrompt: Equatable, Sendable {
@@ -113,7 +113,7 @@ enum TMDbSeasonFetchStatus: Equatable, Sendable {
 
 struct TMDbSeriesSelectionState: Equatable, Sendable {
     var selectedMode: TMDbSeriesSelectionMode = .series
-    var seasons: [BasicInfo] = []
+    var seasons: [EntryMetadata] = []
     var seasonFetchStatus: TMDbSeasonFetchStatus = .notStarted
     var selectedSeasonIDs: Set<Int> = []
 }

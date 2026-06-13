@@ -35,7 +35,7 @@ extension InfoFetcher {
     /// Returns localized TV series info only when the TMDb entry is tagged as animation.
     ///
     /// Non-animation series return `nil` so direct ID batch lookups obey AniShelf's anime-only policy.
-    func animeTVSeriesInfo(tmdbID: Int, language: Language) async throws -> BasicInfo? {
+    func animeTVSeriesInfo(tmdbID: Int, language: Language) async throws -> EntryMetadata? {
         let payload = try await tvSeriesPayload(
             tmdbID: tmdbID,
             language: language,
@@ -46,7 +46,7 @@ extension InfoFetcher {
             return nil
         }
 
-        return tvSeriesBasicInfo(
+        return tvSeriesEntryMetadata(
             from: payload.series,
             imageResources: payload.imageResources,
             translations: payload.requiredTranslations(),
@@ -55,14 +55,14 @@ extension InfoFetcher {
         )
     }
 
-    func tvSeriesInfo(tmdbID: Int, language: Language) async throws -> BasicInfo {
+    func tvSeriesInfo(tmdbID: Int, language: Language) async throws -> EntryMetadata {
         let payload = try await tvSeriesPayload(
             tmdbID: tmdbID,
             language: language,
             includeTranslations: true
         )
 
-        return tvSeriesBasicInfo(
+        return tvSeriesEntryMetadata(
             from: payload.series,
             imageResources: payload.imageResources,
             translations: payload.requiredTranslations(),
@@ -119,7 +119,7 @@ extension InfoFetcher {
     }
 
     func latestTVSeriesInfo(tmdbID: Int, language: Language) async throws
-        -> (BasicInfo, AnimeEntryDetailDTO)
+        -> (EntryMetadata, AnimeEntryDetailDTO)
     {
         let payload = try await tvSeriesPayload(
             tmdbID: tmdbID,
@@ -129,7 +129,7 @@ extension InfoFetcher {
         )
 
         return (
-            tvSeriesBasicInfo(
+            tvSeriesEntryMetadata(
                 from: payload.series,
                 imageResources: payload.imageResources,
                 translations: payload.requiredTranslations(),
@@ -186,14 +186,14 @@ extension InfoFetcher {
         )
     }
 
-    private func tvSeriesBasicInfo(
+    private func tvSeriesEntryMetadata(
         from series: TVSeries,
         imageResources: ImageCollection,
         translations: TranslationDictionaries,
         imagesConfiguration: ImagesConfiguration,
         language: Language
-    ) -> BasicInfo {
-        BasicInfo(
+    ) -> EntryMetadata {
+        EntryMetadata(
             name: series.name,
             nameTranslations: translations.name,
             overview: series.overview,

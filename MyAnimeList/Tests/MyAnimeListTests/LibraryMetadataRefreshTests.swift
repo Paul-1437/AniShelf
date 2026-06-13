@@ -157,8 +157,8 @@ struct LibraryMetadataRefreshTests {
 
     @Test @MainActor func testLibrarySearchServiceUsesCurrentLibraryStoreEntries() throws {
         let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
-        store.newEntryFromBasicInfo(
-            BasicInfo(
+        store.newEntryFromEntryMetadata(
+            EntryMetadata(
                 name: "First Match",
                 nameTranslations: [:],
                 overview: nil,
@@ -181,8 +181,8 @@ struct LibraryMetadataRefreshTests {
         service.updateResults(query: "first")
         #expect(service.results.map(\.tmdbID) == [500_001])
 
-        store.newEntryFromBasicInfo(
-            BasicInfo(
+        store.newEntryFromEntryMetadata(
+            EntryMetadata(
                 name: "Second Match",
                 nameTranslations: [:],
                 overview: nil,
@@ -289,7 +289,7 @@ struct LibraryMetadataRefreshTests {
             updates: [
                 .init(
                     entryID: child.id,
-                    info: BasicInfo(
+                    info: EntryMetadata(
                         name: "Season 1 Refreshed",
                         nameTranslations: [:],
                         overview: nil,
@@ -313,7 +313,7 @@ struct LibraryMetadataRefreshTests {
                 .init(
                     childEntryID: child.id,
                     parentSeriesID: 300,
-                    parentInfo: BasicInfo(
+                    parentInfo: EntryMetadata(
                         name: "New Parent",
                         nameTranslations: [:],
                         overview: nil,
@@ -369,7 +369,7 @@ struct LibraryMetadataRefreshTests {
 
         try store.hydrateExistingEntry(
             hiddenParent,
-            from: BasicInfo(
+            from: EntryMetadata(
                 name: "Frieren: Beyond Journey's End",
                 nameTranslations: [:],
                 overview: "Elf mage travels onward.",

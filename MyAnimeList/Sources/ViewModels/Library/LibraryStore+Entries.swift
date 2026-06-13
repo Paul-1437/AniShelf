@@ -68,7 +68,7 @@ extension LibraryStore {
 
     func hydrateExistingEntry(
         _ entry: AnimeEntry,
-        from info: BasicInfo,
+        from info: EntryMetadata,
         detail: AnimeEntryDetailDTO
     ) throws {
         entry.replaceMetadata(from: info, preservingCustomPoster: entry.usingCustomPoster)
@@ -115,14 +115,14 @@ extension LibraryStore {
         }
     }
 
-    func newEntryFromBasicInfo(_ info: BasicInfo) {
+    func newEntryFromEntryMetadata(_ info: EntryMetadata) {
         do {
             let entry = AnimeEntry(fromInfo: info)
             applyNewEntryDefaults(to: entry)
             try repository.newEntry(entry)
             prefetchImagesForDefaultBehavior([entry])
         } catch {
-            libraryStoreLogger.error("Error creating new entry from BasicInfo: \(error)")
+            libraryStoreLogger.error("Error creating new entry from EntryMetadata: \(error)")
         }
     }
 

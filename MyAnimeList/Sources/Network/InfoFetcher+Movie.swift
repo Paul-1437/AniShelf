@@ -35,7 +35,7 @@ extension InfoFetcher {
     /// Returns localized movie info only when the TMDb entry is tagged as animation.
     ///
     /// Non-animation movies return `nil` so direct ID batch lookups obey AniShelf's anime-only policy.
-    func animeMovieInfo(tmdbID: Int, language: Language) async throws -> BasicInfo? {
+    func animeMovieInfo(tmdbID: Int, language: Language) async throws -> EntryMetadata? {
         let payload = try await moviePayload(
             tmdbID: tmdbID,
             language: language,
@@ -46,7 +46,7 @@ extension InfoFetcher {
             return nil
         }
 
-        return movieBasicInfo(
+        return movieEntryMetadata(
             from: payload.movie,
             imageResources: payload.imageResources,
             translations: payload.requiredTranslations(),
@@ -55,14 +55,14 @@ extension InfoFetcher {
         )
     }
 
-    func movieInfo(tmdbID: Int, language: Language) async throws -> BasicInfo {
+    func movieInfo(tmdbID: Int, language: Language) async throws -> EntryMetadata {
         let payload = try await moviePayload(
             tmdbID: tmdbID,
             language: language,
             includeTranslations: true
         )
 
-        return movieBasicInfo(
+        return movieEntryMetadata(
             from: payload.movie,
             imageResources: payload.imageResources,
             translations: payload.requiredTranslations(),
@@ -119,7 +119,7 @@ extension InfoFetcher {
     }
 
     func latestMovieInfo(tmdbID: Int, language: Language) async throws
-        -> (BasicInfo, AnimeEntryDetailDTO)
+        -> (EntryMetadata, AnimeEntryDetailDTO)
     {
         let payload = try await moviePayload(
             tmdbID: tmdbID,
@@ -129,7 +129,7 @@ extension InfoFetcher {
         )
 
         return (
-            movieBasicInfo(
+            movieEntryMetadata(
                 from: payload.movie,
                 imageResources: payload.imageResources,
                 translations: payload.requiredTranslations(),
@@ -181,14 +181,14 @@ extension InfoFetcher {
         )
     }
 
-    private func movieBasicInfo(
+    private func movieEntryMetadata(
         from movie: Movie,
         imageResources: ImageCollection,
         translations: TranslationDictionaries,
         imagesConfiguration: ImagesConfiguration,
         language: Language
-    ) -> BasicInfo {
-        BasicInfo(
+    ) -> EntryMetadata {
+        EntryMetadata(
             name: movie.title,
             nameTranslations: translations.name,
             overview: movie.overview,

@@ -9,10 +9,10 @@ import DataProvider
 import Foundation
 
 extension AnimeEntry {
-    /// Creates a new AnimeEntry instance from BasicInfo.
+    /// Creates a new AnimeEntry instance from EntryMetadata.
     ///
-    /// - Parameter info: The BasicInfo containing the anime details.
-    convenience init(fromInfo info: BasicInfo) {
+    /// - Parameter info: The EntryMetadata containing the anime details.
+    convenience init(fromInfo info: EntryMetadata) {
         self.init(
             name: info.name,
             nameTranslations: info.nameTranslations,
@@ -28,11 +28,11 @@ extension AnimeEntry {
             dateSaved: .now)
     }
 
-    /// Updates the anime entry with new information from BasicInfo.
+    /// Updates the anime entry with new information from EntryMetadata.
     ///
-    /// - Parameter info: The BasicInfo containing updated anime details.
+    /// - Parameter info: The EntryMetadata containing updated anime details.
     /// - Note: Only updates properties that have non-nil values in the info parameter.
-    func update(from info: BasicInfo) {
+    func update(from info: EntryMetadata) {
         name = info.name
         nameTranslations =
             info.nameTranslations.isEmpty ? self.nameTranslations : info.nameTranslations
@@ -53,7 +53,7 @@ extension AnimeEntry {
     ///
     /// Unlike `update(from:)`, this method intentionally clears fields that TMDb no longer returns.
     /// User-owned state is not touched; callers can preserve custom poster choices by passing `true`.
-    func replaceMetadata(from info: BasicInfo, preservingCustomPoster: Bool) {
+    func replaceMetadata(from info: EntryMetadata, preservingCustomPoster: Bool) {
         let resolvedPosterURL = preservingCustomPoster ? posterURL : info.posterURL
 
         name = info.name
@@ -69,9 +69,9 @@ extension AnimeEntry {
         originalLanguageCode = info.originalLanguageCode
     }
 
-    /// Converts the AnimeEntry to BasicInfo.
-    var basicInfo: BasicInfo {
-        BasicInfo(
+    /// Converts the AnimeEntry to EntryMetadata.
+    var entryMetadata: EntryMetadata {
+        EntryMetadata(
             name: name,
             nameTranslations: nameTranslations,
             overview: overview,

@@ -35,7 +35,7 @@ fileprivate struct TVSeasonPayload {
 
 extension InfoFetcher {
     func tvSeasonInfo(seasonNumber: Int, parentSeriesID: Int, language: Language) async throws
-        -> BasicInfo
+        -> EntryMetadata
     {
         let payload = try await tvSeasonPayload(
             parentSeriesID: parentSeriesID,
@@ -45,7 +45,7 @@ extension InfoFetcher {
             includeSeasonPosters: true
         )
 
-        return tvSeasonBasicInfo(
+        return tvSeasonEntryMetadata(
             from: payload.season,
             parentSeries: payload.parentSeries,
             parentSeriesImages: payload.parentSeriesImages,
@@ -78,7 +78,7 @@ extension InfoFetcher {
     func seasonInfos(
         forSeriesID tmdbID: Int,
         language: Language
-    ) async throws -> [BasicInfo] {
+    ) async throws -> [EntryMetadata] {
         let series = try await tvSeries(tmdbID, language: language)
         guard let seasons = series.seasons else { return [] }
 
@@ -90,8 +90,8 @@ extension InfoFetcher {
         let resolvedParentSeriesImages = try await parentSeriesImages
         let resolvedImagesConfiguration = try await imagesConfiguration
 
-        return try await withThrowingTaskGroup(of: BasicInfo.self) { group in
-            var results: [BasicInfo] = []
+        return try await withThrowingTaskGroup(of: EntryMetadata.self) { group in
+            var results: [EntryMetadata] = []
 
             for season in seasons {
                 group.addTask {
@@ -104,7 +104,7 @@ extension InfoFetcher {
                         seasonNumber: season.seasonNumber
                     )
 
-                    return self.tvSeasonBasicInfo(
+                    return self.tvSeasonEntryMetadata(
                         from: season,
                         parentSeries: series,
                         parentSeriesImages: resolvedParentSeriesImages,
@@ -162,7 +162,7 @@ extension InfoFetcher {
         parentSeriesID: Int,
         seasonNumber: Int,
         language: Language
-    ) async throws -> (BasicInfo, AnimeEntryDetailDTO) {
+    ) async throws -> (EntryMetadata, AnimeEntryDetailDTO) {
         let payload = try await tvSeasonPayload(
             parentSeriesID: parentSeriesID,
             seasonNumber: seasonNumber,
@@ -173,7 +173,7 @@ extension InfoFetcher {
         )
 
         return (
-            tvSeasonBasicInfo(
+            tvSeasonEntryMetadata(
                 from: payload.season,
                 parentSeries: payload.parentSeries,
                 parentSeriesImages: payload.parentSeriesImages,
@@ -254,7 +254,7 @@ extension InfoFetcher {
         )
     }
 
-    private func tvSeasonBasicInfo(
+    private func tvSeasonEntryMetadata(
         from season: TVSeason,
         parentSeries: TVSeries,
         parentSeriesImages: ImageCollection,
@@ -262,8 +262,8 @@ extension InfoFetcher {
         translations: TranslationDictionaries,
         imagesConfiguration: ImagesConfiguration,
         language: Language
-    ) -> BasicInfo {
-        BasicInfo(
+    ) -> EntryMetadata {
+        EntryMetadata(
             name: season.name,
             nameTranslations: translations.name,
             overview: season.overview,

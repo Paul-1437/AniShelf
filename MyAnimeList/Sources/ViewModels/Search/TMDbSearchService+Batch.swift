@@ -14,9 +14,9 @@ fileprivate let batchLogger = Logger(subsystem: .bundleIdentifier, category: "TM
 
 extension TMDbSearchService {
     private struct BatchSeasonPreselection: Equatable, Sendable {
-        let series: BasicInfo
-        let seasons: [BasicInfo]
-        let selectedSeason: BasicInfo
+        let series: EntryMetadata
+        let seasons: [EntryMetadata]
+        let selectedSeason: EntryMetadata
     }
 
     private struct BatchPromptResolution: Equatable, Sendable {

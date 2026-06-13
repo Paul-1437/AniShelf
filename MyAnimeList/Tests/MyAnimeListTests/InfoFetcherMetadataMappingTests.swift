@@ -13,9 +13,9 @@ import Testing
 @testable import MyAnimeList
 
 struct InfoFetcherMetadataMappingTests {
-    @Test func testAnimeEntryStoresOriginalLanguageCodeFromBasicInfo() {
+    @Test func testAnimeEntryStoresOriginalLanguageCodeFromEntryMetadata() {
         let entry = AnimeEntry(
-            fromInfo: BasicInfo(
+            fromInfo: EntryMetadata(
                 name: "Frieren",
                 nameTranslations: [:],
                 overview: nil,

@@ -123,8 +123,8 @@ struct LibraryPreferenceDefaultsTests {
         #expect(store.filters == Set([.favorited, .watched]))
         #expect(store.defaultNewEntryWatchStatus == .watching)
 
-        store.newEntryFromBasicInfo(
-            BasicInfo(
+        store.newEntryFromEntryMetadata(
+            EntryMetadata(
                 name: "Defaulted Entry",
                 nameTranslations: [:],
                 overview: nil,

@@ -1,5 +1,5 @@
 //
-//  BasicInfo.swift
+//  EntryMetadata.swift
 //  MyAnimeList
 //
 //  Created by Samuel He on 2025/3/22.
@@ -8,10 +8,10 @@
 import DataProvider
 import Foundation
 
-/// A structure representing basic information about an anime.
+/// A structure representing persisted entry metadata for an anime.
 ///
 /// The `id` is derived from the `tmdbID` property.
-struct BasicInfo: Equatable, Identifiable, Hashable, Sendable {
+struct EntryMetadata: Equatable, Identifiable, Hashable, Sendable {
     var name: String
     var nameTranslations: [String: String]
     var overview: String?

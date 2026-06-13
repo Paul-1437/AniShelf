@@ -18,7 +18,7 @@ final class LibraryMetadataRefresher {
     }
 
     private enum LatestInfoFetchOutcome {
-        case success(PersistentIdentifier, BasicInfo, AnimeEntryDetailDTO)
+        case success(PersistentIdentifier, EntryMetadata, AnimeEntryDetailDTO)
         case failure(LatestInfoFailure)
     }
 
@@ -55,7 +55,7 @@ final class LibraryMetadataRefresher {
             )
         )
 
-        var fetchedInfos: [PersistentIdentifier: (BasicInfo, AnimeEntryDetailDTO)] = [:]
+        var fetchedInfos: [PersistentIdentifier: (EntryMetadata, AnimeEntryDetailDTO)] = [:]
         var failures: [LatestInfoFailure] = []
         let totalCount = library.count
 
@@ -306,13 +306,13 @@ final class LibraryMetadataRefresher {
         language: Language,
         updateProgress: @escaping (Int, Int) -> Void
     ) async -> (
-        successes: [(PersistentIdentifier, BasicInfo, AnimeEntryDetailDTO)],
+        successes: [(PersistentIdentifier, EntryMetadata, AnimeEntryDetailDTO)],
         failures: [LatestInfoFailure]
     ) {
         await withTaskGroup(
             of: LatestInfoFetchOutcome.self
         ) { group in
-            var fetchedInfos: [(PersistentIdentifier, BasicInfo, AnimeEntryDetailDTO)] = []
+            var fetchedInfos: [(PersistentIdentifier, EntryMetadata, AnimeEntryDetailDTO)] = []
             var failures: [LatestInfoFailure] = []
 
             for entry in entries {
@@ -368,7 +368,7 @@ final class LibraryMetadataRefresher {
         usingCustomPoster: Bool,
         fetcher: InfoFetcher,
         language: Language
-    ) async throws -> (PersistentIdentifier, BasicInfo, AnimeEntryDetailDTO) {
+    ) async throws -> (PersistentIdentifier, EntryMetadata, AnimeEntryDetailDTO) {
         let latestInfo = try await fetcher.latestInfo(
             entryType: entryType,
             tmdbID: tmdbID,
@@ -382,7 +382,7 @@ final class LibraryMetadataRefresher {
 
     private func parentSeriesUpdate(
         for entry: AnimeEntry,
-        refreshedInfo: BasicInfo,
+        refreshedInfo: EntryMetadata,
         fetcher: InfoFetcher,
         language: Language
     ) async -> LibraryMetadataRefreshParentUpdate? {

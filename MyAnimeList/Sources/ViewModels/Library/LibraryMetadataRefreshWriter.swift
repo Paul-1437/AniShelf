@@ -11,7 +11,7 @@ import SwiftData
 
 struct LibraryMetadataRefreshUpdate: Sendable {
     var entryID: PersistentIdentifier
-    var info: BasicInfo
+    var info: EntryMetadata
     var detail: AnimeEntryDetailDTO
     var preservingCustomPoster: Bool
 }
@@ -19,7 +19,7 @@ struct LibraryMetadataRefreshUpdate: Sendable {
 struct LibraryMetadataRefreshParentUpdate: Sendable {
     var childEntryID: PersistentIdentifier
     var parentSeriesID: Int
-    var parentInfo: BasicInfo?
+    var parentInfo: EntryMetadata?
     var parentDetail: AnimeEntryDetailDTO?
 }
 

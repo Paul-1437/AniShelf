@@ -138,8 +138,8 @@ struct LibraryBackupRestoreTests {
 
     @Test @MainActor func testLibraryProfileSettingsActionsClearLibraryRemovesEntries() throws {
         let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
-        store.newEntryFromBasicInfo(
-            BasicInfo(
+        store.newEntryFromEntryMetadata(
+            EntryMetadata(
                 name: "Clear Me",
                 nameTranslations: [:],
                 overview: nil,

@@ -22,8 +22,8 @@ class TMDbSearchService {
 
     @ObservationIgnored let client: TMDbSearchClient
     private(set) var status: Status = .loaded
-    private(set) var movieResults: [BasicInfo] = []
-    private(set) var seriesResults: [BasicInfo] = []
+    private(set) var movieResults: [EntryMetadata] = []
+    private(set) var seriesResults: [EntryMetadata] = []
     // Batch state is mutated from TMDbSearchService+Batch.swift.
     var batchStatus: BatchStatus = .idle
     var batchResults: [TMDbBatchPromptResult] = []
@@ -61,16 +61,16 @@ class TMDbSearchService {
     var batchRegisteredSeasonCount: Int { batchSelectionSeasonCount() }
     var batchRegisteredMovieCount: Int { batchRegisteredCount(for: .movie) }
 
-    func isRegistered(info: BasicInfo) -> Bool {
+    func isRegistered(info: EntryMetadata) -> Bool {
         containsSelection(.init(tmdbID: info.tmdbID, type: info.type), in: .regular)
     }
 
-    func isBatchSelected(info: BasicInfo) -> Bool {
+    func isBatchSelected(info: EntryMetadata) -> Bool {
         containsSelection(.init(tmdbID: info.tmdbID, type: info.type), in: .batch)
     }
 
     func seriesSelectionState(
-        for series: BasicInfo,
+        for series: EntryMetadata,
         context: TMDbSelectionContext
     ) -> TMDbSeriesSelectionState {
         seriesSelectionState(forSeriesID: series.tmdbID, context: context)
@@ -81,8 +81,8 @@ class TMDbSearchService {
         setSelection(true, result: result, context: .regular)
     }
 
-    /// Creates a result from a `BasicInfo` to the regular-search submission queue.
-    func register(info: BasicInfo) {
+    /// Creates a result from an `EntryMetadata` for the regular-search submission queue.
+    func register(info: EntryMetadata) {
         setSelection(true, info: info, context: .regular)
     }
 
@@ -91,28 +91,28 @@ class TMDbSearchService {
         setSelection(false, result: result, context: .regular)
     }
 
-    /// Removes a result corresponding to the provided `BasicInfo` from the regular-search submission queue if it is present.
-    func unregister(info: BasicInfo) {
+    /// Removes a result corresponding to the provided `EntryMetadata` from the regular-search submission queue if it is present.
+    func unregister(info: EntryMetadata) {
         setSelection(false, info: info, context: .regular)
     }
 
     /// Registers a result that belongs to the active batch session.
-    func registerBatchSelection(info: BasicInfo) {
+    func registerBatchSelection(info: EntryMetadata) {
         setSelection(true, info: info, context: .batch)
     }
 
     /// Removes a batch-owned result from the submission queue if it is present.
-    func unregisterBatchSelection(info: BasicInfo) {
+    func unregisterBatchSelection(info: EntryMetadata) {
         setSelection(false, info: info, context: .batch)
     }
 
-    func setSelection(_ isSelected: Bool, for info: BasicInfo, context: TMDbSelectionContext) {
+    func setSelection(_ isSelected: Bool, for info: EntryMetadata, context: TMDbSelectionContext) {
         setSelection(isSelected, info: info, context: context)
     }
 
     func setSeasonSelection(
         _ isSelected: Bool,
-        for season: BasicInfo,
+        for season: EntryMetadata,
         context: TMDbSelectionContext
     ) {
         setSelection(isSelected, info: season, context: context)
@@ -120,7 +120,7 @@ class TMDbSearchService {
 
     func setSeriesSelectionMode(
         _ mode: TMDbSeriesSelectionMode,
-        for series: BasicInfo,
+        for series: EntryMetadata,
         language: Language,
         context: TMDbSelectionContext
     ) async {
@@ -252,7 +252,7 @@ class TMDbSearchService {
 
     private func setSelection(
         _ isSelected: Bool,
-        info: BasicInfo,
+        info: EntryMetadata,
         context: TMDbSelectionContext
     ) {
         setSelection(
@@ -356,7 +356,7 @@ class TMDbSearchService {
     }
 
     private func fetchSeasonsIfNeeded(
-        for seriesInfo: BasicInfo,
+        for seriesInfo: EntryMetadata,
         language: Language,
         context: TMDbSelectionContext
     ) async {
@@ -380,7 +380,7 @@ class TMDbSearchService {
         setSeriesSelectionState(state, forSeriesID: seriesInfo.tmdbID, context: context)
     }
 
-    private func fetchSeasons(for seriesInfo: BasicInfo, language: Language) async -> [BasicInfo] {
+    private func fetchSeasons(for seriesInfo: EntryMetadata, language: Language) async -> [EntryMetadata] {
         do {
             return try await client.fetchSeasons(seriesInfo, language)
         } catch {

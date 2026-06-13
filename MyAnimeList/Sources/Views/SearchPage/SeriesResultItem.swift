@@ -9,12 +9,12 @@ import Kingfisher
 import SwiftUI
 
 struct SeriesResultItem: View {
-    let series: BasicInfo
+    let series: EntryMetadata
     let selectionState: TMDbSeriesSelectionState
     let isSeriesSelected: Bool
     let onSeriesSelectionChanged: (Bool) -> Void
     let onSelectionModeChanged: (TMDbSeriesSelectionMode) -> Void
-    let onSeasonSelectionChanged: (BasicInfo, Bool) -> Void
+    let onSeasonSelectionChanged: (EntryMetadata, Bool) -> Void
 
     var body: some View {
         HStack {
@@ -112,9 +112,9 @@ struct SeriesResultItem: View {
 }
 
 fileprivate struct SeasonSelector: View {
-    let seasons: [BasicInfo]
+    let seasons: [EntryMetadata]
     let selectedSeasonIDs: Set<Int>
-    let onSeasonSelectionChanged: (BasicInfo, Bool) -> Void
+    let onSeasonSelectionChanged: (EntryMetadata, Bool) -> Void
 
     var body: some View {
         Menu {

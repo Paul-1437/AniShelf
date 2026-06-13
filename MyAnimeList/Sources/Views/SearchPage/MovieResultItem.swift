@@ -9,7 +9,7 @@ import Kingfisher
 import SwiftUI
 
 struct MovieResultItem: View {
-    let movie: BasicInfo
+    let movie: EntryMetadata
     let isSelected: Bool
     let onSelectionChanged: (Bool) -> Void
 

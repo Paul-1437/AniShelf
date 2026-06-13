@@ -132,7 +132,7 @@ final class InfoFetcher: Sendable {
     }
 
     func fetchInfoFromTMDB(entryType: AnimeType, tmdbID: Int, language: Language) async throws
-        -> BasicInfo
+        -> EntryMetadata
     {
         switch entryType {
         case .season(let seasonNumber, let parentSeriesID):
@@ -168,7 +168,7 @@ final class InfoFetcher: Sendable {
     }
 
     func latestInfo(entryType: AnimeType, tmdbID: Int, language: Language) async throws
-        -> (BasicInfo, AnimeEntryDetailDTO)
+        -> (EntryMetadata, AnimeEntryDetailDTO)
     {
         switch entryType {
         case .movie:
