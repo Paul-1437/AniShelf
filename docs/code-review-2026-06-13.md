@@ -11,6 +11,8 @@ Findings are ranked most-severe first. Reference them by number (e.g. "F1", "F2"
 
 ### F1 — CloudKit encoder writes only `customPosterPath`; old builds read only `customPosterURL`
 
+**Status:** Resolved
+
 **File:** `DataProvider/Sources/LibrarySync/CloudLibrarySyncClient.swift` line ~130  
 **Severity:** High
 
@@ -23,6 +25,8 @@ The old and new field names are completely disjoint — there is no overlap peri
 ---
 
 ### F2 — Custom `encode(to:)` omits `customPosterURL`, breaking any Codable-based sync path on old builds
+
+**Status:** Resolved
 
 **File:** `DataProvider/Sources/LibrarySync/LibraryEntrySyncSnapshot.swift` line ~571  
 **Severity:** High

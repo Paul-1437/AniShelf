@@ -60,4 +60,13 @@ public enum TMDbImagePath {
         guard let path = storagePath(from: path) else { return nil }
         return URL(string: path)
     }
+
+    /// Reconstructs an absolute TMDb image URL for a stored path.
+    ///
+    /// Encodes the path at the "original" size so old builds that stored and
+    /// decoded full TMDb URLs can round-trip through `storagePath(from:)` correctly.
+    public static func fullURL(for path: String?) -> URL? {
+        guard let path = storagePath(from: path) else { return nil }
+        return URL(string: "https://\(imageHost)/t/p/original\(path)")
+    }
 }

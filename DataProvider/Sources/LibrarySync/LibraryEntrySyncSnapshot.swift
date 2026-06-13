@@ -341,6 +341,10 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         try container.encode(notes, forKey: .notes)
         try container.encode(usingCustomPoster, forKey: .usingCustomPoster)
         try container.encodeIfPresent(customPosterPath, forKey: .customPosterPath)
+        // Write the legacy URL key so old builds whose synthesised decoder reads
+        // only `customPosterURL` still recover the user's custom poster selection.
+        // Drop this once backward compat with pre-V2.8 is no longer required.
+        try container.encodeIfPresent(TMDbImagePath.fullURL(for: customPosterPath), forKey: .customPosterURL)
         try container.encode(episodeProgresses, forKey: .episodeProgresses)
         try container.encodeIfPresent(libraryUpdatedAt, forKey: .libraryUpdatedAt)
         try container.encodeIfPresent(trackingUpdatedAt, forKey: .trackingUpdatedAt)

@@ -125,6 +125,9 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
         record[Field.usingCustomPoster] = snapshot.usingCustomPoster
         let customPosterPath = snapshot.usingCustomPoster ? snapshot.customPosterPath : nil
         record[Field.customPosterPath] = customPosterPath
+        // Write the legacy URL field so devices still on the pre-V2.8 build can
+        // decode it via `customPosterURL`. Drop this once the old build is retired.
+        record[Field.customPosterURL] = TMDbImagePath.fullURL(for: customPosterPath)?.absoluteString
         record[Field.episodeProgresses] = try Self.encodeEpisodeProgresses(snapshot.episodeProgresses)
         record[Field.libraryUpdatedAt] = snapshot.libraryUpdatedAt
         record[Field.trackingUpdatedAt] = snapshot.trackingUpdatedAt
