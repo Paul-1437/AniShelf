@@ -87,6 +87,19 @@ struct CloudLibrarySyncClientTests {
         #expect(decoded.customPosterPath == "/legacy/custom.jpg")
     }
 
+    @Test func divergentLegacyCustomPosterURLOverridesStalePath() throws {
+        let snapshot = makeSnapshot()
+        let record = try client.record(from: snapshot)
+        record["usingCustomPoster"] = true
+        record["customPosterPath"] = "/stale/custom.jpg"
+        record["customPosterURL"] = "https://image.tmdb.org/t/p/w342/current/custom.jpg"
+
+        let decoded = try client.snapshot(from: record)
+
+        #expect(decoded.usingCustomPoster)
+        #expect(decoded.customPosterPath == "/current/custom.jpg")
+    }
+
     @Test func leanTombstoneRoundTripsThroughRemoteChangeRecord() throws {
         let entry = AnimeEntry(name: "Deleted", type: .series, tmdbID: 56)
         let tombstone = LibraryEntrySyncTombstone(

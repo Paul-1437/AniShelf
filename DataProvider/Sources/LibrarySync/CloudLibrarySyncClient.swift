@@ -557,18 +557,24 @@ extension CloudLibrarySyncClient {
 
     /// Decodes the optional custom poster string into a TMDb file path.
     fileprivate static func customPosterPath(from record: CKRecord) throws -> String? {
+        let pathFromPath: String?
         if let value = record[Field.customPosterPath] {
             guard let path = value as? String else {
                 throw CloudLibrarySyncDecodeError.invalidScalarValue(field: Field.customPosterPath)
             }
-            return TMDbImagePath.storagePath(from: path)
+            pathFromPath = TMDbImagePath.storagePath(from: path)
+        } else {
+            pathFromPath = nil
         }
 
-        guard let value = record[Field.customPosterURL] else { return nil }
+        guard let value = record[Field.customPosterURL] else { return pathFromPath }
         guard let rawURL = value as? String, let url = URL(string: rawURL) else {
+            guard pathFromPath == nil else { return pathFromPath }
             throw CloudLibrarySyncDecodeError.invalidScalarValue(field: Field.customPosterURL)
         }
-        return TMDbImagePath.storagePath(from: url)
+        let pathFromURL = TMDbImagePath.storagePath(from: url)
+
+        return pathFromURL ?? pathFromPath
     }
 
     /// Encodes episode progress as deterministic JSON inside one CloudKit field.
