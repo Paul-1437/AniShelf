@@ -168,7 +168,6 @@ final class LibraryProfileSettingsActions {
                         parentUpdates: parentUpdates
                     )
                 }.value
-                store.rebuildSyncChangeTracking()
             }
         )
         Task {
@@ -180,6 +179,7 @@ final class LibraryProfileSettingsActions {
                     language: store.language,
                     options: options
                 )
+                store.rebuildSyncChangeTracking()
             } catch {
                 libraryStoreLogger.error(
                     "Failed to load refresh entries: \(error.localizedDescription)"

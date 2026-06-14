@@ -382,10 +382,6 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
             let cacheKey = workItem.url.cacheKey
 
             for (targetSize, processor) in missingProcessors {
-                let options = KingfisherParsedOptionsInfo([
-                    .processor(processor),
-                    .diskCacheExpiration(diskCacheExpiration)
-                ])
                 // Downsampling decodes the full-size original synchronously. Run it on a
                 // dedicated queue so it doesn't block Swift's cooperative executor, which
                 // other concurrent prefetch work (and the rest of the app) shares.
@@ -394,13 +390,23 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
                 else {
                     throw ImagePrefetchError.processingFailed(url: workItem.url, targetSize: targetSize)
                 }
+                guard
+                    let data = DefaultCacheSerializer.default.data(with: image, original: originalData)
+                else {
+                    throw KingfisherError.cacheError(
+                        reason: .cannotSerializeImage(
+                            image: image,
+                            original: originalData,
+                            serializer: DefaultCacheSerializer.default
+                        )
+                    )
+                }
 
-                try await cache.store(
-                    image,
-                    original: originalData,
+                try await cache.storeToDisk(
+                    data,
                     forKey: cacheKey,
-                    options: options,
-                    toDisk: true
+                    processorIdentifier: processor.identifier,
+                    expiration: diskCacheExpiration
                 )
             }
 

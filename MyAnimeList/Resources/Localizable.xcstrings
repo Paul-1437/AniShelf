@@ -4154,22 +4154,6 @@
         }
       }
     },
-    "Organizing Library..." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリを整理しています..."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在整理资料库..."
-          }
-        }
-      }
-    },
     "Overview" : {
       "localizations" : {
         "ja" : {

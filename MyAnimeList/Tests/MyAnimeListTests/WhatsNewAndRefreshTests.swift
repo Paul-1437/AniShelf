@@ -203,17 +203,6 @@ struct WhatsNewAndRefreshTests {
         }
 
         capturedOptions.reporter.report(
-            .organizingLibrary(messageResource: "Organizing Library...")
-        )
-
-        switch runner.refreshState {
-        case .inProgress(let progress):
-            #expect(progress.fractionCompleted == nil)
-        default:
-            Issue.record("Expected organizing state to be reflected inline.")
-        }
-
-        capturedOptions.reporter.report(
             .metadataPhaseComplete(
                 .init(
                     state: .completed,

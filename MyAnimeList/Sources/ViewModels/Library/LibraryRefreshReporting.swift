@@ -38,7 +38,6 @@ struct LibraryRefreshCompletion {
 /// `refreshComplete` as the only overall completion signal.
 enum LibraryRefreshEvent {
     case metadataProgress(current: Int, total: Int, messageResource: LocalizedStringResource)
-    case organizingLibrary(messageResource: LocalizedStringResource)
     case metadataPhaseComplete(LibraryRefreshCompletion)
     case imagePrefetchProgress(current: Int, total: Int, messageResource: LocalizedStringResource)
     case imagePrefetchPhaseComplete(LibraryRefreshCompletion)
@@ -75,11 +74,6 @@ struct LibraryRefreshReporter {
                     total: total,
                     messageResource: messageResource
                 )
-            case .organizingLibrary(let messageResource):
-                guard !session.isCompleted else { return }
-                ToastCenter.global.completionState = nil
-                ToastCenter.global.progressState = nil
-                ToastCenter.global.loadingMessage = .message(messageResource)
             case .metadataPhaseComplete, .imagePrefetchPhaseComplete:
                 break
             case .refreshComplete(let completion):

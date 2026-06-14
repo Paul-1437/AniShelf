@@ -103,13 +103,6 @@ final class WhatsNewActionRunner {
                     )
                 )
             )
-        case .organizingLibrary(let messageResource):
-            refreshState = .inProgress(
-                .init(
-                    messageResource: messageResource,
-                    fractionCompleted: nil
-                )
-            )
         case .metadataPhaseComplete, .imagePrefetchPhaseComplete:
             break
         case .refreshComplete(let completion):
