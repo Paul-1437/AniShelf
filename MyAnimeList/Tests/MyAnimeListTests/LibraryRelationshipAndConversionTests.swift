@@ -169,7 +169,7 @@ struct LibraryRelationshipAndConversionTests {
     }
 }
 
-private func makeLatestInfoFetcher() -> LibraryEntryLatestInfoFetcher {
+fileprivate func makeLatestInfoFetcher() -> LibraryEntryLatestInfoFetcher {
     { entryType, tmdbID, _ in
         switch entryType {
         case .series:

@@ -31,13 +31,14 @@ final class LibraryEntryConverter {
             parentEntry = existingParent
             parentEntry.updateDisplayState(true)
         } else {
-            let resolveLatestInfo = latestInfoFetcher ?? { entryType, tmdbID, language in
-                try await fetcher.latestInfo(
-                    entryType: entryType,
-                    tmdbID: tmdbID,
-                    language: language
-                )
-            }
+            let resolveLatestInfo =
+                latestInfoFetcher ?? { entryType, tmdbID, language in
+                    try await fetcher.latestInfo(
+                        entryType: entryType,
+                        tmdbID: tmdbID,
+                        language: language
+                    )
+                }
             let parentLatestInfo = try await resolveLatestInfo(.series, parentSeriesID, language)
             parentEntry = AnimeEntry(fromInfo: parentLatestInfo.0)
             parentEntry.replaceDetail(from: parentLatestInfo.1)
@@ -70,13 +71,14 @@ final class LibraryEntryConverter {
         let userInfo = entry.userInfo
         let originalPosterURL = entry.posterURL
         let seasonTMDbID = entry.tmdbID
-        let resolveLatestInfo = latestInfoFetcher ?? { entryType, tmdbID, language in
-            try await fetcher.latestInfo(
-                entryType: entryType,
-                tmdbID: tmdbID,
-                language: language
-            )
-        }
+        let resolveLatestInfo =
+            latestInfoFetcher ?? { entryType, tmdbID, language in
+                try await fetcher.latestInfo(
+                    entryType: entryType,
+                    tmdbID: tmdbID,
+                    language: language
+                )
+            }
 
         async let parentLatestInfo = resolveLatestInfo(.series, parentSeriesID, language)
         async let seasonLatestInfo = resolveLatestInfo(

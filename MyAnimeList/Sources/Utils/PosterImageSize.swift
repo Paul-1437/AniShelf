@@ -8,8 +8,10 @@
 import CoreGraphics
 
 /// Shared geometry for poster images so prefetch and display agree on the target
-/// size. If these diverge, prefetched variants are stored at one size and looked
-/// up at another, forcing redundant re-downloads.
+/// size.
+///
+/// If these diverge, prefetched variants are stored at one size and looked up at
+/// another, forcing redundant re-downloads.
 enum PosterImageSize {
     static let heightRatio: CGFloat = 1.5
 
