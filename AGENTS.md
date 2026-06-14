@@ -28,7 +28,7 @@
 
 - Unit tests live in `MyAnimeList/Tests/` and `DataProvider/Tests/`.
 - Run tests with `make test-sim` by default. Use `make test` only when the user explicitly asks for physical-device testing or there is a specific device-only reason.
-- When developing new features or adding tests, run only the relevant tests first. Pass the desired app suite or test identifier with `APP_TEST_ONLY`, and use `make test-dataprovider DATAPROVIDER_TEST_FILTER=...` for targeted DataProvider package runs. Only run the full suite when there is a good reason.
+- When developing new features or adding tests, run only the relevant tests first. For app tests, pass one or more whitespace-separated Xcode test identifiers with `APP_TEST_ONLY`, for example `make test-app-sim APP_TEST_ONLY='MyAnimeListTests/LibraryMetadataRefreshTests'` or `make test-app-sim APP_TEST_ONLY='MyAnimeListTests/LibraryExportManagerTests MyAnimeListTests/LibraryBackupRestoreTests'`. For DataProvider package tests, use Swift Testing's native filter syntax, for example `make test-dataprovider DATAPROVIDER_TEST_FILTER='LibrarySyncTests'` or `make test-dataprovider DATAPROVIDER_TEST_FILTER='LibrarySyncTests|MigrationTests'`. Only run the full suite when there is a good reason.
 - Add or update tests with behavior changes when practical.
 
 ## Commits
