@@ -154,6 +154,108 @@ struct TMDbImageAndTranslationTests {
         #expect(detail.logoImageURL?.absoluteString == "https://image.tmdb.org/t/p/w500/logo.png")
     }
 
+    @Test func fetchDTOImageURLsResolveFromPathsBeforeLegacyURLs() throws {
+        let legacyURL = try #require(URL(string: "https://example.com/legacy.jpg"))
+
+        let detail = AnimeEntryDetailDTO(
+            language: "en-US",
+            title: "Path Detail",
+            logoImageURL: legacyURL,
+            logoImagePath: "/logos/title.png"
+        )
+        let character = AnimeEntryCharacterDTO(
+            id: 1,
+            characterName: "Character",
+            actorName: "Actor",
+            profileURL: legacyURL,
+            profilePath: "/profiles/character.jpg"
+        )
+        let staff = AnimeEntryStaffDTO(
+            id: 2,
+            name: "Staff",
+            role: "Director",
+            profileURL: legacyURL,
+            profilePath: "/profiles/staff.jpg"
+        )
+        let season = AnimeEntrySeasonSummaryDTO(
+            id: 3,
+            seasonNumber: 1,
+            title: "Season 1",
+            posterURL: legacyURL,
+            posterPath: "/seasons/one.jpg"
+        )
+        let episode = AnimeEntryEpisodeSummaryDTO(
+            id: 4,
+            episodeNumber: 1,
+            title: "Episode 1",
+            imageURL: legacyURL,
+            imagePath: "/episodes/still.jpg"
+        )
+
+        #expect(
+            detail.resolvedLogoImageURL?.absoluteString
+                == "https://image.tmdb.org/t/p/w500/logos/title.png"
+        )
+        #expect(
+            character.resolvedProfileURL?.absoluteString
+                == "https://image.tmdb.org/t/p/w185/profiles/character.jpg"
+        )
+        #expect(
+            staff.resolvedProfileURL?.absoluteString
+                == "https://image.tmdb.org/t/p/w185/profiles/staff.jpg"
+        )
+        #expect(
+            season.resolvedPosterURL?.absoluteString
+                == "https://image.tmdb.org/t/p/w342/seasons/one.jpg"
+        )
+        #expect(
+            episode.resolvedImageURL?.absoluteString
+                == "https://image.tmdb.org/t/p/original/episodes/still.jpg"
+        )
+    }
+
+    @Test func fetchDTOImageURLsFallBackToLegacyURLsWhenPathIsMissing() throws {
+        let legacyURL = try #require(URL(string: "https://example.com/legacy.jpg"))
+
+        #expect(
+            AnimeEntryCharacterDTO(
+                id: 1,
+                characterName: "Character",
+                actorName: "Actor",
+                profileURL: legacyURL
+            ).resolvedProfileURL == legacyURL
+        )
+        #expect(
+            AnimeEntrySeasonSummaryDTO(
+                id: 2,
+                seasonNumber: 1,
+                title: "Season",
+                posterURL: legacyURL
+            ).resolvedPosterURL == legacyURL
+        )
+        #expect(
+            AnimeEntryEpisodeSummaryDTO(
+                id: 3,
+                episodeNumber: 1,
+                title: "Episode",
+                imageURL: legacyURL
+            ).resolvedImageURL == legacyURL
+        )
+    }
+
+    @Test func lazySeasonEpisodeMappingUsesResolvedStillURL() {
+        let card = SeriesSeasonEpisodeGroupView.episodeCard(
+            from: AnimeEntryEpisodeSummaryDTO(
+                id: 1,
+                episodeNumber: 1,
+                title: "The Still Path",
+                imagePath: "/episodes/still.jpg"
+            )
+        )
+
+        #expect(card.imageURL?.absoluteString == "https://image.tmdb.org/t/p/original/episodes/still.jpg")
+    }
+
     @Test func testPosterSelectionAllowsOnlyOriginalNoLanguageAndMetadataLanguage() throws {
         let englishPoster = URL(string: "https://example.com/poster-en.jpg")!
         let noLanguagePoster = URL(string: "https://example.com/poster-none.jpg")!

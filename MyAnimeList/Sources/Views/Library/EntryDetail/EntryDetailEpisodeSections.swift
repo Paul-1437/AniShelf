@@ -182,16 +182,7 @@ struct SeriesSeasonEpisodeGroupView: View {
                     seasonNumber: season.seasonNumber,
                     language: language
                 )
-                .map {
-                    EntryDetailEpisodeCard(
-                        id: $0.id,
-                        episodeNumber: $0.episodeNumber,
-                        title: "\($0.episodeNumber). \($0.title)",
-                        subtitle: $0.airDate?.formatted(date: .abbreviated, time: .omitted)
-                            ?? String(localized: EntryDetailL10n.episode),
-                        imageURL: $0.imageURL
-                    )
-                }
+                .map { Self.episodeCard(from: $0) }
             withAnimation(loadingAnimation) {
                 episodes = loadedEpisodes
                 renderedEpisodeCount = min(initialRenderedEpisodeCount, loadedEpisodes.count)
@@ -205,6 +196,17 @@ struct SeriesSeasonEpisodeGroupView: View {
                 isLoading = false
             }
         }
+    }
+
+    static func episodeCard(from dto: AnimeEntryEpisodeSummaryDTO) -> EntryDetailEpisodeCard {
+        EntryDetailEpisodeCard(
+            id: dto.id,
+            episodeNumber: dto.episodeNumber,
+            title: "\(dto.episodeNumber). \(dto.title)",
+            subtitle: dto.airDate?.formatted(date: .abbreviated, time: .omitted)
+                ?? String(localized: EntryDetailL10n.episode),
+            imageURL: dto.resolvedImageURL
+        )
     }
 
     private func renderMoreEpisodes() {

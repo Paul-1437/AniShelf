@@ -122,3 +122,38 @@ extension AnimeEntryEpisodeSummary {
         TMDbImageURLResolver.current.url(for: imagePath, role: .still, idealWidth: 500)
     }
 }
+
+extension AnimeEntryDetailDTO {
+    var resolvedLogoImageURL: URL? {
+        TMDbImageURLResolver.current.url(for: logoImagePath, role: .logo, idealWidth: 500)
+            ?? logoImageURL
+    }
+}
+
+extension AnimeEntryCharacterDTO {
+    var resolvedProfileURL: URL? {
+        TMDbImageURLResolver.current.url(for: profilePath, role: .profile, idealWidth: 185)
+            ?? profileURL
+    }
+}
+
+extension AnimeEntryStaffDTO {
+    var resolvedProfileURL: URL? {
+        TMDbImageURLResolver.current.url(for: profilePath, role: .profile, idealWidth: 185)
+            ?? profileURL
+    }
+}
+
+extension AnimeEntrySeasonSummaryDTO {
+    var resolvedPosterURL: URL? {
+        TMDbImageURLResolver.current.url(for: posterPath, role: .poster, idealWidth: 300)
+            ?? posterURL
+    }
+}
+
+extension AnimeEntryEpisodeSummaryDTO {
+    var resolvedImageURL: URL? {
+        TMDbImageURLResolver.current.url(for: imagePath, role: .still, idealWidth: 500)
+            ?? imageURL
+    }
+}
