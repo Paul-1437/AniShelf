@@ -290,6 +290,18 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
         }
     }
 
+    static func serialize(
+        _ image: KFCrossPlatformImage,
+        originalData: Data
+    ) async -> Data? {
+        await withCheckedContinuation { continuation in
+            processingQueue.async {
+                let data = DefaultCacheSerializer.default.data(with: image, original: originalData)
+                continuation.resume(returning: data)
+            }
+        }
+    }
+
     private let maxConcurrentDownloads: Int
     private let diskCacheExpiration: StorageExpiration
     private let downloader: ImageDownloader
@@ -391,7 +403,7 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
                     throw ImagePrefetchError.processingFailed(url: workItem.url, targetSize: targetSize)
                 }
                 guard
-                    let data = DefaultCacheSerializer.default.data(with: image, original: originalData)
+                    let data = await Self.serialize(image, originalData: originalData)
                 else {
                     throw KingfisherError.cacheError(
                         reason: .cannotSerializeImage(

@@ -58,125 +58,124 @@ final class LibraryMetadataRefresher {
         var refreshedCount = 0
         var imagePrefetchTargets: [LibraryImageCacheService.ImagePrefetchTarget] = []
         var failures: [LatestInfoFailure] = []
+        var applyFailureCount = 0
         let totalCount = library.count
 
-        do {
-            let chunks = chunkedEntries(library, chunkSize: 8)
-            for (chunkIndex, chunk) in chunks.enumerated() {
-                libraryMetadataRefreshLogger.debug(
-                    "Refreshing metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public) containing \(chunk.count, privacy: .public) entries."
-                )
-                let chunkInfos = await latestInfoForEntries(
-                    entries: chunk,
-                    fetcher: fetcher,
-                    language: language,
-                    updateProgress: { current, _ in
-                        let resolvedCurrent = refreshedCount + failures.count + current
-                        options.reporter.report(
-                            .metadataProgress(
-                                current: resolvedCurrent,
-                                total: totalCount,
-                                messageResource: "Fetching Info: \(resolvedCurrent) / \(totalCount)"
-                            )
+        let chunks = chunkedEntries(library, chunkSize: 8)
+        for (chunkIndex, chunk) in chunks.enumerated() {
+            libraryMetadataRefreshLogger.debug(
+                "Refreshing metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public) containing \(chunk.count, privacy: .public) entries."
+            )
+            let chunkInfos = await latestInfoForEntries(
+                entries: chunk,
+                fetcher: fetcher,
+                language: language,
+                updateProgress: { current, _ in
+                    let resolvedCurrent = refreshedCount + failures.count + current
+                    options.reporter.report(
+                        .metadataProgress(
+                            current: resolvedCurrent,
+                            total: totalCount,
+                            messageResource: "Fetching Info: \(resolvedCurrent) / \(totalCount)"
                         )
-                    })
-                failures.append(contentsOf: chunkInfos.failures)
-                libraryMetadataRefreshLogger.info(
-                    "Finished metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public): refreshed \(chunkInfos.successes.count, privacy: .public), failed \(chunkInfos.failures.count, privacy: .public)."
-                )
+                    )
+                })
+            failures.append(contentsOf: chunkInfos.failures)
+            libraryMetadataRefreshLogger.info(
+                "Finished metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public): refreshed \(chunkInfos.successes.count, privacy: .public), failed \(chunkInfos.failures.count, privacy: .public)."
+            )
 
-                guard !chunkInfos.successes.isEmpty else { continue }
+            guard !chunkInfos.successes.isEmpty else { continue }
 
-                libraryMetadataRefreshLogger.info(
-                    "Applying refreshed metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public) for \(chunkInfos.successes.count, privacy: .public) entries."
-                )
+            libraryMetadataRefreshLogger.info(
+                "Applying refreshed metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public) for \(chunkInfos.successes.count, privacy: .public) entries."
+            )
 
-                var updates: [LibraryMetadataRefreshUpdate] = []
-                var parentUpdates: [LibraryMetadataRefreshParentUpdate] = []
-                updates.reserveCapacity(chunkInfos.successes.count)
-                for (id, info, detailDTO) in chunkInfos.successes {
-                    if let entry = library[id] {
-                        let update = LibraryMetadataRefreshUpdate(
-                            entryID: id,
-                            info: info,
-                            detail: detailDTO,
-                            preservingCustomPoster: entry.usingCustomPoster,
-                            customPosterPath: entry.usingCustomPoster ? entry.customPosterPath : nil
+            var updates: [LibraryMetadataRefreshUpdate] = []
+            var parentUpdates: [LibraryMetadataRefreshParentUpdate] = []
+            var chunkImagePrefetchTargets: [LibraryImageCacheService.ImagePrefetchTarget] = []
+            updates.reserveCapacity(chunkInfos.successes.count)
+            for (id, info, detailDTO) in chunkInfos.successes {
+                if let entry = library[id] {
+                    let update = LibraryMetadataRefreshUpdate(
+                        entryID: id,
+                        info: info,
+                        detail: detailDTO,
+                        preservingCustomPoster: entry.usingCustomPoster,
+                        customPosterPath: entry.usingCustomPoster ? entry.customPosterPath : nil
+                    )
+                    updates.append(update)
+                    if options.prefetchImages {
+                        chunkImagePrefetchTargets.append(
+                            contentsOf: imagePrefetchTargetsForRefreshPhase(from: update)
                         )
-                        updates.append(update)
-                        if options.prefetchImages {
-                            imagePrefetchTargets.append(
-                                contentsOf: imagePrefetchTargetsForRefreshPhase(from: update)
-                            )
-                        }
-                        if let parentUpdate = await parentSeriesUpdate(
-                            for: entry,
-                            refreshedInfo: info,
-                            fetcher: fetcher,
-                            language: language)
-                        {
-                            parentUpdates.append(parentUpdate)
-                        }
+                    }
+                    if let parentUpdate = await parentSeriesUpdate(
+                        for: entry,
+                        refreshedInfo: info,
+                        fetcher: fetcher,
+                        language: language)
+                    {
+                        parentUpdates.append(parentUpdate)
                     }
                 }
+            }
 
+            do {
                 try await applyMetadataRefresh(updates, parentUpdates)
-                refreshedCount += updates.count
+            } catch {
+                applyFailureCount += updates.count
+                libraryMetadataRefreshLogger.error(
+                    "Failed applying metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+                break
             }
-            libraryMetadataRefreshLogger.info(
-                "Saved library metadata refresh results for \(refreshedCount, privacy: .public) refreshed entries."
-            )
-            let metadataCompletion = metadataCompletion(
-                refreshedCount: refreshedCount,
-                failureCount: failures.count
-            )
-            libraryMetadataRefreshLogger.info(
-                "Library metadata refresh completed with state \(self.completionStateLabel(metadataCompletion.state), privacy: .public): refreshed \(refreshedCount, privacy: .public), failed \(failures.count, privacy: .public)."
-            )
-            options.reporter.report(.metadataPhaseComplete(metadataCompletion))
 
-            if options.prefetchImages, !imagePrefetchTargets.isEmpty {
-                libraryMetadataRefreshLogger.info(
-                    "Starting image prefetch for refreshed library content."
-                )
-                let imagePrefetchCompletion = await LibraryImageCacheService.prefetchImageTargetsForRefreshPhaseNow(
-                    imagePrefetchTargets,
-                    reporter: options.reporter
-                )
-                libraryMetadataRefreshLogger.info(
-                    "Library info refresh completed with image prefetch state \(self.completionStateLabel(imagePrefetchCompletion.state), privacy: .public)."
-                )
-                options.reporter.report(
-                    .refreshComplete(
-                        refreshCompletion(
-                            metadataCompletion: metadataCompletion,
-                            imagePrefetchCompletion: imagePrefetchCompletion
-                        )
-                    )
-                )
-            } else {
-                if options.prefetchImages {
-                    libraryMetadataRefreshLogger.info(
-                        "Skipped image prefetch because no entries refreshed successfully."
-                    )
-                } else {
-                    libraryMetadataRefreshLogger.info(
-                        "Skipped image prefetch because it was disabled for this refresh."
-                    )
-                }
-                options.reporter.report(.refreshComplete(metadataCompletion))
-            }
-        } catch {
-            libraryMetadataRefreshLogger.error("Error refreshing infos: \(error)")
+            refreshedCount += updates.count
+            imagePrefetchTargets.append(contentsOf: chunkImagePrefetchTargets)
+        }
+        libraryMetadataRefreshLogger.info(
+            "Saved library metadata refresh results for \(refreshedCount, privacy: .public) refreshed entries."
+        )
+        let metadataCompletion = metadataCompletion(
+            refreshedCount: refreshedCount,
+            failureCount: failures.count + applyFailureCount
+        )
+        libraryMetadataRefreshLogger.info(
+            "Library metadata refresh completed with state \(self.completionStateLabel(metadataCompletion.state), privacy: .public): refreshed \(refreshedCount, privacy: .public), failed \(failures.count + applyFailureCount, privacy: .public)."
+        )
+        options.reporter.report(.metadataPhaseComplete(metadataCompletion))
+
+        if options.prefetchImages, !imagePrefetchTargets.isEmpty {
+            libraryMetadataRefreshLogger.info(
+                "Starting image prefetch for refreshed library content."
+            )
+            let imagePrefetchCompletion = await LibraryImageCacheService.prefetchImageTargetsForRefreshPhaseNow(
+                imagePrefetchTargets,
+                reporter: options.reporter
+            )
+            libraryMetadataRefreshLogger.info(
+                "Library info refresh completed with image prefetch state \(self.completionStateLabel(imagePrefetchCompletion.state), privacy: .public)."
+            )
             options.reporter.report(
                 .refreshComplete(
-                    .init(
-                        state: .failed,
-                        messageResource: LocalizedStringResource(stringLiteral: error.localizedDescription)
+                    refreshCompletion(
+                        metadataCompletion: metadataCompletion,
+                        imagePrefetchCompletion: imagePrefetchCompletion
                     )
                 )
             )
-            return
+        } else {
+            if options.prefetchImages {
+                libraryMetadataRefreshLogger.info(
+                    "Skipped image prefetch because no entries refreshed successfully."
+                )
+            } else {
+                libraryMetadataRefreshLogger.info(
+                    "Skipped image prefetch because it was disabled for this refresh."
+                )
+            }
+            options.reporter.report(.refreshComplete(metadataCompletion))
         }
     }
 
