@@ -248,14 +248,14 @@ struct LibraryMetadataRefreshTests {
         hiddenParent.updateDisplayState(false, at: referenceDate(year: 2026, month: 6, day: 5))
         store.repository.insert(hiddenParent)
 
-        try await store.performMetadataRefreshWithoutSyncRecording {
+        try await store.performWithoutSyncRecording {
             try store.repository.save()
         }
 
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
 
         hiddenParent.name = "Frieren: Beyond Journey's End"
-        try await store.performMetadataRefreshWithoutSyncRecording {
+        try await store.performWithoutSyncRecording {
             try store.repository.save()
         }
 
@@ -285,7 +285,7 @@ struct LibraryMetadataRefreshTests {
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
 
         let modelContainer = store.dataProvider.sharedModelContainer
-        try await store.performMetadataRefreshWithoutSyncRecording {
+        try await store.performWithoutSyncRecording {
             let writer = await Task.detached(priority: .utility) {
                 LibraryMetadataRefreshWriter(modelContainer: modelContainer)
             }.value

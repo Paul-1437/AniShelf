@@ -210,12 +210,12 @@ class LibraryStore {
         syncChangeRecorder.rebuildBaseline()
     }
 
-    /// Runs metadata refresh writes without treating their SwiftData saves as local sync edits.
+    /// Runs an async write scope without treating its SwiftData saves as local sync edits.
     ///
-    /// Refresh can write through detached model actors, so callers wrap the whole async refresh
-    /// write instead of only a main-context `repository.save()`. After the write completes, the
-    /// sync recorder baseline is rebuilt from the refreshed store state.
-    func performMetadataRefreshWithoutSyncRecording<T>(_ operation: () async throws -> T) async throws -> T {
+    /// Callers can wrap arbitrary async store mutations here, including work that saves through
+    /// detached model actors rather than only the main-context `repository.save()`. After the
+    /// operation completes, the sync recorder baseline is rebuilt from the resulting store state.
+    func performWithoutSyncRecording<T>(_ operation: () async throws -> T) async throws -> T {
         let result = try await syncChangeRecorder.withSuppressedRecording {
             try await operation()
         }

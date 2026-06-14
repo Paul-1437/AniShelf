@@ -164,7 +164,7 @@ final class LibraryProfileSettingsActions {
                 let metadataRefresher = LibraryMetadataRefresher(
                     repository: store.repository,
                     applyMetadataRefresh: { updates, parentUpdates in
-                        try await store.performMetadataRefreshWithoutSyncRecording {
+                        try await store.performWithoutSyncRecording {
                             try await metadataRefreshWriter.apply(
                                 updates: updates,
                                 parentUpdates: parentUpdates
