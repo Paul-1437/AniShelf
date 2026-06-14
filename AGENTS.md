@@ -28,7 +28,7 @@
 
 - Unit tests live in `MyAnimeList/Tests/` and `DataProvider/Tests/`.
 - Run tests with `make test-sim` by default. Use `make test` only when the user explicitly asks for physical-device testing or there is a specific device-only reason.
-- When developing new features or adding tests, run only the relevant tests first. Pass the desired app suite or test identifier with `APP_TEST_ONLY`, and pass the desired DataProvider filter directly with `DATAPROVIDER_TEST_FILTER`. Only run the full suite when there is a good reason.
+- When developing new features or adding tests, run only the relevant tests first. Pass the desired app suite or test identifier with `APP_TEST_ONLY`, and use `make test-dataprovider DATAPROVIDER_TEST_FILTER=...` for targeted DataProvider package runs. Only run the full suite when there is a good reason.
 - Add or update tests with behavior changes when practical.
 
 ## Commits
