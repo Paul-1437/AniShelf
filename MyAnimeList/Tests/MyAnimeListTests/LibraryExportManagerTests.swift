@@ -19,15 +19,16 @@ struct LibraryExportManagerTests {
             name: "Movie Export",
             type: .movie,
             linkToDetails: URL(string: "https://example.com/movie"),
+            customPosterPath: "/posters/movie-custom.jpg",
             tmdbID: 101,
-            dateSaved: utcDate("2026-05-01T10:15:30Z")
+            dateSaved: utcDate("2026-05-01T10:15:30Z"),
+            usingCustomPoster: true
         )
         movie.onAirDate = utcDate("2024-04-05T00:00:00Z")
         movie.setWatchStatus(.watched)
         movie.setScore(5)
         movie.favorite = true
         movie.notes = "Loved it."
-        movie.usingCustomPoster = true
 
         let season = AnimeEntry(
             name: "Season Export",

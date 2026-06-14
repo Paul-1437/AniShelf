@@ -95,20 +95,20 @@ struct LibraryMetadataRefreshTests {
         let entry = AnimeEntry(
             name: "Cache Test",
             type: .series,
-            posterURL: posterURL,
-            backdropURL: backdropURL,
+            posterPath: "/poster.jpg",
+            backdropPath: "/backdrop.jpg",
             tmdbID: 4
         )
         entry.detail = AnimeEntryDetail(
             language: "en",
             title: "Cache Test",
-            logoImageURL: logoURL,
+            logoImagePath: "/logo.png",
             characters: [
                 AnimeEntryCharacter(
                     id: 1,
                     characterName: "Character",
                     actorName: "Actor",
-                    profileURL: characterURL
+                    profilePath: "/character.jpg"
                 )
             ],
             staff: [
@@ -116,7 +116,7 @@ struct LibraryMetadataRefreshTests {
                     id: 10,
                     name: "Director",
                     role: "Director",
-                    profileURL: staffURL
+                    profilePath: "/staff.jpg"
                 )
             ],
             seasons: [
@@ -124,7 +124,7 @@ struct LibraryMetadataRefreshTests {
                     id: 2,
                     seasonNumber: 1,
                     title: "Season",
-                    posterURL: seasonURL
+                    posterPath: "/season.jpg"
                 )
             ],
             episodes: [
@@ -132,7 +132,7 @@ struct LibraryMetadataRefreshTests {
                     id: 3,
                     episodeNumber: 1,
                     title: "Episode",
-                    imageURL: episodeURL
+                    imagePath: "/episode.jpg"
                 )
             ]
         )

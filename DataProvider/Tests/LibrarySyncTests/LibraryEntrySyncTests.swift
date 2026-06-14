@@ -31,8 +31,9 @@ struct LibraryEntrySyncTests {
             name: "Remote Name",
             overview: "Remote overview",
             type: .series,
-            posterURL: URL(string: "https://image.tmdb.org/t/p/original/custom.jpg"),
-            backdropURL: URL(string: "https://image.tmdb.org/t/p/original/backdrop.jpg"),
+            posterPath: "/remote-base.jpg",
+            backdropPath: "/remote-backdrop.jpg",
+            customPosterPath: "/custom.jpg",
             tmdbID: 101,
             dateSaved: referenceDate(year: 2026, month: 5, day: 10),
             score: 5,
@@ -54,8 +55,8 @@ struct LibraryEntrySyncTests {
             name: "Local Name",
             overview: "Local overview",
             type: .series,
-            posterURL: URL(string: "https://image.tmdb.org/t/p/original/original.jpg"),
-            backdropURL: URL(string: "https://image.tmdb.org/t/p/original/local-backdrop.jpg"),
+            posterPath: "/original.jpg",
+            backdropPath: "/local-backdrop.jpg",
             tmdbID: 101,
             dateSaved: referenceDate(year: 2026, month: 5, day: 1)
         )
@@ -110,7 +111,7 @@ struct LibraryEntrySyncTests {
             favorite: false,
             notes: "Remote stale",
             usingCustomPoster: false,
-            customPosterURL: nil,
+            customPosterPath: nil,
             episodeProgresses: [],
             libraryUpdatedAt: nil,
             trackingUpdatedAt: nil
@@ -401,7 +402,7 @@ struct LibraryEntrySyncTests {
             favorite: local.favorite,
             notes: local.notes,
             usingCustomPoster: false,
-            customPosterURL: nil,
+            customPosterPath: nil,
             episodeProgresses: [],
             libraryUpdatedAt: referenceDate(year: 2026, month: 5, day: 10),
             trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 12)
@@ -451,7 +452,7 @@ struct LibraryEntrySyncTests {
             favorite: favorite,
             notes: notes,
             usingCustomPoster: false,
-            customPosterURL: nil,
+            customPosterPath: nil,
             episodeProgresses: progress,
             libraryUpdatedAt: referenceDate(year: 2026, month: 5, day: libraryDay),
             trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: trackingDay)

@@ -272,6 +272,7 @@ struct LibraryBackupRestoreTests {
         let restoredEntry = AnimeEntry(
             name: "Restored Cloud Library",
             type: .series,
+            customPosterPath: "/posters/restored-custom.jpg",
             tmdbID: 500_001,
             detail: AnimeEntryDetail(
                 language: "en-US",
@@ -308,6 +309,7 @@ struct LibraryBackupRestoreTests {
         #expect(entry.favorite)
         #expect(entry.score == 4)
         #expect(entry.usingCustomPoster)
+        #expect(entry.customPosterPath == "/posters/restored-custom.jpg")
         #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 7)
 
         entry.notes = "Saved after restore"

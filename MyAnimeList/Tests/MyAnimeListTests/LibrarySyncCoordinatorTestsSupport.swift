@@ -273,7 +273,7 @@ func makeSnapshot(
         favorite: false,
         notes: notes,
         usingCustomPoster: false,
-        customPosterURL: nil,
+        customPosterPath: nil,
         episodeProgresses: [],
         libraryUpdatedAt: referenceDate(year: 2026, month: 5, day: 1),
         trackingUpdatedAt: trackingUpdatedAt

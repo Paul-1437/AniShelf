@@ -50,7 +50,7 @@ struct CloudLibrarySyncClientTests {
             favorite: true,
             notes: "Round trip",
             usingCustomPoster: true,
-            customPosterURL: URL(string: "https://image.tmdb.org/t/p/w500/custom.jpg"),
+            customPosterPath: "/custom.jpg",
             episodeProgresses: [
                 .init(
                     seasonNumber: 2,
@@ -87,7 +87,7 @@ struct CloudLibrarySyncClientTests {
         #expect(decoded.customPosterPath == "/legacy/custom.jpg")
     }
 
-    @Test func divergentLegacyCustomPosterURLOverridesStalePath() throws {
+    @Test func divergentLegacyCustomPosterURLOverridesStalePathWhenBothFieldsExist() throws {
         let snapshot = makeSnapshot()
         let record = try client.record(from: snapshot)
         record["usingCustomPoster"] = true
@@ -279,7 +279,7 @@ struct CloudLibrarySyncClientTests {
             favorite: false,
             notes: "Notes",
             usingCustomPoster: false,
-            customPosterURL: nil,
+            customPosterPath: nil,
             episodeProgresses: [
                 .init(
                     seasonNumber: 1,

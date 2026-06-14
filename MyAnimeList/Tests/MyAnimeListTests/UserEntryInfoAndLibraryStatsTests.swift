@@ -297,14 +297,15 @@ struct UserEntryInfoAndLibraryStatsTests {
         let movie = AnimeEntry(
             name: "Movie",
             type: .movie,
+            customPosterPath: "/posters/movie-custom.jpg",
             tmdbID: 1,
             detail: AnimeEntryDetail(language: "en", title: "Movie", runtimeMinutes: 100),
-            dateSaved: referenceDate(year: 2026, month: 1, day: 3)
+            dateSaved: referenceDate(year: 2026, month: 1, day: 3),
+            usingCustomPoster: true
         )
         movie.setWatchStatus(.watched)
         movie.favorite = true
         movie.notes = "Worth rewatching"
-        movie.usingCustomPoster = true
 
         let series = AnimeEntry(
             name: "Series",
