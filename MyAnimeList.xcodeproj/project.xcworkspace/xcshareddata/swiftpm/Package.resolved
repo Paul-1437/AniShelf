@@ -1,5 +1,5 @@
 {
-  "originHash" : "ccbd4476940d88344fb29b55a7d1f7f05079e6472073b45ae3900253fdb90146",
+  "originHash" : "096a652db447d65b14e0d3e9c193e621ce2ad88aeb52a756c99e27b0fd2b0f5b",
   "pins" : [
     {
       "identity" : "alerttoast",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/samuelhe52/AlertToast",
       "state" : {
         "branch" : "master",
-        "revision" : "5a195ae5754e4904c065fd9dce75013a92aac099"
+        "revision" : "b953cc0e9650b9003c2310e54015a9c6f3f33b25"
       }
     },
     {

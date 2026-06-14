@@ -26,17 +26,45 @@ struct LibraryMetadataRefreshParentUpdate: Sendable {
     var parentDetail: AnimeEntryDetailDTO?
 }
 
-@ModelActor
-actor LibraryMetadataRefreshWriter {
+struct LibraryMetadataRefreshWriter: Sendable {
+    private let modelContainer: ModelContainer
+
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
+    }
+
     func apply(
         updates: [LibraryMetadataRefreshUpdate],
         parentUpdates: [LibraryMetadataRefreshParentUpdate]
+    ) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                let modelContext = ModelContext(modelContainer)
+                do {
+                    try apply(
+                        updates: updates,
+                        parentUpdates: parentUpdates,
+                        in: modelContext
+                    )
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func apply(
+        updates: [LibraryMetadataRefreshUpdate],
+        parentUpdates: [LibraryMetadataRefreshParentUpdate],
+        in modelContext: ModelContext
     ) throws {
+        assert(!Thread.isMainThread, "Metadata refresh should not run on the main thread.")
         do {
             var entriesByID: [PersistentIdentifier: AnimeEntry] = [:]
 
             for update in updates {
-                guard let entry = try entry(for: update.entryID) else { continue }
+                guard let entry = try entry(for: update.entryID, in: modelContext) else { continue }
                 entriesByID[update.entryID] = entry
                 entry.replaceMetadata(
                     from: update.info,
@@ -53,7 +81,7 @@ actor LibraryMetadataRefreshWriter {
                 if let cachedEntry = entriesByID[parentUpdate.childEntryID] {
                     fetchedChildEntry = cachedEntry
                 } else {
-                    fetchedChildEntry = try entry(for: parentUpdate.childEntryID)
+                    fetchedChildEntry = try entry(for: parentUpdate.childEntryID, in: modelContext)
                 }
 
                 guard let childEntry = fetchedChildEntry else { continue }
@@ -63,7 +91,10 @@ actor LibraryMetadataRefreshWriter {
                 }
 
                 let parentEntry: AnimeEntry?
-                if let existingParent = try existingEntry(tmdbID: parentUpdate.parentSeriesID) {
+                if let existingParent = try existingEntry(
+                    tmdbID: parentUpdate.parentSeriesID,
+                    in: modelContext
+                ) {
                     parentEntry = existingParent
                 } else if let parentInfo = parentUpdate.parentInfo,
                     let parentDetail = parentUpdate.parentDetail
@@ -89,7 +120,10 @@ actor LibraryMetadataRefreshWriter {
         }
     }
 
-    private func entry(for id: PersistentIdentifier) throws -> AnimeEntry? {
+    private func entry(
+        for id: PersistentIdentifier,
+        in modelContext: ModelContext
+    ) throws -> AnimeEntry? {
         var descriptor = FetchDescriptor(
             predicate: #Predicate<AnimeEntry> { entry in
                 entry.persistentModelID == id
@@ -99,7 +133,10 @@ actor LibraryMetadataRefreshWriter {
         return try modelContext.fetch(descriptor).first
     }
 
-    private func existingEntry(tmdbID: Int) throws -> AnimeEntry? {
+    private func existingEntry(
+        tmdbID: Int,
+        in modelContext: ModelContext
+    ) throws -> AnimeEntry? {
         var descriptor = FetchDescriptor(
             predicate: #Predicate<AnimeEntry> { entry in
                 entry.tmdbID == tmdbID

@@ -304,9 +304,9 @@ struct LibraryMetadataRefreshTests {
 
         let modelContainer = store.dataProvider.sharedModelContainer
         try await store.performWithoutSyncRecording {
-            let writer = await Task.detached(priority: .utility) {
-                LibraryMetadataRefreshWriter(modelContainer: modelContainer)
-            }.value
+            let writer = LibraryMetadataRefreshWriter(
+                modelContainer: modelContainer
+            )
             try await writer.apply(
                 updates: [
                     .init(
@@ -424,11 +424,11 @@ struct LibraryMetadataRefreshTests {
         #expect(store.library.map(\.tmdbID) == [209_867])
     }
 
-    @Test @MainActor func testRefreshInfosReportsPartialCompletionAfterLaterChunkSaveFailure()
+    @Test @MainActor func testRefreshInfosReportsFailureForFailedChunkAndSkippedRemainderAfterSaveFailure()
         async throws
     {
         let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
-        let library = (1...9).map { index in
+        let library = (1...17).map { index in
             AnimeEntry(
                 name: "Movie \(index)",
                 type: .movie,
@@ -461,7 +461,8 @@ struct LibraryMetadataRefreshTests {
                 if applyCallCount == 2 {
                     throw TestApplyError.failed
                 }
-                #expect(updates.count == 8)
+                let expectedUpdateCount = 8
+                #expect(updates.count == expectedUpdateCount)
             }
         )
 
@@ -479,15 +480,86 @@ struct LibraryMetadataRefreshTests {
         #expect(completions.count == 1)
         #expect(completions[0].state == .partialComplete)
         #expect(completions[0].successfulItemCount == 8)
-        #expect(completions[0].failedItemCount == 1)
+        #expect(completions[0].failedItemCount == 9)
+    }
+
+    @Test @MainActor func testRefreshInfosDoesNotStartNextChunkBeforeCurrentChunkCompletes()
+        async throws
+    {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let library = (1...9).map { index in
+            AnimeEntry(
+                name: "Movie \(index)",
+                type: .movie,
+                tmdbID: index
+            )
+        }
+        for entry in library {
+            try repository.newEntry(entry)
+        }
+
+        let probe = MetadataFetchConcurrencyProbe()
+        let httpClient = RecordingTMDbHTTPClient { request in
+            try await probe.recordRequest(path: request.url.path)
+            return HTTPResponse(data: libraryMetadataRefreshFixtureData(for: request.url.path))
+        }
+        let fetcher = InfoFetcher(
+            client: TMDbClient(
+                apiKey: "test-key",
+                httpClient: httpClient,
+                configuration: .default
+            ),
+            fetchTranslationResponseData: { path in
+                try await probe.recordRequest(path: path)
+                return libraryMetadataRefreshFixtureData(for: path)
+            }
+        )
+        let refresher = LibraryMetadataRefresher(
+            repository: repository,
+            applyMetadataRefresh: { updates, _ in
+                #expect(updates.count <= 8)
+            }
+        )
+
+        await refresher.refreshInfos(
+            for: library,
+            fetcher: fetcher,
+            language: .english,
+            options: .init(
+                reporter: .silent,
+                prefetchImages: false
+            )
+        )
+
+        #expect(!(await probe.startedNinthMovieBeforeFirstMovieReturned))
     }
 }
 
-private enum TestApplyError: Error {
+fileprivate enum TestApplyError: Error {
     case failed
 }
 
-private func makeLibraryMetadataRefreshTestFetcher() -> InfoFetcher {
+private actor MetadataFetchConcurrencyProbe {
+    private var firstMovieReturned = false
+    private var ninthMovieStartedBeforeFirstMovieReturned = false
+
+    var startedNinthMovieBeforeFirstMovieReturned: Bool {
+        ninthMovieStartedBeforeFirstMovieReturned
+    }
+
+    func recordRequest(path: String) async throws {
+        if path == "/3/movie/9", !firstMovieReturned {
+            ninthMovieStartedBeforeFirstMovieReturned = true
+        }
+
+        if path == "/3/movie/1" {
+            try await Task.sleep(nanoseconds: 250_000_000)
+            firstMovieReturned = true
+        }
+    }
+}
+
+fileprivate func makeLibraryMetadataRefreshTestFetcher() -> InfoFetcher {
     let httpClient = RecordingTMDbHTTPClient { request in
         HTTPResponse(data: libraryMetadataRefreshFixtureData(for: request.url.path))
     }
@@ -504,7 +576,7 @@ private func makeLibraryMetadataRefreshTestFetcher() -> InfoFetcher {
     )
 }
 
-private func libraryMetadataRefreshFixtureData(for path: String) -> Data {
+fileprivate func libraryMetadataRefreshFixtureData(for path: String) -> Data {
     switch path {
     case "/3/configuration":
         Data(

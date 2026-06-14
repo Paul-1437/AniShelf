@@ -9,6 +9,9 @@ fileprivate let libraryMetadataRefreshLogger = Logger(
     category: "LibraryMetadataRefresh"
 )
 
+fileprivate let metadataFetchConcurrencyLimit = 8
+fileprivate let metadataWriteChunkSize = 8
+
 @MainActor
 final class LibraryMetadataRefresher {
     private struct LatestInfoFailure {
@@ -20,6 +23,13 @@ final class LibraryMetadataRefresher {
     private enum LatestInfoFetchOutcome {
         case success(PersistentIdentifier, EntryMetadata, AnimeEntryDetailDTO)
         case failure(LatestInfoFailure)
+    }
+
+    private struct LatestInfoFetchRequest: Sendable {
+        let entryID: PersistentIdentifier
+        let tmdbID: Int
+        let name: String
+        let type: AnimeType
     }
 
     private let repository: LibraryRepository
@@ -59,15 +69,16 @@ final class LibraryMetadataRefresher {
         var imagePrefetchTargets: [LibraryImageCacheService.ImagePrefetchTarget] = []
         var failures: [LatestInfoFailure] = []
         var applyFailureCount = 0
-        let totalCount = library.count
 
-        let chunks = chunkedEntries(library, chunkSize: 8)
+        let totalCount = library.count
+        let chunks = chunkedEntries(library, chunkSize: metadataWriteChunkSize)
         for (chunkIndex, chunk) in chunks.enumerated() {
             libraryMetadataRefreshLogger.debug(
                 "Refreshing metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public) containing \(chunk.count, privacy: .public) entries."
             )
+
             let chunkInfos = await latestInfoForEntries(
-                entries: chunk,
+                entries: Array(chunk),
                 fetcher: fetcher,
                 language: language,
                 updateProgress: { current, _ in
@@ -79,7 +90,8 @@ final class LibraryMetadataRefresher {
                             messageResource: "Fetching Info: \(resolvedCurrent) / \(totalCount)"
                         )
                     )
-                })
+                },
+            )
             failures.append(contentsOf: chunkInfos.failures)
             libraryMetadataRefreshLogger.info(
                 "Finished metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public): refreshed \(chunkInfos.successes.count, privacy: .public), failed \(chunkInfos.failures.count, privacy: .public)."
@@ -87,14 +99,11 @@ final class LibraryMetadataRefresher {
 
             guard !chunkInfos.successes.isEmpty else { continue }
 
-            libraryMetadataRefreshLogger.info(
-                "Applying refreshed metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public) for \(chunkInfos.successes.count, privacy: .public) entries."
-            )
-
             var updates: [LibraryMetadataRefreshUpdate] = []
             var parentUpdates: [LibraryMetadataRefreshParentUpdate] = []
             var chunkImagePrefetchTargets: [LibraryImageCacheService.ImagePrefetchTarget] = []
             updates.reserveCapacity(chunkInfos.successes.count)
+
             for (id, info, detailDTO) in chunkInfos.successes {
                 if let entry = library[id] {
                     let update = LibraryMetadataRefreshUpdate(
@@ -107,10 +116,10 @@ final class LibraryMetadataRefresher {
                     updates.append(update)
                     if options.prefetchImages {
                         chunkImagePrefetchTargets.append(
-                            contentsOf: imagePrefetchTargetsForRefreshPhase(from: update)
+                            contentsOf: self.imagePrefetchTargetsForRefreshPhase(from: update)
                         )
                     }
-                    if let parentUpdate = await parentSeriesUpdate(
+                    if let parentUpdate = await self.parentSeriesUpdate(
                         for: entry,
                         refreshedInfo: info,
                         fetcher: fetcher,
@@ -124,7 +133,8 @@ final class LibraryMetadataRefresher {
             do {
                 try await applyMetadataRefresh(updates, parentUpdates)
             } catch {
-                applyFailureCount += updates.count
+                let remainingEntryCount = totalCount - (refreshedCount + failures.count + updates.count)
+                applyFailureCount += updates.count + max(remainingEntryCount, 0)
                 libraryMetadataRefreshLogger.error(
                     "Failed applying metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )
@@ -298,8 +308,8 @@ final class LibraryMetadataRefresher {
         return chunks
     }
 
-    private func latestInfoForEntries<C: Collection<AnimeEntry>>(
-        entries: C,
+    private func latestInfoForEntries(
+        entries: [AnimeEntry],
         fetcher: InfoFetcher,
         language: Language,
         updateProgress: @escaping (Int, Int) -> Void
@@ -320,7 +330,7 @@ final class LibraryMetadataRefresher {
                 let type = entry.type
                 group.addTask {
                     do {
-                        let latestInfo = try await self.fetchLatestInfo(
+                        let latestInfo = try await Self.fetchLatestInfo(
                             entryID: entryID,
                             tmdbID: tmdbID,
                             entryType: type,
@@ -354,7 +364,7 @@ final class LibraryMetadataRefresher {
         }
     }
 
-    private func fetchLatestInfo(
+    nonisolated private static func fetchLatestInfo(
         entryID: PersistentIdentifier,
         tmdbID: Int,
         entryType: AnimeType,

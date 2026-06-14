@@ -158,9 +158,9 @@ final class LibraryProfileSettingsActions {
         let modelContainer = store.dataProvider.sharedModelContainer
         Task {
             do {
-                let metadataRefreshWriter = await Task.detached(priority: .medium) {
-                    LibraryMetadataRefreshWriter(modelContainer: modelContainer)
-                }.value
+                let metadataRefreshWriter = LibraryMetadataRefreshWriter(
+                    modelContainer: modelContainer
+                )
                 let metadataRefresher = LibraryMetadataRefresher(
                     repository: store.repository,
                     applyMetadataRefresh: { updates, parentUpdates in
