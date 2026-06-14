@@ -34,7 +34,8 @@ final class LibraryMetadataRefresher {
 
     private let repository: LibraryRepository
     private let applyMetadataRefresh:
-        ([LibraryMetadataRefreshUpdate], [LibraryMetadataRefreshParentUpdate]) async throws -> Void
+        ([LibraryMetadataRefreshUpdate], [LibraryMetadataRefreshParentUpdate]) async throws
+            -> LibraryMetadataRefreshApplyResult
 
     init(
         repository: LibraryRepository,
@@ -42,7 +43,7 @@ final class LibraryMetadataRefresher {
             @escaping (
                 [LibraryMetadataRefreshUpdate],
                 [LibraryMetadataRefreshParentUpdate]
-            ) async throws -> Void
+            ) async throws -> LibraryMetadataRefreshApplyResult
     ) {
         self.repository = repository
         self.applyMetadataRefresh = applyMetadataRefresh
@@ -66,6 +67,8 @@ final class LibraryMetadataRefresher {
         )
 
         var refreshedCount = 0
+        var writtenCount = 0
+        var skippedCount = 0
         var imagePrefetchTargets: [LibraryImageCacheService.ImagePrefetchTarget] = []
         var failures: [LatestInfoFailure] = []
         var applyFailureCount = 0
@@ -131,7 +134,12 @@ final class LibraryMetadataRefresher {
             }
 
             do {
-                try await applyMetadataRefresh(updates, parentUpdates)
+                let applyResult = try await applyMetadataRefresh(updates, parentUpdates)
+                writtenCount += applyResult.writtenCount
+                skippedCount += applyResult.skippedCount
+                libraryMetadataRefreshLogger.info(
+                    "Applied metadata chunk \(chunkIndex + 1, privacy: .public) of \(chunks.count, privacy: .public): written \(applyResult.writtenCount, privacy: .public), skipped \(applyResult.skippedCount, privacy: .public)."
+                )
             } catch {
                 let remainingEntryCount = totalCount - (refreshedCount + failures.count + updates.count)
                 applyFailureCount += updates.count + max(remainingEntryCount, 0)
@@ -145,14 +153,15 @@ final class LibraryMetadataRefresher {
             imagePrefetchTargets.append(contentsOf: chunkImagePrefetchTargets)
         }
         libraryMetadataRefreshLogger.info(
-            "Saved library metadata refresh results for \(refreshedCount, privacy: .public) refreshed entries."
+            "Saved library metadata refresh results for \(writtenCount, privacy: .public) entries and skipped \(skippedCount, privacy: .public)."
         )
         let metadataCompletion = metadataCompletion(
-            refreshedCount: refreshedCount,
+            writtenCount: writtenCount,
+            skippedCount: skippedCount,
             failureCount: failures.count + applyFailureCount
         )
         libraryMetadataRefreshLogger.info(
-            "Library metadata refresh completed with state \(self.completionStateLabel(metadataCompletion.state), privacy: .public): refreshed \(refreshedCount, privacy: .public), failed \(failures.count + applyFailureCount, privacy: .public)."
+            "Library metadata refresh completed with state \(self.completionStateLabel(metadataCompletion.state), privacy: .public): refreshed \(refreshedCount, privacy: .public), written \(writtenCount, privacy: .public), skipped \(skippedCount, privacy: .public), failed \(failures.count + applyFailureCount, privacy: .public)."
         )
         options.reporter.report(.metadataPhaseComplete(metadataCompletion))
 
@@ -206,28 +215,45 @@ final class LibraryMetadataRefresher {
     }
 
     private func metadataCompletion(
-        refreshedCount: Int,
+        writtenCount: Int,
+        skippedCount: Int,
         failureCount: Int
     ) -> LibraryRefreshCompletion {
         if failureCount == 0 {
+            if writtenCount == 0, skippedCount > 0 {
+                return .init(
+                    state: .completed,
+                    messageResource: "Metadata was already up to date.",
+                    successfulItemCount: writtenCount,
+                    failedItemCount: failureCount
+                )
+            }
+
             return .init(
                 state: .completed,
-                messageResource: "Refreshed infos for \(refreshedCount) entries.",
-                successfulItemCount: refreshedCount,
+                messageResource: "Refreshed infos for \(writtenCount) entries.",
+                successfulItemCount: writtenCount,
                 failedItemCount: failureCount
             )
-        } else if refreshedCount == 0 {
+        } else if writtenCount == 0, skippedCount == 0 {
             return .init(
                 state: .failed,
                 messageResource: "Failed to refresh \(failureCount) entries.",
-                successfulItemCount: refreshedCount,
+                successfulItemCount: writtenCount,
+                failedItemCount: failureCount
+            )
+        } else if writtenCount == 0 {
+            return .init(
+                state: .partialComplete,
+                messageResource: "Failed to refresh \(failureCount) entries.",
+                successfulItemCount: writtenCount,
                 failedItemCount: failureCount
             )
         } else {
             return .init(
                 state: .partialComplete,
-                messageResource: "Refreshed \(refreshedCount) entries, failed \(failureCount).",
-                successfulItemCount: refreshedCount,
+                messageResource: "Refreshed \(writtenCount) entries, failed \(failureCount).",
+                successfulItemCount: writtenCount,
                 failedItemCount: failureCount
             )
         }
@@ -245,10 +271,21 @@ final class LibraryMetadataRefresher {
         let messageResource: LocalizedStringResource
         switch (metadataFailureCount, imageFailureCount) {
         case (0, 0):
-            messageResource = "Refreshed \(refreshedCount) entries and fetched \(fetchedImageCount) images."
+            if refreshedCount == 0 {
+                messageResource =
+                    "Metadata was already up to date. Fetched \(fetchedImageCount) images."
+            } else {
+                messageResource =
+                    "Refreshed \(refreshedCount) entries and fetched \(fetchedImageCount) images."
+            }
         case (0, _):
-            messageResource =
-                "Refreshed \(refreshedCount) entries. Fetched \(fetchedImageCount) images, failed \(imageFailureCount)."
+            if refreshedCount == 0 {
+                messageResource =
+                    "Metadata was already up to date. Fetched \(fetchedImageCount) images, failed \(imageFailureCount)."
+            } else {
+                messageResource =
+                    "Refreshed \(refreshedCount) entries. Fetched \(fetchedImageCount) images, failed \(imageFailureCount)."
+            }
         case (_, 0):
             messageResource =
                 "Refreshed \(refreshedCount) entries, failed \(metadataFailureCount). Fetched \(fetchedImageCount) images."
@@ -262,7 +299,9 @@ final class LibraryMetadataRefresher {
                 metadataState: metadataCompletion.state,
                 imagePrefetchState: imagePrefetchCompletion.state
             ),
-            messageResource: messageResource
+            messageResource: messageResource,
+            successfulItemCount: refreshedCount,
+            failedItemCount: metadataFailureCount
         )
     }
 

@@ -26,6 +26,11 @@ struct LibraryMetadataRefreshParentUpdate: Sendable {
     var parentDetail: AnimeEntryDetailDTO?
 }
 
+struct LibraryMetadataRefreshApplyResult: Sendable {
+    var writtenCount: Int
+    var skippedCount: Int
+}
+
 struct LibraryMetadataRefreshWriter: Sendable {
     private let modelContainer: ModelContainer
 
@@ -36,17 +41,17 @@ struct LibraryMetadataRefreshWriter: Sendable {
     func apply(
         updates: [LibraryMetadataRefreshUpdate],
         parentUpdates: [LibraryMetadataRefreshParentUpdate]
-    ) async throws {
+    ) async throws -> LibraryMetadataRefreshApplyResult {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 let modelContext = ModelContext(modelContainer)
                 do {
-                    try apply(
+                    let result = try apply(
                         updates: updates,
                         parentUpdates: parentUpdates,
                         in: modelContext
                     )
-                    continuation.resume()
+                    continuation.resume(returning: result)
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -58,22 +63,46 @@ struct LibraryMetadataRefreshWriter: Sendable {
         updates: [LibraryMetadataRefreshUpdate],
         parentUpdates: [LibraryMetadataRefreshParentUpdate],
         in modelContext: ModelContext
-    ) throws {
+    ) throws -> LibraryMetadataRefreshApplyResult {
         assert(!Thread.isMainThread, "Metadata refresh should not run on the main thread.")
         do {
             var entriesByID: [PersistentIdentifier: AnimeEntry] = [:]
+            var hasChanges = false
+            var skippedIDs: Set<PersistentIdentifier> = []
+            var writtenIDs: Set<PersistentIdentifier> = []
 
             for update in updates {
                 guard let entry = try entry(for: update.entryID, in: modelContext) else { continue }
                 entriesByID[update.entryID] = entry
-                entry.replaceMetadata(
-                    from: update.info,
-                    preservingCustomPoster: update.preservingCustomPoster
+
+                let metadataChanged = !entry.matchesRefreshMetadata(update.info)
+                let detailChanged = !LibraryMetadataRefreshDetailComparator.matches(
+                    existing: entry.detail,
+                    fetched: update.detail
                 )
-                entry.replaceDetail(from: update.detail)
-                if update.info.type.parentSeriesID == nil {
+                let shouldClearParent =
+                    update.info.type.parentSeriesID == nil
+                    && entry.parentSeriesEntry != nil
+
+                guard metadataChanged || detailChanged || shouldClearParent else {
+                    skippedIDs.insert(update.entryID)
+                    continue
+                }
+
+                if metadataChanged {
+                    entry.replaceMetadata(
+                        from: update.info,
+                        preservingCustomPoster: update.preservingCustomPoster
+                    )
+                }
+                if detailChanged {
+                    entry.replaceDetail(from: update.detail)
+                }
+                if shouldClearParent {
                     entry.parentSeriesEntry = nil
                 }
+                hasChanges = true
+                writtenIDs.insert(update.entryID)
             }
 
             for parentUpdate in parentUpdates {
@@ -110,10 +139,19 @@ struct LibraryMetadataRefreshWriter: Sendable {
 
                 if let parentEntry {
                     childEntry.parentSeriesEntry = parentEntry
+                    hasChanges = true
+                    skippedIDs.remove(parentUpdate.childEntryID)
+                    writtenIDs.insert(parentUpdate.childEntryID)
                 }
             }
 
-            try modelContext.save()
+            if hasChanges {
+                try modelContext.save()
+            }
+            return LibraryMetadataRefreshApplyResult(
+                writtenCount: writtenIDs.count,
+                skippedCount: skippedIDs.count
+            )
         } catch {
             modelContext.rollback()
             throw error
@@ -166,5 +204,17 @@ struct LibraryMetadataRefreshWriter: Sendable {
         }
 
         return lhs.name < rhs.name
+    }
+}
+
+extension AnimeEntry {
+    fileprivate func matchesRefreshMetadata(_ info: EntryMetadata) -> Bool {
+        var persistedMetadata = entryMetadata
+        var fetchedMetadata = info
+        // Entry-level metadata does not persist logos; refreshed logos are compared through
+        // AnimeEntryDetail.logoImagePath instead.
+        persistedMetadata.logoPath = nil
+        fetchedMetadata.logoPath = nil
+        return persistedMetadata == fetchedMetadata
     }
 }

@@ -3561,6 +3561,66 @@
         }
       }
     },
+    "Metadata was already up to date." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メタデータはすでに最新です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元数据已是最新"
+          }
+        }
+      }
+    },
+    "Metadata was already up to date. Fetched %lld images, failed %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metadata was already up to date. Fetched %1$lld images, failed %2$lld."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メタデータはすでに最新です。%1$lld 件の画像を取得しましたが、%2$lld 件は失敗しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元数据已是最新。已获取 %1$lld 张图片，%2$lld 张失败"
+          }
+        }
+      }
+    },
+    "Metadata was already up to date. Fetched %lld images." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metadata was already up to date. Fetched %1$lld images."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メタデータはすでに最新です。%1$lld 件の画像を取得しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元数据已是最新。已获取 %1$lld 张图片"
+          }
+        }
+      }
+    },
     "Movie" : {
       "localizations" : {
         "ja" : {

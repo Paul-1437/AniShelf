@@ -14,6 +14,238 @@ import Testing
 @testable import MyAnimeList
 
 struct LibraryMetadataRefreshTests {
+    @Test @MainActor func testDetailComparatorTreatsReorderedEquivalentPayloadsAsEqual() throws {
+        let persisted = AnimeEntryDetail(
+            language: "en-US",
+            title: "Frieren",
+            subtitle: "Season 1",
+            overview: "Elf mage travels onward.",
+            status: "Ended",
+            airDate: referenceDate(year: 2026, month: 6, day: 1),
+            primaryLinkURL: URL(string: "https://example.com/frieren"),
+            logoImagePath: "/logos/frieren.png",
+            genreIDs: [16, 10765],
+            voteAverage: 8.9,
+            runtimeMinutes: 24,
+            episodeCount: 28,
+            seasonCount: 1,
+            characters: [
+                AnimeEntryCharacter(
+                    id: 2,
+                    characterName: "Fern",
+                    actorName: "Kana Ichinose",
+                    profilePath: "/profiles/fern.jpg",
+                    displayOrder: 0
+                ),
+                AnimeEntryCharacter(
+                    id: 1,
+                    characterName: "Frieren",
+                    actorName: "Atsumi Tanezaki",
+                    profilePath: "/profiles/frieren.jpg",
+                    displayOrder: 1
+                )
+            ],
+            staff: [
+                AnimeEntryStaff(
+                    id: 11,
+                    name: "Tomohiro Suzuki",
+                    role: "Series Composition",
+                    department: "Writing",
+                    profilePath: "/staff/writer.jpg",
+                    jobs: [
+                        AnimeEntryStaffJob(
+                            creditID: "writer-main",
+                            job: "Writer",
+                            episodeCount: 28,
+                            displayOrder: 0
+                        )
+                    ],
+                    displayOrder: 0
+                ),
+                AnimeEntryStaff(
+                    id: 10,
+                    name: "Keiichiro Saito",
+                    role: "Director",
+                    department: "Directing",
+                    profilePath: "/staff/director.jpg",
+                    jobs: [
+                        AnimeEntryStaffJob(
+                            creditID: "director-secondary",
+                            job: "Storyboard",
+                            episodeCount: 4,
+                            displayOrder: 0
+                        ),
+                        AnimeEntryStaffJob(
+                            creditID: "director-main",
+                            job: "Director",
+                            episodeCount: 28,
+                            displayOrder: 1
+                        )
+                    ],
+                    displayOrder: 1
+                )
+            ],
+            seasons: [
+                AnimeEntrySeasonSummary(
+                    id: 100,
+                    seasonNumber: 1,
+                    title: "Season 1",
+                    posterPath: "/seasons/1.jpg",
+                    episodeCount: 28
+                ),
+                AnimeEntrySeasonSummary(
+                    id: 101,
+                    seasonNumber: 0,
+                    title: "Specials",
+                    posterPath: "/seasons/0.jpg",
+                    episodeCount: 2
+                )
+            ],
+            episodes: [
+                AnimeEntryEpisodeSummary(
+                    id: 1001,
+                    episodeNumber: 2,
+                    title: "A Better Start",
+                    airDate: referenceDate(year: 2026, month: 6, day: 3),
+                    imagePath: "/episodes/2.jpg",
+                    displayOrder: 0
+                ),
+                AnimeEntryEpisodeSummary(
+                    id: 1000,
+                    episodeNumber: 1,
+                    title: "The Journey's End",
+                    airDate: referenceDate(year: 2026, month: 6, day: 2),
+                    imagePath: "/episodes/1.jpg",
+                    displayOrder: 1
+                )
+            ]
+        )
+
+        let fetched = AnimeEntryDetailDTO(
+            language: "en-US",
+            title: "Frieren",
+            subtitle: "Season 1",
+            overview: "Elf mage travels onward.",
+            status: "Ended",
+            airDate: referenceDate(year: 2026, month: 6, day: 1),
+            primaryLinkURL: URL(string: "https://example.com/frieren"),
+            logoImagePath: "/logos/frieren.png",
+            genreIDs: [10765, 16],
+            voteAverage: 8.9,
+            runtimeMinutes: 24,
+            episodeCount: 28,
+            seasonCount: 1,
+            characters: [
+                AnimeEntryCharacterDTO(
+                    id: 1,
+                    characterName: "Frieren",
+                    actorName: "Atsumi Tanezaki",
+                    profilePath: "/profiles/frieren.jpg"
+                ),
+                AnimeEntryCharacterDTO(
+                    id: 2,
+                    characterName: "Fern",
+                    actorName: "Kana Ichinose",
+                    profilePath: "/profiles/fern.jpg"
+                )
+            ],
+            staff: [
+                AnimeEntryStaffDTO(
+                    id: 10,
+                    name: "Keiichiro Saito",
+                    role: "Director",
+                    department: "Directing",
+                    profilePath: "/staff/director.jpg",
+                    jobs: [
+                        AnimeEntryStaffJobDTO(
+                            creditID: "director-main",
+                            job: "Director",
+                            episodeCount: 28
+                        ),
+                        AnimeEntryStaffJobDTO(
+                            creditID: "director-secondary",
+                            job: "Storyboard",
+                            episodeCount: 4
+                        )
+                    ]
+                ),
+                AnimeEntryStaffDTO(
+                    id: 11,
+                    name: "Tomohiro Suzuki",
+                    role: "Series Composition",
+                    department: "Writing",
+                    profilePath: "/staff/writer.jpg",
+                    jobs: [
+                        AnimeEntryStaffJobDTO(
+                            creditID: "writer-main",
+                            job: "Writer",
+                            episodeCount: 28
+                        )
+                    ]
+                )
+            ],
+            seasons: [
+                AnimeEntrySeasonSummaryDTO(
+                    id: 101,
+                    seasonNumber: 0,
+                    title: "Specials",
+                    posterPath: "/seasons/0.jpg",
+                    episodeCount: 2
+                ),
+                AnimeEntrySeasonSummaryDTO(
+                    id: 100,
+                    seasonNumber: 1,
+                    title: "Season 1",
+                    posterPath: "/seasons/1.jpg",
+                    episodeCount: 28
+                )
+            ],
+            episodes: [
+                AnimeEntryEpisodeSummaryDTO(
+                    id: 1000,
+                    episodeNumber: 1,
+                    title: "The Journey's End",
+                    airDate: referenceDate(year: 2026, month: 6, day: 2),
+                    imagePath: "/episodes/1.jpg"
+                ),
+                AnimeEntryEpisodeSummaryDTO(
+                    id: 1001,
+                    episodeNumber: 2,
+                    title: "A Better Start",
+                    airDate: referenceDate(year: 2026, month: 6, day: 3),
+                    imagePath: "/episodes/2.jpg"
+                )
+            ]
+        )
+
+        #expect(
+            LibraryMetadataRefreshDetailComparator.matches(
+                existing: persisted,
+                fetched: fetched
+            )
+        )
+    }
+
+    @Test @MainActor func testDetailComparatorDetectsSemanticDifferences() throws {
+        let persisted = AnimeEntryDetail(
+            language: "en-US",
+            title: "Frieren",
+            runtimeMinutes: 24
+        )
+        let fetched = AnimeEntryDetailDTO(
+            language: "en-US",
+            title: "Frieren",
+            runtimeMinutes: 25
+        )
+
+        #expect(
+            !LibraryMetadataRefreshDetailComparator.matches(
+                existing: persisted,
+                fetched: fetched
+            )
+        )
+    }
+
     @Test @MainActor func testLibraryImageCacheBuildsCorePrefetchTargets() throws {
         let posterURL = try #require(URL(string: "https://example.com/poster.jpg"))
         let backdropURL = try #require(URL(string: "https://example.com/backdrop.jpg"))
@@ -307,7 +539,7 @@ struct LibraryMetadataRefreshTests {
             let writer = LibraryMetadataRefreshWriter(
                 modelContainer: modelContainer
             )
-            try await writer.apply(
+            let result = try await writer.apply(
                 updates: [
                     .init(
                         entryID: child.id,
@@ -355,6 +587,8 @@ struct LibraryMetadataRefreshTests {
                     )
                 ]
             )
+            #expect(result.writtenCount == 1)
+            #expect(result.skippedCount == 0)
         }
         try store.refreshLibrary()
 
@@ -375,6 +609,326 @@ struct LibraryMetadataRefreshTests {
         #expect(refreshedChild.parentSeriesEntry?.tmdbID == 300)
         #expect(insertedParent.onDisplay == false)
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+    }
+
+    @Test @MainActor func testBackgroundMetadataRefreshWriterSkipsEquivalentDetailWrites()
+        async throws
+    {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let persistedDetailDTO = AnimeEntryDetailDTO(
+            language: "en-US",
+            title: "Frieren",
+            subtitle: "Season 1",
+            overview: "Elf mage travels onward.",
+            status: "Ended",
+            airDate: referenceDate(year: 2026, month: 6, day: 1),
+            primaryLinkURL: URL(string: "https://example.com/frieren"),
+            logoImagePath: "/logos/frieren.png",
+            genreIDs: [16, 10765],
+            voteAverage: 8.9,
+            runtimeMinutes: 24,
+            episodeCount: 28,
+            seasonCount: 1,
+            characters: [
+                AnimeEntryCharacterDTO(
+                    id: 2,
+                    characterName: "Fern",
+                    actorName: "Kana Ichinose",
+                    profilePath: "/profiles/fern.jpg"
+                ),
+                AnimeEntryCharacterDTO(
+                    id: 1,
+                    characterName: "Frieren",
+                    actorName: "Atsumi Tanezaki",
+                    profilePath: "/profiles/frieren.jpg"
+                )
+            ],
+            staff: [
+                AnimeEntryStaffDTO(
+                    id: 11,
+                    name: "Tomohiro Suzuki",
+                    role: "Series Composition",
+                    department: "Writing",
+                    profilePath: "/staff/writer.jpg",
+                    jobs: [
+                        AnimeEntryStaffJobDTO(
+                            creditID: "writer-main",
+                            job: "Writer",
+                            episodeCount: 28
+                        )
+                    ]
+                ),
+                AnimeEntryStaffDTO(
+                    id: 10,
+                    name: "Keiichiro Saito",
+                    role: "Director",
+                    department: "Directing",
+                    profilePath: "/staff/director.jpg",
+                    jobs: [
+                        AnimeEntryStaffJobDTO(
+                            creditID: "director-secondary",
+                            job: "Storyboard",
+                            episodeCount: 4
+                        ),
+                        AnimeEntryStaffJobDTO(
+                            creditID: "director-main",
+                            job: "Director",
+                            episodeCount: 28
+                        )
+                    ]
+                )
+            ],
+            seasons: [
+                AnimeEntrySeasonSummaryDTO(
+                    id: 101,
+                    seasonNumber: 0,
+                    title: "Specials",
+                    posterPath: "/seasons/0.jpg",
+                    episodeCount: 2
+                ),
+                AnimeEntrySeasonSummaryDTO(
+                    id: 100,
+                    seasonNumber: 1,
+                    title: "Season 1",
+                    posterPath: "/seasons/1.jpg",
+                    episodeCount: 28
+                )
+            ],
+            episodes: [
+                AnimeEntryEpisodeSummaryDTO(
+                    id: 1001,
+                    episodeNumber: 2,
+                    title: "A Better Start",
+                    airDate: referenceDate(year: 2026, month: 6, day: 3),
+                    imagePath: "/episodes/2.jpg"
+                ),
+                AnimeEntryEpisodeSummaryDTO(
+                    id: 1000,
+                    episodeNumber: 1,
+                    title: "The Journey's End",
+                    airDate: referenceDate(year: 2026, month: 6, day: 2),
+                    imagePath: "/episodes/1.jpg"
+                )
+            ]
+        )
+        let entry = AnimeEntry(
+            name: "Frieren",
+            nameTranslations: ["en-US": "Frieren"],
+            overview: "Elf mage travels onward.",
+            overviewTranslations: ["en-US": "Elf mage travels onward."],
+            onAirDate: referenceDate(year: 2026, month: 6, day: 1),
+            type: .series,
+            linkToDetails: URL(string: "https://example.com/frieren"),
+            posterPath: "/posters/frieren.jpg",
+            backdropPath: "/backdrops/frieren.jpg",
+            tmdbID: 209_867,
+            originalLanguageCode: "ja"
+        )
+        entry.replaceDetail(from: persistedDetailDTO)
+
+        try store.repository.newEntry(entry)
+
+        let originalEntry = try #require(
+            store.dataProvider.getModels(
+                ofType: AnimeEntry.self,
+                predicate: #Predicate { $0.tmdbID == 209_867 }
+            ).first
+        )
+        let originalDetail = try #require(originalEntry.detail)
+        let originalCharacterID = try #require(originalDetail.characters.first?.id)
+        let originalCharacterModelID = try #require(originalDetail.characters.first?.persistentModelID)
+        let originalStaffModelID = try #require(originalDetail.staff.first?.persistentModelID)
+        let originalSeasonModelID = try #require(originalDetail.seasons.first?.persistentModelID)
+        let originalEpisodeModelID = try #require(originalDetail.episodes.first?.persistentModelID)
+
+        let modelContainer = store.dataProvider.sharedModelContainer
+        let reorderedFetchedDetailDTO = AnimeEntryDetailDTO(
+            language: "en-US",
+            title: "Frieren",
+            subtitle: "Season 1",
+            overview: "Elf mage travels onward.",
+            status: "Ended",
+            airDate: referenceDate(year: 2026, month: 6, day: 1),
+            primaryLinkURL: URL(string: "https://example.com/frieren"),
+            logoImagePath: "/logos/frieren.png",
+            genreIDs: [10765, 16],
+            voteAverage: 8.9,
+            runtimeMinutes: 24,
+            episodeCount: 28,
+            seasonCount: 1,
+            characters: [
+                AnimeEntryCharacterDTO(
+                    id: 1,
+                    characterName: "Frieren",
+                    actorName: "Atsumi Tanezaki",
+                    profilePath: "/profiles/frieren.jpg"
+                ),
+                AnimeEntryCharacterDTO(
+                    id: 2,
+                    characterName: "Fern",
+                    actorName: "Kana Ichinose",
+                    profilePath: "/profiles/fern.jpg"
+                )
+            ],
+            staff: [
+                AnimeEntryStaffDTO(
+                    id: 10,
+                    name: "Keiichiro Saito",
+                    role: "Director",
+                    department: "Directing",
+                    profilePath: "/staff/director.jpg",
+                    jobs: [
+                        AnimeEntryStaffJobDTO(
+                            creditID: "director-main",
+                            job: "Director",
+                            episodeCount: 28
+                        ),
+                        AnimeEntryStaffJobDTO(
+                            creditID: "director-secondary",
+                            job: "Storyboard",
+                            episodeCount: 4
+                        )
+                    ]
+                ),
+                AnimeEntryStaffDTO(
+                    id: 11,
+                    name: "Tomohiro Suzuki",
+                    role: "Series Composition",
+                    department: "Writing",
+                    profilePath: "/staff/writer.jpg",
+                    jobs: [
+                        AnimeEntryStaffJobDTO(
+                            creditID: "writer-main",
+                            job: "Writer",
+                            episodeCount: 28
+                        )
+                    ]
+                )
+            ],
+            seasons: [
+                AnimeEntrySeasonSummaryDTO(
+                    id: 100,
+                    seasonNumber: 1,
+                    title: "Season 1",
+                    posterPath: "/seasons/1.jpg",
+                    episodeCount: 28
+                ),
+                AnimeEntrySeasonSummaryDTO(
+                    id: 101,
+                    seasonNumber: 0,
+                    title: "Specials",
+                    posterPath: "/seasons/0.jpg",
+                    episodeCount: 2
+                )
+            ],
+            episodes: [
+                AnimeEntryEpisodeSummaryDTO(
+                    id: 1000,
+                    episodeNumber: 1,
+                    title: "The Journey's End",
+                    airDate: referenceDate(year: 2026, month: 6, day: 2),
+                    imagePath: "/episodes/1.jpg"
+                ),
+                AnimeEntryEpisodeSummaryDTO(
+                    id: 1001,
+                    episodeNumber: 2,
+                    title: "A Better Start",
+                    airDate: referenceDate(year: 2026, month: 6, day: 3),
+                    imagePath: "/episodes/2.jpg"
+                )
+            ]
+        )
+        try await store.performWithoutSyncRecording {
+            let writer = LibraryMetadataRefreshWriter(modelContainer: modelContainer)
+            let result = try await writer.apply(
+                updates: [
+                    .init(
+                        entryID: originalEntry.id,
+                        info: EntryMetadata(
+                            name: "Frieren",
+                            nameTranslations: ["en-US": "Frieren"],
+                            overview: "Elf mage travels onward.",
+                            overviewTranslations: ["en-US": "Elf mage travels onward."],
+                            posterPath: "/posters/frieren.jpg",
+                            backdropPath: "/backdrops/frieren.jpg",
+                            logoPath: "/logos/frieren.png",
+                            originalLanguageCode: "ja",
+                            tmdbID: 209_867,
+                            onAirDate: referenceDate(year: 2026, month: 6, day: 1),
+                            linkToDetails: URL(string: "https://example.com/frieren"),
+                            type: .series
+                        ),
+                        detail: reorderedFetchedDetailDTO,
+                        preservingCustomPoster: false
+                    )
+                ],
+                parentUpdates: []
+            )
+            #expect(result.writtenCount == 0)
+            #expect(result.skippedCount == 1)
+        }
+
+        let refreshedEntry = try #require(
+            store.dataProvider.getModels(
+                ofType: AnimeEntry.self,
+                predicate: #Predicate { $0.tmdbID == 209_867 }
+            ).first
+        )
+        let refreshedDetail = try #require(refreshedEntry.detail)
+
+        #expect(refreshedDetail.persistentModelID == originalDetail.persistentModelID)
+        #expect(refreshedDetail.characters.first?.persistentModelID == originalCharacterModelID)
+        #expect(refreshedDetail.characters.first?.id == originalCharacterID)
+        #expect(refreshedDetail.staff.first?.persistentModelID == originalStaffModelID)
+        #expect(refreshedDetail.seasons.first?.persistentModelID == originalSeasonModelID)
+        #expect(refreshedDetail.episodes.first?.persistentModelID == originalEpisodeModelID)
+    }
+
+    @Test @MainActor func testRefreshInfosReportsAllFetchedEntriesSkippedWhenApplyWritesNothing()
+        async throws
+    {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let library = (1...3).map { index in
+            AnimeEntry(
+                name: "Movie \(index)",
+                type: .movie,
+                tmdbID: index
+            )
+        }
+        for entry in library {
+            try repository.newEntry(entry)
+        }
+
+        var completions: [LibraryRefreshCompletion] = []
+        let reporter = LibraryRefreshReporter { event in
+            if case .refreshComplete(let completion) = event {
+                completions.append(completion)
+            }
+        }
+        let refresher = LibraryMetadataRefresher(
+            repository: repository,
+            applyMetadataRefresh: { updates, _ in
+                LibraryMetadataRefreshApplyResult(
+                    writtenCount: 0,
+                    skippedCount: updates.count
+                )
+            }
+        )
+
+        await refresher.refreshInfos(
+            for: library,
+            fetcher: makeLibraryMetadataRefreshTestFetcher(),
+            language: .english,
+            options: .init(
+                reporter: reporter,
+                prefetchImages: false
+            )
+        )
+
+        let completion = try #require(completions.first)
+        #expect(completion.state == .completed)
+        #expect(completion.successfulItemCount == 0)
+        #expect(completion.failedItemCount == 0)
     }
 
     @Test @MainActor func testHydrateHiddenHelperParentAppliesDefaultsAndDetail() throws {
@@ -463,6 +1017,10 @@ struct LibraryMetadataRefreshTests {
                 }
                 let expectedUpdateCount = 8
                 #expect(updates.count == expectedUpdateCount)
+                return LibraryMetadataRefreshApplyResult(
+                    writtenCount: updates.count,
+                    skippedCount: 0
+                )
             }
         )
 
@@ -518,6 +1076,10 @@ struct LibraryMetadataRefreshTests {
             repository: repository,
             applyMetadataRefresh: { updates, _ in
                 #expect(updates.count <= 8)
+                return LibraryMetadataRefreshApplyResult(
+                    writtenCount: updates.count,
+                    skippedCount: 0
+                )
             }
         )
 
