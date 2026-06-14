@@ -556,6 +556,58 @@ struct MigrationTests {
         let legacyConfiguration = ModelConfiguration(schema: legacySchema, url: storeURL)
         let legacyContainer = try ModelContainer(for: legacySchema, configurations: legacyConfiguration)
 
+        let legacyDetail = SchemaV2_7_9.AnimeEntryDetail(
+            language: "en-US",
+            title: "Legacy 2.7.9 Entry",
+            primaryLinkURL: URL(string: "https://example.com/legacy-detail")!,
+            heroImageURL: URL(string: "https://image.tmdb.org/t/p/w1280/detail-hero.jpg")!,
+            logoImageURL: URL(string: "https://image.tmdb.org/t/p/w500/detail-logo.png")!,
+            characters: [
+                SchemaV2_7_9.AnimeEntryCharacter(
+                    id: 401,
+                    characterName: "Lead",
+                    actorName: "Voice Actor",
+                    profileURL: URL(string: "https://image.tmdb.org/t/p/w185/characters/lead.jpg"),
+                    displayOrder: 0
+                )
+            ],
+            staff: [
+                SchemaV2_7_9.AnimeEntryStaff(
+                    id: 501,
+                    name: "Director",
+                    role: "Director",
+                    department: "Directing",
+                    profileURL: URL(string: "https://image.tmdb.org/t/p/w185/staff/director.jpg"),
+                    jobs: [
+                        SchemaV2_7_9.AnimeEntryStaffJob(
+                            creditID: "credit-1",
+                            job: "Director",
+                            episodeCount: 12,
+                            displayOrder: 0
+                        )
+                    ],
+                    displayOrder: 0
+                )
+            ],
+            seasons: [
+                SchemaV2_7_9.AnimeEntrySeasonSummary(
+                    id: 601,
+                    seasonNumber: 1,
+                    title: "Season 1",
+                    posterURL: URL(string: "https://image.tmdb.org/t/p/w342/seasons/1.jpg")
+                )
+            ],
+            episodes: [
+                SchemaV2_7_9.AnimeEntryEpisodeSummary(
+                    id: 701,
+                    episodeNumber: 1,
+                    title: "Pilot",
+                    imageURL: URL(string: "https://image.tmdb.org/t/p/original/episodes/1.jpg"),
+                    displayOrder: 0
+                )
+            ]
+        )
+
         let legacyEntry = SchemaV2_7_9.AnimeEntry(
             name: "Legacy 2.7.9 Entry",
             nameTranslations: ["ja-JP": "旧エントリー"],
@@ -568,7 +620,7 @@ struct MigrationTests {
             backdropURL: URL(string: "https://image.tmdb.org/t/p/w1280/backdrops/legacy.jpg")!,
             tmdbID: 920001,
             originalLanguageCode: "ja",
-            detail: nil,
+            detail: legacyDetail,
             parentSeriesEntry: nil,
             episodeProgresses: [
                 SchemaV2_7_9.AnimeEntryEpisodeProgress(
@@ -620,6 +672,16 @@ struct MigrationTests {
                 referenceDate(year: 2026, month: 5, day: 14)
             ]
         )
+
+        // Exercise the V279-specific detail bridge's URL→path conversion across every
+        // child type, so a regression that drops a path slot fails here (see F12).
+        let migratedDetail = try #require(migratedEntry.detail)
+        #expect(migratedDetail.logoImagePath == "/detail-logo.png")
+        #expect(migratedDetail.orderedCharacters.map(\.profilePath) == ["/characters/lead.jpg"])
+        #expect(migratedDetail.orderedStaff.map(\.profilePath) == ["/staff/director.jpg"])
+        #expect(migratedDetail.orderedStaff.flatMap { $0.orderedJobs.map(\.job) } == ["Director"])
+        #expect(migratedDetail.seasons.map(\.posterPath) == ["/seasons/1.jpg"])
+        #expect(migratedDetail.orderedEpisodes.map(\.imagePath) == ["/episodes/1.jpg"])
     }
 }
 

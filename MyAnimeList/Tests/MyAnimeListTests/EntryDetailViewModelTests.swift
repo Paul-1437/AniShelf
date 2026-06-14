@@ -54,7 +54,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: "en",
                 title: "Series",
-                logoImageURL: URL(string: "https://example.com/logo.png"),
+                logoImagePath: "/logo.png",
                 seasons: [
                     AnimeEntrySeasonSummary(
                         id: 100,
@@ -91,7 +91,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: Language.japanese.rawValue,
                 title: "Movie",
-                logoImageURL: URL(string: "https://example.com/logo-ja.png"),
+                logoImagePath: "/logo-ja.png",
                 staff: [
                     AnimeEntryStaff(
                         id: 1,
@@ -127,7 +127,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: Language.chinese.rawValue,
                 title: "Movie",
-                logoImageURL: URL(string: "https://example.com/logo-zh.png"),
+                logoImagePath: "/logo-zh.png",
                 staff: [
                     AnimeEntryStaff(
                         id: 3,
@@ -231,7 +231,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: Language.english.rawValue,
                 title: "Movie",
-                logoImageURL: URL(string: "https://example.com/logo-en.png"),
+                logoImagePath: "/logo-en.png",
                 staff: fillerStaff + prioritizedStaff
             )
         )
@@ -254,7 +254,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: Language.english.rawValue,
                 title: "Series",
-                logoImageURL: URL(string: "https://example.com/logo-en.png"),
+                logoImagePath: "/logo-en.png",
                 staff: [
                     AnimeEntryStaff(
                         id: 10,
@@ -305,7 +305,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: Language.english.rawValue,
                 title: "Series",
-                logoImageURL: URL(string: "https://example.com/logo-en.png"),
+                logoImagePath: "/logo-en.png",
                 staff: [
                     AnimeEntryStaff(
                         id: 11,
@@ -353,7 +353,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: Language.english.rawValue,
                 title: "Series",
-                logoImageURL: URL(string: "https://example.com/logo-en.png"),
+                logoImagePath: "/logo-en.png",
                 staff: (0..<13).map { index in
                     AnimeEntryStaff(
                         id: 100 + index,
@@ -397,7 +397,7 @@ struct EntryDetailViewModelTests {
             detail: AnimeEntryDetail(
                 language: Language.english.rawValue,
                 title: "Movie",
-                logoImageURL: URL(string: "https://example.com/logo-en.png"),
+                logoImagePath: "/logo-en.png",
                 staff: [
                     AnimeEntryStaff(
                         id: 20,

@@ -375,11 +375,15 @@ struct LibraryEntrySyncTests {
         let local = AnimeEntry(
             name: "Local",
             type: .series,
-            posterURL: URL(string: "https://example.com/custom.jpg"),
+            customPosterPath: "/custom.jpg",
             tmdbID: 650,
             dateSaved: referenceDate(year: 2026, month: 5, day: 10),
             usingCustomPoster: true
         )
+
+        // Precondition: a non-nil custom poster path must exist so the post-disable
+        // assertion below is not vacuously true (see code-review-2026-06-14 F13).
+        #expect(local.customPosterPath == "/custom.jpg")
 
         let snapshot = LibraryEntrySyncSnapshot(
             identity: local.syncIdentity,

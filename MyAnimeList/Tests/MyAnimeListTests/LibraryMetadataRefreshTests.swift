@@ -85,7 +85,7 @@ struct LibraryMetadataRefreshTests {
 
     @Test @MainActor func testLibraryImageCacheCollectsRelatedDetailURLs() throws {
         let posterURL = try #require(URL(string: "https://image.tmdb.org/t/p/original/poster.jpg"))
-        let backdropURL = try #require(URL(string: "https://image.tmdb.org/t/p/original/backdrop.jpg"))
+        let backdropURL = try #require(URL(string: "https://image.tmdb.org/t/p/w1280/backdrop.jpg"))
         let logoURL = try #require(URL(string: "https://image.tmdb.org/t/p/w500/logo.png"))
         let characterURL = try #require(URL(string: "https://image.tmdb.org/t/p/w185/character.jpg"))
         let staffURL = try #require(URL(string: "https://image.tmdb.org/t/p/w185/staff.jpg"))

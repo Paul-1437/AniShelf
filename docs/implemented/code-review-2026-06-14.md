@@ -266,7 +266,7 @@ extraction was meant to remove.
 
 ### F12 — Dedicated V279→V280 migration test seeds `detail: nil`
 
-**Status:** Open
+**Status:** Resolved
 **File:** `DataProvider/Tests/DataProviderTests/MigrationTests.swift` line ~570
 **Severity:** Low
 
@@ -276,14 +276,14 @@ still) and the V2.8.0 child rebuild are never exercised through the actual V279 
 only the multi-hop V2.6.0 test touches them. A regression in the V279-specific detail
 bridge (e.g. dropping `logoImagePath` or character `profilePath`) would pass this test.
 
-**Fix:** Add a V279 source entry with a populated detail (characters/staff/seasons/
-episodes with TMDb URLs) and assert the resulting paths after migration.
+**Fix:** Added a V279 source entry with a populated detail (characters/staff/seasons/
+episodes with TMDb URLs) and asserted the resulting paths after migration.
 
 ---
 
 ### F13 — `disablingCustomPosterClearsStaleCustomPosterURL` asserts on a never-set value
 
-**Status:** Open
+**Status:** Resolved
 **File:** `DataProvider/Tests/LibrarySyncTests/LibraryEntrySyncTests.swift` line ~378
 **Severity:** Low
 
@@ -292,8 +292,8 @@ init converts to `customPosterPath == nil` (host mismatch). The post-disable ass
 `customPosterPath == nil` is therefore vacuously true — the clearing logic could be
 entirely broken and the test would still pass.
 
-**Fix:** Seed with a TMDb-hosted URL (or a `/path.jpg` string) so a non-nil
-`customPosterPath` actually exists to be cleared.
+**Fix:** Seeded `customPosterPath: "/custom.jpg"` and added a precondition assertion
+proving the value was non-nil before the snapshot cleared it.
 
 ---
 
