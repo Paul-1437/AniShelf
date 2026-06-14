@@ -2702,6 +2702,22 @@
         }
       }
     },
+    "Fixed an issue where iCloud sync could fail when the library became very large." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库が非常に大きい場合に、iCloud同期が失敗することがある問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了资料库过大时，iCloud 同步可能失败的问题。"
+          }
+        }
+      }
+    },
     "Fixed an issue where adding certain anime could fail and occasionally crash the app." : {
       "localizations" : {
         "ja" : {
@@ -4746,6 +4762,22 @@
         }
       }
     },
+    "Reduced disk usage. Existing users can optionally clear cache and reload metadata from Settings to reclaim more storage." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ディスク使用量を削減しました。既存ユーザーは、必要に応じて設定からキャッシュを消去し、メタデータを再読み込みすることで、さらに容量を確保できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "优化了磁盘占用。现有用户可按需在设置中清空缓存并重新加载元数据，以进一步减小占用空间。"
+          }
+        }
+      }
+    },
     "Refreshing infos..." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6108,6 +6140,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此版本包含多项问题修复和改进。由于本版本对元数据获取做了重要优化，建议现有用户点击下方操作按钮执行一次元数据刷新。"
+          }
+        }
+      }
+    },
+    "This release fixes data correctness issues. Existing users should perform an info refresh by tapping the action button below so their library metadata can be corrected." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースではデータの正確性に関わる問題を修正しています。既存ユーザーは、ライブラリのメタデータを正しい状態に更新するため、下のアクションボタンから情報を更新してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本修复了影响数据正确性的问题。现有用户请点击下方操作按钮执行一次信息刷新，以修正资料库中的元数据。"
           }
         }
       }

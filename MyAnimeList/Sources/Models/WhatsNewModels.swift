@@ -253,6 +253,29 @@ enum WhatsNewRegistry {
                     kind: .openURL(projectURL)
                 )
             ]
+        ),
+        "1.94": .init(
+            version: "1.94",
+            summary:
+                "This release fixes data correctness issues. Existing users should perform an info refresh by tapping the action button below so their library metadata can be corrected.",
+            highlights: [
+                "Fixed an issue where iCloud sync could fail when the library became very large.",
+                "Reduced disk usage. Existing users can optionally clear cache and reload metadata from Settings to reclaim more storage."
+            ],
+            primaryAction: .init(
+                id: "refresh-metadata",
+                title: "Refresh Metadata",
+                systemImage: "arrow.clockwise",
+                kind: .refreshMetadata
+            ),
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
         )
     ]
 
