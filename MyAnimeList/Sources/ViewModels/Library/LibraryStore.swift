@@ -33,6 +33,8 @@ class LibraryStore {
     @ObservationIgnored private var lastObservedCloudSyncedPreferencesHash = ""
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var saveObserver: ModelContextSaveObserver?
+    @ObservationIgnored private var deferredLibraryRefreshDepth = 0
+    @ObservationIgnored private var needsDeferredLibraryRefresh = false
 
     // MARK: - State
 
@@ -199,10 +201,50 @@ class LibraryStore {
     }
 
     private func handleLibrarySaveNotification() {
+        if deferredLibraryRefreshDepth > 0 {
+            needsDeferredLibraryRefresh = true
+            return
+        }
+
         do {
             try refreshLibrary()
         } catch {
             libraryStoreLogger.error("Error refreshing library: \(error)")
+        }
+    }
+
+    func performWithDeferredLibrarySaveRefresh<T>(_ operation: () async throws -> T) async rethrows -> T {
+        deferredLibraryRefreshDepth += 1
+        do {
+            let result = try await operation()
+            await drainQueuedMainThreadSaveNotifications()
+            finishDeferredLibrarySaveRefresh()
+            return result
+        } catch {
+            await drainQueuedMainThreadSaveNotifications()
+            finishDeferredLibrarySaveRefresh()
+            throw error
+        }
+    }
+
+    private func finishDeferredLibrarySaveRefresh() {
+        guard deferredLibraryRefreshDepth > 0 else { return }
+        deferredLibraryRefreshDepth -= 1
+        guard deferredLibraryRefreshDepth == 0, needsDeferredLibraryRefresh else { return }
+
+        needsDeferredLibraryRefresh = false
+        do {
+            try refreshLibrary()
+        } catch {
+            libraryStoreLogger.error("Error refreshing library after deferred saves: \(error)")
+        }
+    }
+
+    private func drainQueuedMainThreadSaveNotifications() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async {
+                continuation.resume()
+            }
         }
     }
 

@@ -164,22 +164,24 @@ final class LibraryProfileSettingsActions {
                 let metadataRefresher = LibraryMetadataRefresher(
                     repository: store.repository,
                     applyMetadataRefresh: { updates, parentUpdates in
-                        try await store.performWithoutSyncRecording {
-                            try await metadataRefreshWriter.apply(
-                                updates: updates,
-                                parentUpdates: parentUpdates
-                            )
-                        }
+                        try await metadataRefreshWriter.apply(
+                            updates: updates,
+                            parentUpdates: parentUpdates
+                        )
                     }
                 )
                 let entries = try getRefreshEntries(for: store)
-                await metadataRefresher.refreshInfos(
-                    for: entries,
-                    fetcher: store.infoFetcher,
-                    language: store.language,
-                    options: options
-                )
-                store.rebuildSyncChangeTracking()
+                await store.performWithDeferredLibrarySaveRefresh {
+                    await store.syncChangeRecorder.withSuppressedRecording {
+                        await metadataRefresher.refreshInfos(
+                            for: entries,
+                            fetcher: store.infoFetcher,
+                            language: store.language,
+                            options: options
+                        )
+                    }
+                    store.rebuildSyncChangeTracking()
+                }
             } catch {
                 libraryStoreLogger.error(
                     "Failed to load refresh entries: \(error.localizedDescription)"

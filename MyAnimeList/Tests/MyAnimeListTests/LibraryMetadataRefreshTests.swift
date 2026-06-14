@@ -262,6 +262,24 @@ struct LibraryMetadataRefreshTests {
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 
+    @Test @MainActor func testDeferredLibrarySaveRefreshUpdatesVisibleLibraryAfterScope() async throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+
+        try await store.performWithDeferredLibrarySaveRefresh {
+            try store.repository.newEntry(
+                AnimeEntry(
+                    name: "Deferred Refresh",
+                    type: .movie,
+                    tmdbID: 500_100
+                )
+            )
+
+            #expect(store.library.isEmpty)
+        }
+
+        #expect(store.library.map(\.tmdbID) == [500_100])
+    }
+
     @Test @MainActor func testBackgroundMetadataRefreshWriterRepairsParentLinksWithoutSyncDirtyWork()
         async throws
     {
