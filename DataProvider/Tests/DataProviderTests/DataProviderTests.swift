@@ -3,6 +3,22 @@ import Testing
 
 @testable import DataProvider
 
+@Test @MainActor func dataProviderCreatesMissingStoreParentDirectory() throws {
+    let rootDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("AniShelfTests-missing-store-parent-\(UUID().uuidString)", isDirectory: true)
+    let storeURL =
+        rootDirectory
+        .appendingPathComponent("Nested", isDirectory: true)
+        .appendingPathComponent("library.store")
+    defer {
+        try? FileManager.default.removeItem(at: rootDirectory)
+    }
+
+    _ = DataProvider(url: storeURL)
+
+    #expect(FileManager.default.fileExists(atPath: storeURL.deletingLastPathComponent().path()))
+}
+
 @Test func watchedStatusDoesNotBackfillMissingDates() async throws {
     let entry = AnimeEntry.template()
 

@@ -548,6 +548,104 @@ struct MigrationTests {
         #expect(migratedEntry.trackingUpdatedAt == nil)
     }
 
+    @Test @MainActor func launchMigrationFromV278ThroughV280PreservesGraph() throws {
+        let storeURL = temporaryStoreURL(name: "launch-migration-v278-through-v280")
+
+        let legacySchema = Schema(versionedSchema: SchemaV2_7_8.self)
+        let legacyConfiguration = ModelConfiguration(schema: legacySchema, url: storeURL)
+        let legacyContainer = try ModelContainer(for: legacySchema, configurations: legacyConfiguration)
+
+        let legacyDetail = SchemaV2_7_8.AnimeEntryDetail(
+            language: "en-US",
+            title: "Legacy 2.7.8 Detail",
+            logoImageURL: URL(string: "https://image.tmdb.org/t/p/w500/logos/legacy.png"),
+            characters: [
+                SchemaV2_7_8.AnimeEntryCharacter(
+                    id: 401,
+                    characterName: "Lead",
+                    actorName: "Voice Actor",
+                    profileURL: URL(string: "https://image.tmdb.org/t/p/w185/characters/lead.jpg")
+                )
+            ],
+            seasons: [
+                SchemaV2_7_8.AnimeEntrySeasonSummary(
+                    id: 601,
+                    seasonNumber: 1,
+                    title: "Season 1",
+                    posterURL: URL(string: "https://image.tmdb.org/t/p/w342/seasons/1.jpg")
+                )
+            ],
+            episodes: [
+                SchemaV2_7_8.AnimeEntryEpisodeSummary(
+                    id: 701,
+                    episodeNumber: 1,
+                    title: "Pilot",
+                    imageURL: URL(string: "https://image.tmdb.org/t/p/original/episodes/1.jpg")
+                )
+            ]
+        )
+        let parent = SchemaV2_7_8.AnimeEntry(
+            name: "Parent Series",
+            type: .series,
+            posterURL: URL(string: "https://image.tmdb.org/t/p/original/posters/parent.jpg"),
+            tmdbID: 930001,
+            detail: legacyDetail,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 12)
+        )
+        let season = SchemaV2_7_8.AnimeEntry(
+            name: "Season One",
+            nameTranslations: [:],
+            overview: nil,
+            overviewTranslations: [:],
+            onAirDate: nil,
+            type: .season(seasonNumber: 1, parentSeriesID: 930001),
+            linkToDetails: nil,
+            posterURL: URL(string: "https://image.tmdb.org/t/p/original/posters/season.jpg"),
+            backdropURL: nil,
+            tmdbID: 930101,
+            detail: nil,
+            parentSeriesEntry: parent,
+            episodeProgresses: [
+                SchemaV2_7_8.AnimeEntryEpisodeProgress(
+                    seasonNumber: 1,
+                    watchedThroughEpisode: 4,
+                    updatedAt: referenceDate(year: 2026, month: 5, day: 13)
+                )
+            ],
+            onDisplay: true,
+            watchStatus: .watching,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 13),
+            dateStarted: referenceDate(year: 2026, month: 5, day: 13),
+            dateFinished: nil,
+            isDateTrackingEnabled: true,
+            score: 5,
+            favorite: true,
+            notes: "Graph migration",
+            usingCustomPoster: false
+        )
+        legacyContainer.mainContext.insert(parent)
+        legacyContainer.mainContext.insert(season)
+        try legacyContainer.mainContext.save()
+
+        let migratedProvider = DataProvider(url: storeURL)
+        let migratedEntries = try migratedProvider.getAllModels(ofType: AnimeEntry.self)
+        let migratedParent = try #require(migratedEntries.first(where: { $0.tmdbID == 930001 }))
+        let migratedSeason = try #require(migratedEntries.first(where: { $0.tmdbID == 930101 }))
+        let migratedDetail = try #require(migratedParent.detail)
+
+        #expect(migratedParent.posterPath == "/posters/parent.jpg")
+        #expect(migratedSeason.posterPath == "/posters/season.jpg")
+        #expect(migratedSeason.parentSeriesEntry?.tmdbID == 930001)
+        #expect(migratedSeason.watchStatus == .watching)
+        #expect(migratedSeason.favorite)
+        #expect(migratedSeason.notes == "Graph migration")
+        #expect(migratedSeason.orderedEpisodeProgresses.map(\.watchedThroughEpisode) == [4])
+        #expect(migratedDetail.logoImagePath == "/logos/legacy.png")
+        #expect(migratedDetail.orderedCharacters.map(\.profilePath) == ["/characters/lead.jpg"])
+        #expect(migratedDetail.seasons.map(\.posterPath) == ["/seasons/1.jpg"])
+        #expect(migratedDetail.orderedEpisodes.map(\.imagePath) == ["/episodes/1.jpg"])
+    }
+
     @Test @MainActor func imagePathMigrationFromV279PreservesUserState() throws {
         let storeURL = temporaryStoreURL(name: "image-path-migration-v279-user-state")
 

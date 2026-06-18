@@ -7,6 +7,12 @@
 
 import Foundation
 import SwiftData
+import os
+
+fileprivate let dataProviderLogger = Logger(
+    subsystem: .moduleIdentifier,
+    category: "DataProvider"
+)
 
 /// The current schema version used by the data provider.
 public typealias CurrentSchema = SchemaV2_8_0
@@ -58,6 +64,7 @@ let persistenStoreURL = URL.applicationSupportDirectory
         do {
             container = try Self.createModelContainer(inMemory: inMemory, url: url)
         } catch {
+            Self.logContainerCreationFailure(error, url: url, operation: "create")
             fatalError("Could not create ModelContainer: \(error)")
         }
         self.inMemory = inMemory
@@ -81,6 +88,7 @@ let persistenStoreURL = URL.applicationSupportDirectory
         do {
             sharedModelContainer = try Self.createModelContainer(inMemory: inMemory, url: url)
         } catch {
+            Self.logContainerCreationFailure(error, url: url, operation: "reload")
             fatalError("Could not create or reload ModelContainer: \(error)")
         }
         dataHandler = .init(modelContainer: sharedModelContainer)
@@ -93,6 +101,7 @@ let persistenStoreURL = URL.applicationSupportDirectory
         let schema = Schema(versionedSchema: CurrentSchema.self)
         let modelConfiguration: ModelConfiguration
         if !inMemory {
+            try createParentDirectoryIfNeeded(for: url)
             modelConfiguration = ModelConfiguration(
                 schema: schema,
                 url: url,
@@ -110,6 +119,28 @@ let persistenStoreURL = URL.applicationSupportDirectory
             for: schema,
             migrationPlan: MigrationPlan.self,
             configurations: modelConfiguration)
+    }
+
+    private static func createParentDirectoryIfNeeded(for url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+    }
+
+    private static func logContainerCreationFailure(
+        _ error: Error,
+        url: URL,
+        operation: String
+    ) {
+        dataProviderLogger.critical(
+            """
+            Failed to \(operation, privacy: .public) SwiftData ModelContainer \
+            at \(url.path(percentEncoded: false), privacy: .public): \
+            \(String(describing: error), privacy: .public)
+            """
+        )
     }
 
     /// Fetches persistent models of a certain type.
