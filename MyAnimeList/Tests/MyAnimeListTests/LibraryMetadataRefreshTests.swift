@@ -246,7 +246,9 @@ struct LibraryMetadataRefreshTests {
         )
     }
 
-    @Test @MainActor func testLibraryImageCacheBuildsCorePrefetchTargets() throws {
+    @Test @MainActor func testLibraryImageCacheBuildsDefaultPrefetchTargetsWithoutLargeGalleryPoster()
+        throws
+    {
         let posterURL = try #require(URL(string: "https://example.com/poster.jpg"))
         let backdropURL = try #require(URL(string: "https://example.com/backdrop.jpg"))
         let logoURL = try #require(URL(string: "https://example.com/logo.png"))
@@ -255,7 +257,8 @@ struct LibraryMetadataRefreshTests {
             LibraryImageCacheService.imagePrefetchTargets(
                 posterURL: posterURL,
                 backdropURL: backdropURL,
-                logoImageURL: logoURL
+                logoImageURL: logoURL,
+                longTermGalleryPosterCachingEnabled: false
             )
         )
 
@@ -264,10 +267,28 @@ struct LibraryMetadataRefreshTests {
                 == Set([
                     .init(url: posterURL, targetSize: CGSize(width: 240, height: 360)),
                     .init(url: posterURL, targetSize: CGSize(width: 360, height: 540)),
-                    .init(url: posterURL, targetSize: CGSize(width: 1_000, height: 1_500)),
                     .init(url: backdropURL, targetSize: CGSize(width: 1_200, height: 675)),
                     .init(url: logoURL, targetSize: CGSize(width: 500, height: 500))
                 ])
+        )
+    }
+
+    @Test @MainActor func testLibraryImageCacheIncludesLargeGalleryPosterWhenEnabled() throws {
+        let posterURL = try #require(URL(string: "https://example.com/poster.jpg"))
+
+        let targets = Set(
+            LibraryImageCacheService.imagePrefetchTargets(
+                posterURL: posterURL,
+                backdropURL: nil,
+                logoImageURL: nil,
+                longTermGalleryPosterCachingEnabled: true
+            )
+        )
+
+        #expect(
+            targets.contains(
+                .init(url: posterURL, targetSize: CGSize(width: 1_000, height: 1_500))
+            )
         )
     }
 

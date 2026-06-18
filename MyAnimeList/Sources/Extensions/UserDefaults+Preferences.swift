@@ -31,4 +31,8 @@ extension UserDefaults {
     var isLibraryPosterProgressBarOverlayEnabled: Bool {
         bool(forKey: .libraryPosterProgressBarOverlayEnabled, defaultValue: true)
     }
+
+    var isLibraryLongTermGalleryPosterCachingEnabled: Bool {
+        bool(forKey: .libraryLongTermGalleryPosterCachingEnabled, defaultValue: false)
+    }
 }

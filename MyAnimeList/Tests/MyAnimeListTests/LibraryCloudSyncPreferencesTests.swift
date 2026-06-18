@@ -93,6 +93,7 @@ struct LibraryCloudSyncPreferencesTests {
         #expect(!String.cloudSyncedPreferenceKeys.contains(.lastSeenWhatsNewVersion))
         #expect(!String.cloudSyncedPreferenceKeys.contains(.libraryCloudSyncEnabled))
         #expect(!String.cloudSyncedPreferenceKeys.contains(.libraryCloudSyncBootstrapState))
+        #expect(!String.cloudSyncedPreferenceKeys.contains(.libraryLongTermGalleryPosterCachingEnabled))
     }
 
     @Test @MainActor func testCloudSyncedSettingsSnapshotExportsOnlyAllowlistedKeys() {
@@ -108,6 +109,7 @@ struct LibraryCloudSyncPreferencesTests {
         defaults.set("entry-1", forKey: .persistedScrolledID)
         defaults.set("version-1", forKey: .lastSeenWhatsNewVersion)
         defaults.set(true, forKey: .libraryCloudSyncEnabled)
+        defaults.set(true, forKey: .libraryLongTermGalleryPosterCachingEnabled)
         defaults.set(Data([0x01]), forKey: "CloudLibrarySyncToken.test")
         defaults.set(true, forKey: .useTMDbRelayServer)
 
@@ -121,6 +123,7 @@ struct LibraryCloudSyncPreferencesTests {
         #expect(snapshot.payload[.persistedScrolledID] == nil)
         #expect(snapshot.payload[.lastSeenWhatsNewVersion] == nil)
         #expect(snapshot.payload[.libraryCloudSyncEnabled] == nil)
+        #expect(snapshot.payload[.libraryLongTermGalleryPosterCachingEnabled] == nil)
         #expect(snapshot.payload["CloudLibrarySyncToken.test"] == nil)
     }
 }

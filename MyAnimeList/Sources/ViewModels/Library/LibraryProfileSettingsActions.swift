@@ -163,6 +163,7 @@ final class LibraryProfileSettingsActions {
                 )
                 let metadataRefresher = LibraryMetadataRefresher(
                     repository: store.repository,
+                    longTermGalleryPosterCachingEnabled: store.longTermGalleryPosterCachingEnabled,
                     applyMetadataRefresh: { updates, parentUpdates in
                         try await metadataRefreshWriter.apply(
                             updates: updates,
@@ -221,6 +222,7 @@ final class LibraryProfileSettingsActions {
     func prefetchAllImages(reporter: LibraryRefreshReporter = .toast) {
         LibraryImageCacheService.prefetchImages(
             for: store.library,
+            longTermGalleryPosterCachingEnabled: store.longTermGalleryPosterCachingEnabled,
             reporter: reporter
         )
     }

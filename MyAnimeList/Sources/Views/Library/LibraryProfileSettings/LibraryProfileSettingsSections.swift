@@ -156,6 +156,7 @@ struct LibraryProfileSettingsCard: View {
     @Binding var episodeProgressTrackingEnabled: Bool
     @Binding var posterProgressBarOverlayEnabled: Bool
     @Binding var autoPrefetchImagesOnAddAndRestore: Bool
+    @Binding var longTermGalleryPosterCachingEnabled: Bool
     @Binding var useTMDbRelayServer: Bool
     @Binding var preferredLanguage: Language
 
@@ -201,7 +202,8 @@ struct LibraryProfileSettingsCard: View {
                     scoringEnabled: $scoringEnabled,
                     episodeProgressTrackingEnabled: $episodeProgressTrackingEnabled,
                     posterProgressBarOverlayEnabled: $posterProgressBarOverlayEnabled,
-                    autoPrefetchImagesOnAddAndRestore: $autoPrefetchImagesOnAddAndRestore
+                    autoPrefetchImagesOnAddAndRestore: $autoPrefetchImagesOnAddAndRestore,
+                    longTermGalleryPosterCachingEnabled: $longTermGalleryPosterCachingEnabled
                 )
                 LibraryProfileTMDbConnectionSection(useTMDbRelayServer: $useTMDbRelayServer)
                 LibraryProfileICloudSyncSection(
@@ -413,6 +415,7 @@ fileprivate struct LibraryProfileDefaultSettingsSection: View {
     @Binding var episodeProgressTrackingEnabled: Bool
     @Binding var posterProgressBarOverlayEnabled: Bool
     @Binding var autoPrefetchImagesOnAddAndRestore: Bool
+    @Binding var longTermGalleryPosterCachingEnabled: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -473,6 +476,13 @@ fileprivate struct LibraryProfileDefaultSettingsSection: View {
                 title: "Auto Prefetch Images",
                 subtitle: "Prefetch images when adding titles or restoring a backup.",
                 isOn: $autoPrefetchImagesOnAddAndRestore
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Cache Large Gallery Posters",
+                subtitle:
+                    "Store large library posters longer for smoother gallery scrolling. This may use more disk space.",
+                isOn: $longTermGalleryPosterCachingEnabled
             )
         }
         .padding(14)

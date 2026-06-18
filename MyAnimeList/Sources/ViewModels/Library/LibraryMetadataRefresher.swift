@@ -33,12 +33,14 @@ final class LibraryMetadataRefresher {
     }
 
     private let repository: LibraryRepository
+    private let longTermGalleryPosterCachingEnabled: Bool
     private let applyMetadataRefresh:
         ([LibraryMetadataRefreshUpdate], [LibraryMetadataRefreshParentUpdate]) async throws
             -> LibraryMetadataRefreshApplyResult
 
     init(
         repository: LibraryRepository,
+        longTermGalleryPosterCachingEnabled: Bool = false,
         applyMetadataRefresh:
             @escaping (
                 [LibraryMetadataRefreshUpdate],
@@ -46,6 +48,7 @@ final class LibraryMetadataRefresher {
             ) async throws -> LibraryMetadataRefreshApplyResult
     ) {
         self.repository = repository
+        self.longTermGalleryPosterCachingEnabled = longTermGalleryPosterCachingEnabled
         self.applyMetadataRefresh = applyMetadataRefresh
     }
 
@@ -210,7 +213,8 @@ final class LibraryMetadataRefresher {
         return LibraryImageCacheService.imagePrefetchTargets(
             posterURL: posterURL,
             backdropURL: update.info.backdropURL,
-            logoImageURL: update.info.logoURL
+            logoImageURL: update.info.logoURL,
+            longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
         )
     }
 

@@ -13,6 +13,7 @@ struct LibraryPreferences {
         let defaultWatchStatus: AnimeEntry.WatchStatus
         let defaultFilters: Set<LibraryStore.AnimeFilter>
         let autoPrefetchImagesOnAddAndRestore: Bool
+        let longTermGalleryPosterCachingEnabled: Bool
         let cloudSyncStatus: LibraryCloudSyncStatus
     }
 
@@ -39,6 +40,10 @@ struct LibraryPreferences {
                 forKey: .libraryAutoPrefetchImagesOnAddAndRestore,
                 defaultValue: false
             ),
+            longTermGalleryPosterCachingEnabled: loadBool(
+                forKey: .libraryLongTermGalleryPosterCachingEnabled,
+                defaultValue: false
+            ),
             cloudSyncStatus: loadCloudSyncStatus()
         )
     }
@@ -57,6 +62,10 @@ struct LibraryPreferences {
 
     func saveAutoPrefetchImagesOnAddAndRestore(_ value: Bool) {
         defaults.setValue(value, forKey: .libraryAutoPrefetchImagesOnAddAndRestore)
+    }
+
+    func saveLongTermGalleryPosterCachingEnabled(_ value: Bool) {
+        defaults.setValue(value, forKey: .libraryLongTermGalleryPosterCachingEnabled)
     }
 
     func saveGroupStrategy(_ value: LibraryStore.LibraryGroupStrategy) {

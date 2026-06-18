@@ -161,7 +161,10 @@ extension LibraryStore {
     func prefetchImagesForDefaultBehavior<C: Collection>(_ entries: C)
     where C.Element == AnimeEntry {
         guard autoPrefetchImagesOnAddAndRestore else { return }
-        LibraryImageCacheService.prefetchImages(for: entries)
+        LibraryImageCacheService.prefetchImages(
+            for: entries,
+            longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
+        )
     }
 
     private func deletionScrollTarget(for entry: AnimeEntry) -> DeletionScrollTarget {

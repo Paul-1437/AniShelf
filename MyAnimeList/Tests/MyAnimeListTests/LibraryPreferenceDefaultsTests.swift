@@ -83,6 +83,25 @@ struct LibraryPreferenceDefaultsTests {
         #expect(String.allPreferenceKeys.contains(.libraryGroupStrategy))
     }
 
+    @Test @MainActor func testLongTermGalleryPosterCachingDefaultsOffAndIsBackedUp() {
+        let suiteName = "MyAnimeListTests.LongTermGalleryPosterCaching"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let preferences = LibraryPreferences(defaults: defaults)
+
+        #expect(defaults.object(forKey: .libraryLongTermGalleryPosterCachingEnabled) == nil)
+        #expect(!preferences.load().longTermGalleryPosterCachingEnabled)
+        #expect(!defaults.isLibraryLongTermGalleryPosterCachingEnabled)
+
+        preferences.saveLongTermGalleryPosterCachingEnabled(true)
+
+        #expect(preferences.load().longTermGalleryPosterCachingEnabled)
+        #expect(defaults.isLibraryLongTermGalleryPosterCachingEnabled)
+        #expect(String.allPreferenceKeys.contains(.libraryLongTermGalleryPosterCachingEnabled))
+    }
+
     @Test @MainActor func testLibraryDefaultsPersistMultipleFiltersAndNewEntryStatus() throws {
         let defaults = UserDefaults.standard
         let keys = [

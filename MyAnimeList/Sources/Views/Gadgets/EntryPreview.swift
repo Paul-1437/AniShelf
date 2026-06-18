@@ -9,6 +9,9 @@ import DataProvider
 import SwiftUI
 
 struct EntryContextMenuPreview: View {
+    @AppStorage(.libraryLongTermGalleryPosterCachingEnabled)
+    private var longTermGalleryPosterCachingEnabled = false
+
     var snapshot: LibraryEntrySnapshot
 
     init(entry: AnimeEntry) {
@@ -20,7 +23,13 @@ struct EntryContextMenuPreview: View {
     }
 
     var body: some View {
-        KFImageView(url: snapshot.posterURL, targetWidth: 1_000, diskCacheExpiration: .longTerm)
-            .scaledToFit()
+        KFImageView(
+            url: snapshot.posterURL,
+            targetWidth: 1_000,
+            diskCacheExpiration: LibraryImageCacheService.galleryPosterDiskCacheExpiration(
+                longTermCachingEnabled: longTermGalleryPosterCachingEnabled
+            )
+        )
+        .scaledToFit()
     }
 }

@@ -30,6 +30,7 @@ extension String {
     static let libraryDefaultFilters = "LibraryDefaultFilters"
     static let libraryDefaultFilterPreset = "LibraryDefaultFilterPreset"
     static let libraryAutoPrefetchImagesOnAddAndRestore = "LibraryAutoPrefetchImagesOnAddAndRestore"
+    static let libraryLongTermGalleryPosterCachingEnabled = "LibraryLongTermGalleryPosterCachingEnabled"
     static let libraryCloudSyncEnabled = "LibraryCloudSyncEnabled"
     static let libraryCloudSyncBootstrapState = "LibraryCloudSyncBootstrapState"
     static let libraryCloudSyncCloudKitAvailability = "LibraryCloudSyncCloudKitAvailability"
@@ -68,6 +69,7 @@ extension String {
         .libraryDefaultWatchStatus,
         .libraryDefaultFilters,
         .libraryAutoPrefetchImagesOnAddAndRestore,
+        .libraryLongTermGalleryPosterCachingEnabled,
         .useTMDbRelayServer,
         .lastSeenWhatsNewVersion
     ]

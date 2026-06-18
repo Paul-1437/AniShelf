@@ -1139,6 +1139,22 @@
         }
       }
     },
+    "Cache Large Gallery Posters" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きなギャラリーポスターをキャッシュ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缓存大尺寸图库海报"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "ja" : {
@@ -5686,6 +5702,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 %1$lld/%2$lld 步"
+          }
+        }
+      }
+    },
+    "Store large library posters longer for smoother gallery scrolling. This may use more disk space." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ギャラリーを滑らかにスクロールできるよう、大きなライブラリポスターを長めに保存します。ディスク容量を多く使用する場合があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更长时间保存大尺寸资料库海报，让图库滚动更流畅。这可能会占用更多磁盘空间。"
           }
         }
       }

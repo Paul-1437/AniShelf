@@ -4,6 +4,8 @@ import SwiftUI
 
 struct AnimeEntryCard: View {
     @AppStorage(.libraryOpenDetailWithSingleTap) private var openDetailWithSingleTap = false
+    @AppStorage(.libraryLongTermGalleryPosterCachingEnabled)
+    private var longTermGalleryPosterCachingEnabled = false
 
     var entry: AnimeEntry
     var snapshot: LibraryEntrySnapshot
@@ -51,7 +53,9 @@ struct AnimeEntryCard: View {
         KFImageView(
             url: snapshot.posterURL,
             targetWidth: 1_000,
-            diskCacheExpiration: .longTerm,
+            diskCacheExpiration: LibraryImageCacheService.galleryPosterDiskCacheExpiration(
+                longTermCachingEnabled: longTermGalleryPosterCachingEnabled
+            ),
             imageLoaded: $imageLoaded
         )
         .scaledToFill()

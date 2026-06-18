@@ -5,17 +5,28 @@ import SwiftUI
 
 @MainActor
 enum LibraryImageCacheService {
-    private static let posterPrefetchTargetWidths: [CGFloat] = [240, 360, 1_000]
+    private static let standardPosterPrefetchTargetWidths: [CGFloat] = [240, 360]
+    private static let galleryPosterPrefetchTargetWidth: CGFloat = 1_000
     private static let backdropPrefetchTargetSize = CGSize(width: 1_200, height: 675)
     private static let logoPrefetchTargetSize = CGSize(width: 500, height: 500)
     private static let prefetchDiskCacheExpiration: StorageExpiration = .longTerm
 
+    static func galleryPosterDiskCacheExpiration(
+        longTermCachingEnabled: Bool = false
+    ) -> StorageExpiration {
+        longTermCachingEnabled ? .longTerm : .shortTerm
+    }
+
     static func prefetchImages<C: Collection>(
         for entries: C,
+        longTermGalleryPosterCachingEnabled: Bool = false,
         reporter: LibraryRefreshReporter = .toast
     )
     where C.Element == AnimeEntry {
-        let targets = imagePrefetchTargets(for: entries)
+        let targets = imagePrefetchTargets(
+            for: entries,
+            longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
+        )
         Task {
             _ = await prefetchImageTargetsNow(
                 targets,
@@ -28,9 +39,13 @@ enum LibraryImageCacheService {
     @discardableResult
     static func prefetchImagesNow<C: Collection>(
         for entries: C,
+        longTermGalleryPosterCachingEnabled: Bool = false,
         reporter: LibraryRefreshReporter = .toast
     ) async -> LibraryRefreshCompletion where C.Element == AnimeEntry {
-        let targets = imagePrefetchTargets(for: entries)
+        let targets = imagePrefetchTargets(
+            for: entries,
+            longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
+        )
         return await prefetchImageTargetsNow(
             targets,
             diskCacheExpiration: prefetchDiskCacheExpiration,
@@ -41,9 +56,13 @@ enum LibraryImageCacheService {
     @discardableResult
     static func prefetchImagesForRefreshPhaseNow<C: Collection>(
         for entries: C,
+        longTermGalleryPosterCachingEnabled: Bool = false,
         reporter: LibraryRefreshReporter
     ) async -> LibraryRefreshCompletion where C.Element == AnimeEntry {
-        let targets = imagePrefetchTargets(for: entries)
+        let targets = imagePrefetchTargets(
+            for: entries,
+            longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
+        )
         return await prefetchImagePhaseTargetsNow(
             targets,
             diskCacheExpiration: prefetchDiskCacheExpiration,
@@ -151,13 +170,17 @@ enum LibraryImageCacheService {
         return completion
     }
 
-    static func imagePrefetchTargets<C: Collection>(for entries: C) -> [ImagePrefetchTarget]
+    static func imagePrefetchTargets<C: Collection>(
+        for entries: C,
+        longTermGalleryPosterCachingEnabled: Bool = false
+    ) -> [ImagePrefetchTarget]
     where C.Element == AnimeEntry {
         entries.flatMap { entry in
             Self.imagePrefetchTargets(
                 posterURL: entry.posterURL,
                 backdropURL: entry.backdropURL,
-                logoImageURL: entry.detail?.logoImageURL
+                logoImageURL: entry.detail?.logoImageURL,
+                longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
             )
         }
     }
@@ -165,12 +188,15 @@ enum LibraryImageCacheService {
     static func imagePrefetchTargets(
         posterURL: URL?,
         backdropURL: URL?,
-        logoImageURL: URL?
+        logoImageURL: URL?,
+        longTermGalleryPosterCachingEnabled: Bool = false
     ) -> [ImagePrefetchTarget] {
         var targets: [ImagePrefetchTarget] = []
 
         if let posterURL {
-            targets += posterPrefetchTargetWidths.map { targetWidth in
+            targets += posterPrefetchTargetWidths(
+                longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
+            ).map { targetWidth in
                 ImagePrefetchTarget(
                     url: posterURL,
                     targetSize: PosterImageSize.targetSize(width: targetWidth)
@@ -187,6 +213,15 @@ enum LibraryImageCacheService {
         }
 
         return targets
+    }
+
+    private static func posterPrefetchTargetWidths(
+        longTermGalleryPosterCachingEnabled: Bool
+    ) -> [CGFloat] {
+        if longTermGalleryPosterCachingEnabled {
+            return standardPosterPrefetchTargetWidths + [galleryPosterPrefetchTargetWidth]
+        }
+        return standardPosterPrefetchTargetWidths
     }
 
     static func relatedImageURLs(for entry: AnimeEntry) -> Set<URL> {

@@ -74,6 +74,12 @@ class LibraryStore {
             libraryStoreLogger.debug("Updated auto prefetch images on add and restore to \(newValue)")
         }
     }
+    var longTermGalleryPosterCachingEnabled: Bool = false {
+        willSet {
+            preferences.saveLongTermGalleryPosterCachingEnabled(newValue)
+            libraryStoreLogger.debug("Updated long-term gallery poster caching to \(newValue)")
+        }
+    }
     var groupStrategy: LibraryGroupStrategy = .none {
         willSet {
             preferences.saveGroupStrategy(newValue)
@@ -163,6 +169,9 @@ class LibraryStore {
         }
         if autoPrefetchImagesOnAddAndRestore != snapshot.autoPrefetchImagesOnAddAndRestore {
             autoPrefetchImagesOnAddAndRestore = snapshot.autoPrefetchImagesOnAddAndRestore
+        }
+        if longTermGalleryPosterCachingEnabled != snapshot.longTermGalleryPosterCachingEnabled {
+            longTermGalleryPosterCachingEnabled = snapshot.longTermGalleryPosterCachingEnabled
         }
         if libraryCloudSyncStatus != snapshot.cloudSyncStatus {
             libraryCloudSyncStatus = snapshot.cloudSyncStatus

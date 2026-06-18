@@ -220,6 +220,7 @@ struct LibraryProfileSettingsView: View {
             episodeProgressTrackingEnabled: $episodeProgressTrackingEnabled,
             posterProgressBarOverlayEnabled: $posterProgressBarOverlayEnabled,
             autoPrefetchImagesOnAddAndRestore: $store.autoPrefetchImagesOnAddAndRestore,
+            longTermGalleryPosterCachingEnabled: $store.longTermGalleryPosterCachingEnabled,
             useTMDbRelayServer: $useTMDbRelayServer,
             preferredLanguage: $preferredLanguage,
             libraryCloudSyncStatus: store.libraryCloudSyncStatus,
