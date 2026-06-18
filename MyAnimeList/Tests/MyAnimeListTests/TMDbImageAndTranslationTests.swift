@@ -577,6 +577,60 @@ struct TMDbImageAndTranslationTests {
         #expect(requests.allSatisfy { $0.url.path == "/3/tv/35610/translations" })
         #expect(requests.allSatisfy { $0.url.queryValue(named: "api_key") == "test-key" })
     }
+
+    @Test func displayPosterURLResolvesContextSizedRenditions() throws {
+        let entry = AnimeEntry(
+            name: "Display Poster Entry",
+            type: .series,
+            posterPath: "/poster.jpg",
+            tmdbID: 12_801
+        )
+        let snapshot = LibraryEntrySnapshot(entry: entry)
+
+        #expect(snapshot.posterMissing == false)
+        #expect(
+            snapshot.displayPosterURL(for: .list)?.absoluteString
+                == "https://image.tmdb.org/t/p/w342/poster.jpg"
+        )
+        #expect(
+            snapshot.displayPosterURL(for: .grid)?.absoluteString
+                == "https://image.tmdb.org/t/p/w500/poster.jpg"
+        )
+        #expect(
+            snapshot.displayPosterURL(for: .gallery)?.absoluteString
+                == "https://image.tmdb.org/t/p/original/poster.jpg"
+        )
+    }
+
+    @Test func displayPosterURLHonorsCustomPosterSelection() throws {
+        let entry = AnimeEntry(
+            name: "Custom Poster Entry",
+            type: .series,
+            posterPath: "/default.jpg",
+            customPosterPath: "/custom.jpg",
+            tmdbID: 12_802,
+            usingCustomPoster: true
+        )
+        let snapshot = LibraryEntrySnapshot(entry: entry)
+
+        #expect(snapshot.posterMissing == false)
+        #expect(
+            snapshot.displayPosterURL(for: .grid)?.absoluteString
+                == "https://image.tmdb.org/t/p/w500/custom.jpg"
+        )
+    }
+
+    @Test func displayPosterURLReportsMissingWhenNoSelectedPoster() throws {
+        let entry = AnimeEntry(
+            name: "No Poster Entry",
+            type: .series,
+            tmdbID: 12_803
+        )
+        let snapshot = LibraryEntrySnapshot(entry: entry)
+
+        #expect(snapshot.posterMissing == true)
+        #expect(snapshot.displayPosterURL(for: .gallery) == nil)
+    }
 }
 
 

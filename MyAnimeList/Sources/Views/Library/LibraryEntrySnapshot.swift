@@ -16,7 +16,7 @@ struct LibraryEntryDisplayItem: Identifiable {
 
 struct LibraryEntrySnapshot: Identifiable, Equatable {
     let id: Int
-    let posterURL: URL?
+    private let posterPath: String?
     let title: String
     let overview: String?
     let primaryMetadata: [String]
@@ -33,7 +33,7 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
         let episodeProgress = Self.episodeProgressDisplay(for: entry)
 
         id = entry.tmdbID
-        posterURL = entry.posterURL
+        posterPath = entry.selectedPosterPath
         title = entry.displayName
         overview = Self.cleanOverview(entry.displayOverview)
         primaryMetadata = Self.primaryMetadata(for: entry)
@@ -45,6 +45,13 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
         episodeProgressFraction = episodeProgress.fraction
         dateStarted = entry.dateStarted
         dateFinished = entry.dateFinished
+    }
+
+    var posterMissing: Bool { posterPath == nil }
+
+    func displayPosterURL(for displayType: TMDbPosterDisplayType) -> URL? {
+        guard let posterPath else { return nil }
+        return TMDbImageURLResolver.current.url(for: posterPath, role: .poster, idealWidth: displayType.idealWidth)
     }
 
     private struct EpisodeProgressDisplay {

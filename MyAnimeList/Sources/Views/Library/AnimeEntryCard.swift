@@ -11,7 +11,7 @@ struct AnimeEntryCard: View {
     var snapshot: LibraryEntrySnapshot
     var onOpenDetails: (() -> Void)? = nil
     @Binding var imageLoaded: Bool
-    var imageMissing: Bool { snapshot.posterURL == nil }
+    var imageMissing: Bool { snapshot.posterMissing }
     private let posterShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
     private let favoriteButtonTapClearance: CGFloat = 48
 
@@ -51,7 +51,7 @@ struct AnimeEntryCard: View {
 
     private var posterImage: some View {
         KFImageView(
-            url: snapshot.posterURL,
+            url: snapshot.displayPosterURL(for: .gallery),
             targetWidth: 1_000,
             diskCacheExpiration: LibraryImageCacheService.galleryPosterDiskCacheExpiration(
                 longTermCachingEnabled: longTermGalleryPosterCachingEnabled

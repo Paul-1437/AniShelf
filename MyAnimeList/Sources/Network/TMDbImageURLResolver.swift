@@ -17,6 +17,23 @@ enum TMDbImageRole {
     case still
 }
 
+enum TMDbPosterDisplayType: CaseIterable {
+    case gallery
+    case list
+    case grid
+
+    var idealWidth: Int {
+        switch self {
+        case .gallery:
+            return 1000
+        case .list:
+            return 240
+        case .grid:
+            return 360
+        }
+    }
+}
+
 struct TMDbImageURLResolver {
     static let backdropIdealWidth = 1_280
 
@@ -76,8 +93,14 @@ extension ImagesConfiguration {
 extension AnimeEntry {
     /// Resolves the poster URL through `selectedPosterPath`, so callers automatically use
     /// `customPosterPath` when `usingCustomPoster` is true and `posterPath` otherwise.
+    ///
+    /// Note that this returns a URL for the original sized poster image.
     var posterURL: URL? {
         TMDbImageURLResolver.current.url(for: selectedPosterPath, role: .poster)
+    }
+
+    func posterURL(for displayType: TMDbPosterDisplayType) -> URL? {
+        TMDbImageURLResolver.current.url(for: selectedPosterPath, role: .poster, idealWidth: displayType.idealWidth)
     }
 
     var backdropURL: URL? {

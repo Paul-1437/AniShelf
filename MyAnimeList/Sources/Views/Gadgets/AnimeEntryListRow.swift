@@ -106,7 +106,7 @@ struct AnimeEntryListRow: View {
 
     private var poster: some View {
         KFImageView(
-            url: snapshot.posterURL,
+            url: snapshot.displayPosterURL(for: .list),
             targetWidth: 240,
             diskCacheExpiration: .longTerm
         )

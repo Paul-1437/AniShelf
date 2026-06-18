@@ -24,7 +24,7 @@ struct EntryContextMenuPreview: View {
 
     var body: some View {
         KFImageView(
-            url: snapshot.posterURL,
+            url: snapshot.displayPosterURL(for: .gallery),
             targetWidth: 1_000,
             diskCacheExpiration: LibraryImageCacheService.galleryPosterDiskCacheExpiration(
                 longTermCachingEnabled: longTermGalleryPosterCachingEnabled

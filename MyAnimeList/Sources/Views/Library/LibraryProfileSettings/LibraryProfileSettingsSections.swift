@@ -481,7 +481,7 @@ fileprivate struct LibraryProfileDefaultSettingsSection: View {
             LibraryProfileSettingsToggleRow(
                 title: "Cache Large Gallery Posters",
                 subtitle:
-                    "Store large library posters longer for smoother gallery scrolling. This may use more disk space.",
+                    "Store large Gallery posters longer. Off by default and may use more disk space.",
                 isOn: $longTermGalleryPosterCachingEnabled
             )
         }

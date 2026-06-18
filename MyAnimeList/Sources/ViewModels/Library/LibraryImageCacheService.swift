@@ -5,8 +5,13 @@ import SwiftUI
 
 @MainActor
 enum LibraryImageCacheService {
-    private static let standardPosterPrefetchTargetWidths: [CGFloat] = [240, 360]
-    private static let galleryPosterPrefetchTargetWidth: CGFloat = 1_000
+    /// Poster display contexts warmed by default. Gallery is added only when long-term gallery
+    /// poster caching is enabled.
+    ///
+    /// Each context maps to a distinct sized TMDb URL, which Kingfisher keys on directly. Prefetch
+    /// must build targets from these same sized URLs, or the warmed entries never match the keys the
+    /// list/grid/gallery views look up.
+    private static let standardPosterPrefetchDisplayTypes: [TMDbPosterDisplayType] = [.list, .grid]
     private static let backdropPrefetchTargetSize = CGSize(width: 1_200, height: 675)
     private static let logoPrefetchTargetSize = CGSize(width: 500, height: 500)
     private static let prefetchDiskCacheExpiration: StorageExpiration = .longTerm
@@ -177,7 +182,7 @@ enum LibraryImageCacheService {
     where C.Element == AnimeEntry {
         entries.flatMap { entry in
             Self.imagePrefetchTargets(
-                posterURL: entry.posterURL,
+                posterPath: entry.selectedPosterPath,
                 backdropURL: entry.backdropURL,
                 logoImageURL: entry.detail?.logoImageURL,
                 longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
@@ -186,20 +191,27 @@ enum LibraryImageCacheService {
     }
 
     static func imagePrefetchTargets(
-        posterURL: URL?,
+        posterPath: String?,
         backdropURL: URL?,
         logoImageURL: URL?,
         longTermGalleryPosterCachingEnabled: Bool = false
     ) -> [ImagePrefetchTarget] {
         var targets: [ImagePrefetchTarget] = []
 
-        if let posterURL {
-            targets += posterPrefetchTargetWidths(
+        if let posterPath {
+            targets += posterPrefetchDisplayTypes(
                 longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled
-            ).map { targetWidth in
-                ImagePrefetchTarget(
-                    url: posterURL,
-                    targetSize: PosterImageSize.targetSize(width: targetWidth)
+            ).compactMap { displayType in
+                guard
+                    let url = TMDbImageURLResolver.current.url(
+                        for: posterPath,
+                        role: .poster,
+                        idealWidth: displayType.idealWidth
+                    )
+                else { return nil }
+                return ImagePrefetchTarget(
+                    url: url,
+                    targetSize: PosterImageSize.targetSize(width: CGFloat(displayType.idealWidth))
                 )
             }
         }
@@ -215,17 +227,22 @@ enum LibraryImageCacheService {
         return targets
     }
 
-    private static func posterPrefetchTargetWidths(
+    private static func posterPrefetchDisplayTypes(
         longTermGalleryPosterCachingEnabled: Bool
-    ) -> [CGFloat] {
+    ) -> [TMDbPosterDisplayType] {
         if longTermGalleryPosterCachingEnabled {
-            return standardPosterPrefetchTargetWidths + [galleryPosterPrefetchTargetWidth]
+            return standardPosterPrefetchDisplayTypes + [.gallery]
         }
-        return standardPosterPrefetchTargetWidths
+        return standardPosterPrefetchDisplayTypes
     }
 
     static func relatedImageURLs(for entry: AnimeEntry) -> Set<URL> {
+        // Include the original poster URL plus every sized rendition the list/grid/gallery views
+        // request, so deletion evicts the same keys the prefetch warmed.
         var urls = Set([entry.posterURL, entry.backdropURL].compactMap(\.self))
+        urls.formUnion(
+            TMDbPosterDisplayType.allCases.compactMap { entry.posterURL(for: $0) }
+        )
 
         if let detail = entry.detail {
             urls.formUnion([detail.heroImageURL, detail.logoImageURL].compactMap(\.self))

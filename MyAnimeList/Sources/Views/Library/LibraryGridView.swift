@@ -186,7 +186,7 @@ fileprivate struct LibraryGridItem: View {
 
     private var posterImage: some View {
         KFImageView(
-            url: snapshot.posterURL,
+            url: snapshot.displayPosterURL(for: .grid),
             targetWidth: 360,
             diskCacheExpiration: .longTerm
         )

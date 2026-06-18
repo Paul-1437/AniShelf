@@ -206,12 +206,12 @@ final class LibraryMetadataRefresher {
     ) -> [LibraryImageCacheService.ImagePrefetchTarget] {
         // Refresh prefetch should follow the poster the UI will show after the write:
         // custom poster when preserved, otherwise the refreshed TMDb poster.
-        let posterURL =
+        let posterPath =
             update.preservingCustomPoster
-            ? TMDbImageURLResolver.current.url(for: update.customPosterPath, role: .poster)
-            : update.info.posterURL
+            ? update.customPosterPath
+            : update.info.posterPath
         return LibraryImageCacheService.imagePrefetchTargets(
-            posterURL: posterURL,
+            posterPath: posterPath,
             backdropURL: update.info.backdropURL,
             logoImageURL: update.info.logoURL,
             longTermGalleryPosterCachingEnabled: longTermGalleryPosterCachingEnabled

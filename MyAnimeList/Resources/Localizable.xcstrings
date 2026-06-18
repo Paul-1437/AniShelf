@@ -5706,18 +5706,18 @@
         }
       }
     },
-    "Store large library posters longer for smoother gallery scrolling. This may use more disk space." : {
+    "Store large Gallery posters longer. Off by default and may use more disk space." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ギャラリーを滑らかにスクロールできるよう、大きなライブラリポスターを長めに保存します。ディスク容量を多く使用する場合があります。"
+            "value" : "大きなギャラリーポスターを長めに保存します。デフォルトではオフで、ディスク容量を多く使用する場合があります。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更长时间保存大尺寸资料库海报，让图库滚动更流畅。这可能会占用更多磁盘空间。"
+            "value" : "更长时间保存大尺寸图库海报。默认关闭，可能会占用更多磁盘空间。"
           }
         }
       }

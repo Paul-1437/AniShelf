@@ -249,24 +249,26 @@ struct LibraryMetadataRefreshTests {
     @Test @MainActor func testLibraryImageCacheBuildsDefaultPrefetchTargetsWithoutLargeGalleryPoster()
         throws
     {
-        let posterURL = try #require(URL(string: "https://example.com/poster.jpg"))
         let backdropURL = try #require(URL(string: "https://example.com/backdrop.jpg"))
         let logoURL = try #require(URL(string: "https://example.com/logo.png"))
 
         let targets = Set(
             LibraryImageCacheService.imagePrefetchTargets(
-                posterURL: posterURL,
+                posterPath: "/poster.jpg",
                 backdropURL: backdropURL,
                 logoImageURL: logoURL,
                 longTermGalleryPosterCachingEnabled: false
             )
         )
 
+        let listPosterURL = try #require(URL(string: "https://image.tmdb.org/t/p/w342/poster.jpg"))
+        let gridPosterURL = try #require(URL(string: "https://image.tmdb.org/t/p/w500/poster.jpg"))
+
         #expect(
             targets
                 == Set([
-                    .init(url: posterURL, targetSize: CGSize(width: 240, height: 360)),
-                    .init(url: posterURL, targetSize: CGSize(width: 360, height: 540)),
+                    .init(url: listPosterURL, targetSize: CGSize(width: 240, height: 360)),
+                    .init(url: gridPosterURL, targetSize: CGSize(width: 360, height: 540)),
                     .init(url: backdropURL, targetSize: CGSize(width: 1_200, height: 675)),
                     .init(url: logoURL, targetSize: CGSize(width: 500, height: 500))
                 ])
@@ -274,20 +276,22 @@ struct LibraryMetadataRefreshTests {
     }
 
     @Test @MainActor func testLibraryImageCacheIncludesLargeGalleryPosterWhenEnabled() throws {
-        let posterURL = try #require(URL(string: "https://example.com/poster.jpg"))
-
         let targets = Set(
             LibraryImageCacheService.imagePrefetchTargets(
-                posterURL: posterURL,
+                posterPath: "/poster.jpg",
                 backdropURL: nil,
                 logoImageURL: nil,
                 longTermGalleryPosterCachingEnabled: true
             )
         )
 
+        let galleryPosterURL = try #require(
+            URL(string: "https://image.tmdb.org/t/p/original/poster.jpg")
+        )
+
         #expect(
             targets.contains(
-                .init(url: posterURL, targetSize: CGSize(width: 1_000, height: 1_500))
+                .init(url: galleryPosterURL, targetSize: CGSize(width: 1_000, height: 1_500))
             )
         )
     }
@@ -339,6 +343,8 @@ struct LibraryMetadataRefreshTests {
 
     @Test @MainActor func testLibraryImageCacheCollectsRelatedDetailURLs() throws {
         let posterURL = try #require(URL(string: "https://image.tmdb.org/t/p/original/poster.jpg"))
+        let listPosterURL = try #require(URL(string: "https://image.tmdb.org/t/p/w342/poster.jpg"))
+        let gridPosterURL = try #require(URL(string: "https://image.tmdb.org/t/p/w500/poster.jpg"))
         let backdropURL = try #require(URL(string: "https://image.tmdb.org/t/p/w1280/backdrop.jpg"))
         let logoURL = try #require(URL(string: "https://image.tmdb.org/t/p/w500/logo.png"))
         let characterURL = try #require(URL(string: "https://image.tmdb.org/t/p/w185/character.jpg"))
@@ -397,6 +403,8 @@ struct LibraryMetadataRefreshTests {
             urls
                 == Set([
                     posterURL,
+                    listPosterURL,
+                    gridPosterURL,
                     backdropURL,
                     logoURL,
                     characterURL,
