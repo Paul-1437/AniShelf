@@ -95,17 +95,22 @@ struct LibraryListView: View {
             EntryContextMenuPreview(snapshot: item.snapshot)
                 .onAppear { scrolledID = item.id }
         }
+
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button("Delete", systemImage: "trash") {
-                interaction.prepareDeletion(for: item.entry)
+            if !interaction.isMultiSelecting {
+                Button("Delete", systemImage: "trash") {
+                    interaction.prepareDeletion(for: item.entry)
+                }
+                .tint(.red)
             }
-            .tint(.red)
         }
         .swipeActions(edge: .leading) {
-            Button("Edit", systemImage: "pencil") {
-                interaction.setEditingEntry(item.entry)
+            if !interaction.isMultiSelecting {
+                Button("Edit", systemImage: "pencil") {
+                    interaction.setEditingEntry(item.entry)
+                }
+                .tint(.blue)
             }
-            .tint(.blue)
         }
     }
 
