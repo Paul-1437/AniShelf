@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Kingfisher
 import TMDb
 import Testing
 
@@ -152,6 +153,13 @@ struct TMDbImageAndTranslationTests {
         #expect(entry.backdropURL?.absoluteString == "https://image.tmdb.org/t/p/w1280/backdrop.jpg")
         #expect(detail.heroImageURL?.absoluteString == "https://image.tmdb.org/t/p/w1280/backdrop.jpg")
         #expect(detail.logoImageURL?.absoluteString == "https://image.tmdb.org/t/p/w500/logo.png")
+
+        let svgDetail = AnimeEntryDetail(
+            language: "en-US",
+            title: "SVG Logo Entry",
+            logoImagePath: "/logo.svg"
+        )
+        #expect(svgDetail.logoImageURL?.absoluteString == "https://image.tmdb.org/t/p/original/logo.svg")
     }
 
     @Test func fetchDTOImageURLsResolveFromPathsBeforeLegacyURLs() throws {
@@ -195,6 +203,14 @@ struct TMDbImageAndTranslationTests {
         #expect(
             detail.resolvedLogoImageURL?.absoluteString
                 == "https://image.tmdb.org/t/p/w500/logos/title.png"
+        )
+        #expect(
+            AnimeEntryDetailDTO(
+                language: "en-US",
+                title: "SVG Path Detail",
+                logoImagePath: "/logos/title.svg"
+            ).resolvedLogoImageURL?.absoluteString
+                == "https://image.tmdb.org/t/p/original/logos/title.svg"
         )
         #expect(
             character.resolvedProfileURL?.absoluteString
@@ -390,6 +406,200 @@ struct TMDbImageAndTranslationTests {
                 originalLanguageCode: "ja",
                 metadataLanguageCode: "ko"
             ) == noLanguageLogo
+        )
+    }
+
+    @Test func testLogoSelectionSupportsSVGWithPNGSameLanguageTieBreak() throws {
+        let englishPNGLogo = URL(string: "https://example.com/logo-en.png")!
+        let chineseSVGLogo = URL(string: "https://example.com/logo-zh.svg")!
+        let chinesePNGLogo = URL(string: "https://example.com/logo-zh.png")!
+        let japaneseSVGLogo = URL(string: "https://example.com/logo-ja.svg")!
+
+        #expect(
+            TMDbImageSelection.preferredLogoPath(
+                from: [
+                    .init(languageCode: "en", filePath: englishPNGLogo),
+                    .init(languageCode: "zh", filePath: chineseSVGLogo)
+                ],
+                originalLanguageCode: "zh",
+                metadataLanguageCode: "en"
+            ) == chineseSVGLogo
+        )
+        #expect(
+            TMDbImageSelection.preferredLogoPath(
+                from: [
+                    .init(languageCode: "zh", filePath: chineseSVGLogo),
+                    .init(languageCode: "zh", filePath: chinesePNGLogo)
+                ],
+                originalLanguageCode: "zh",
+                metadataLanguageCode: "en"
+            ) == chinesePNGLogo
+        )
+        #expect(
+            TMDbImageSelection.preferredLogoPath(
+                from: [
+                    .init(languageCode: "en", filePath: englishPNGLogo),
+                    .init(languageCode: "ja", filePath: japaneseSVGLogo)
+                ],
+                originalLanguageCode: "ja",
+                metadataLanguageCode: "en"
+            ) == japaneseSVGLogo
+        )
+    }
+
+    @Test func testLiveLogoURLsUseOriginalForSVGAndRequestedSizeForPNG() async throws {
+        let client = TMDbClient(
+            apiKey: "test-key",
+            httpClient: RecordingTMDbHTTPClient { request in
+                if request.url.path == "/3/configuration" {
+                    return HTTPResponse(data: Data(#"""
+                    {
+                      "images": {
+                        "base_url": "http://image.tmdb.org/t/p/",
+                        "secure_base_url": "https://image.tmdb.org/t/p/",
+                        "backdrop_sizes": ["w1280", "original"],
+                        "logo_sizes": ["w500", "original"],
+                        "poster_sizes": ["w780", "original"],
+                        "profile_sizes": ["w185", "original"],
+                        "still_sizes": ["w300", "original"]
+                      },
+                      "change_keys": []
+                    }
+                    """#.utf8))
+                }
+
+                return HTTPResponse(data: Data(#"""
+                    {
+                      "id": 1,
+                      "posters": [],
+                      "backdrops": [],
+                      "logos": [
+                        {
+                          "file_path": "/logo.png",
+                          "width": 500,
+                          "height": 200,
+                          "aspect_ratio": 2.5,
+                          "vote_average": 0,
+                          "vote_count": 0,
+                          "iso_639_1": "en"
+                        },
+                        {
+                          "file_path": "/logo.svg",
+                          "width": 500,
+                          "height": 200,
+                          "aspect_ratio": 2.5,
+                          "vote_average": 0,
+                          "vote_count": 0,
+                          "iso_639_1": "en"
+                        },
+                        {
+                          "file_path": "/logo.jpg",
+                          "width": 500,
+                          "height": 200,
+                          "aspect_ratio": 2.5,
+                          "vote_average": 0,
+                          "vote_count": 0,
+                          "iso_639_1": "en"
+                        }
+                      ]
+                    }
+                    """#.utf8))
+            },
+            configuration: .default
+        )
+
+        let urls = try await client.logoURLs(forMovie: 11, idealWidth: 500)
+            .map(\.url.absoluteString)
+            .sorted()
+
+        #expect(
+            urls == [
+                "https://image.tmdb.org/t/p/original/logo.svg",
+                "https://image.tmdb.org/t/p/w500/logo.png"
+            ]
+        )
+    }
+
+    @Test func testSVGImageProcessorRasterizesInlineSVG() throws {
+        let processor = SVGImageProcessor(
+            targetSize: CGSize(width: 24, height: 24),
+            scale: 2
+        )
+        let svgData = Data(#"""
+        <svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+          <rect width="12" height="12" fill="red"/>
+        </svg>
+        """#.utf8)
+
+        let image = try #require(
+            processor.process(
+                item: .data(svgData),
+                options: KingfisherParsedOptionsInfo([.processor(processor)])
+            )
+        )
+
+        #expect(image.size == CGSize(width: 24, height: 24))
+        #expect(image.scale == 2)
+    }
+
+    @Test func testSVGImageProcessorPreservesAspectRatioWithinTargetSize() throws {
+        let processor = SVGImageProcessor(
+            targetSize: CGSize(width: 24, height: 24),
+            scale: 2
+        )
+        let wideSVGData = Data(#"""
+        <svg width="120" height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg">
+          <rect width="120" height="40" fill="red"/>
+        </svg>
+        """#.utf8)
+        let tallSVGData = Data(#"""
+        <svg width="40" height="120" viewBox="0 0 40 120" xmlns="http://www.w3.org/2000/svg">
+          <rect width="40" height="120" fill="blue"/>
+        </svg>
+        """#.utf8)
+
+        let wideImage = try #require(
+            processor.process(
+                item: .data(wideSVGData),
+                options: KingfisherParsedOptionsInfo([.processor(processor)])
+            )
+        )
+        let tallImage = try #require(
+            processor.process(
+                item: .data(tallSVGData),
+                options: KingfisherParsedOptionsInfo([.processor(processor)])
+            )
+        )
+
+        #expect(wideImage.size == CGSize(width: 24, height: 8))
+        #expect(tallImage.size == CGSize(width: 8, height: 24))
+        #expect(wideImage.scale == 2)
+        #expect(tallImage.scale == 2)
+    }
+
+    @Test func testSVGImageProcessorIdentifiersIncludeSizeAndScale() {
+        #expect(
+            SVGImageProcessor(targetSize: CGSize(width: 500, height: 500), scale: 2).identifier
+                == "com.anishelf.svg.fit500x500@2"
+        )
+        #expect(
+            SVGImageProcessor(targetSize: CGSize(width: 500, height: 500), scale: 3).identifier
+                == "com.anishelf.svg.fit500x500@3"
+        )
+        #expect(
+            SVGImageProcessor(scale: 3).identifier
+                == "com.anishelf.svg.intrinsic@3"
+        )
+    }
+
+    @Test func testSVGImageProcessorRejectsInvalidData() {
+        let processor = SVGImageProcessor(targetSize: CGSize(width: 24, height: 24), scale: 2)
+
+        #expect(
+            processor.process(
+                item: .data(Data("not svg".utf8)),
+                options: KingfisherParsedOptionsInfo([.processor(processor)])
+            ) == nil
         )
     }
 

@@ -94,8 +94,7 @@ struct KFImageView: View {
             kfRetrieveOptions.append(.cacheOriginalImage)
         }
 
-        if let targetSize {
-            let processor = DownsamplingImageProcessor(size: targetSize)
+        if let processor = LibraryImageProcessorFactory.processor(for: url, targetSize: targetSize) {
             kfRetrieveOptions.append(.processor(processor))
         }
 

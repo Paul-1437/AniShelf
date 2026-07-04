@@ -17,8 +17,13 @@ struct ImageURLWithMetadata: Identifiable, Hashable {
 
 /// Provides direct image URL fetching capabilities from TMDb API.
 extension TMDbClient {
-    private func isPNGImageResource(_ resource: ImageMetadata) -> Bool {
-        resource.filePath.pathExtension.caseInsensitiveCompare("png") == .orderedSame
+    private func isSupportedLogoImageResource(_ resource: ImageMetadata) -> Bool {
+        switch resource.filePath.pathExtension.lowercased() {
+        case "png", "svg":
+            return true
+        default:
+            return false
+        }
     }
 
     /// Gets the current image configuration from TMDb API.
@@ -58,7 +63,8 @@ extension TMDbClient {
                             for: resource.filePath, idealWidth: idealWidth)
                     case .logo:
                         url = try? await self.imagesConfiguration.logoURL(
-                            for: resource.filePath, idealWidth: idealWidth)
+                            for: resource.filePath,
+                            idealWidth: resource.filePath.isSVGImageURL ? .max : idealWidth)
                     case .poster:
                         url = try? await self.imagesConfiguration.posterURL(
                             for: resource.filePath, idealWidth: idealWidth)
@@ -123,7 +129,7 @@ extension TMDbClient {
         -> [ImageURLWithMetadata]
     {
         await urlsFromImageMetadata(
-            resources: collection.logos.filter(isPNGImageResource),
+            resources: collection.logos.filter(isSupportedLogoImageResource),
             imageType: .logo,
             idealWidth: idealWidth)
     }

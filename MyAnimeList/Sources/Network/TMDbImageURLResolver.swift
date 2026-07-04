@@ -61,6 +61,9 @@ struct TMDbImageURLResolver {
         case .backdrop:
             return imagesConfiguration.backdropURL(for: pathURL, idealWidth: idealWidth)
         case .logo:
+            if pathURL?.isSVGImageURL == true {
+                return imagesConfiguration.logoURL(for: pathURL, idealWidth: .max)
+            }
             return imagesConfiguration.logoURL(for: pathURL, idealWidth: idealWidth)
         case .profile:
             return imagesConfiguration.profileURL(for: pathURL, idealWidth: idealWidth)

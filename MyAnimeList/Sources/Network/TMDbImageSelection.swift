@@ -71,16 +71,34 @@ enum TMDbImageSelection {
         originalLanguageCode: String? = nil,
         metadataLanguageCode: String? = nil
     ) -> URL? {
-        let pngResources = resources.filter {
-            $0.filePath.pathExtension.caseInsensitiveCompare("png") == .orderedSame
-        }
+        let supportedLogoResources = resources
+            .enumerated()
+            .compactMap { resource -> (Resource, Int)? in
+                guard let priority = logoFormatPriority(for: resource.element.filePath) else { return nil }
+                return (resource.element, priority * resources.count + resource.offset)
+            }
+            .sorted { lhs, rhs in
+                lhs.1 < rhs.1
+            }
+            .map(\.0)
         return preferredPath(
-            from: pngResources,
+            from: supportedLogoResources,
             rules: logoMatchRules(
                 originalLanguageCode: originalLanguageCode,
                 metadataLanguageCode: metadataLanguageCode
             )
         )
+    }
+
+    private static func logoFormatPriority(for filePath: URL) -> Int? {
+        switch filePath.pathExtension.lowercased() {
+        case "png":
+            return 0
+        case "svg":
+            return 1
+        default:
+            return nil
+        }
     }
 
     static func isNoLanguageCode(_ languageCode: String?) -> Bool {

@@ -297,7 +297,12 @@ enum LibraryImageCacheService {
         let downsampledIdentifiers = sizes.map { size in
             DownsamplingImageProcessor(size: size).identifier
         }
-        return [""] + downsampledIdentifiers
+        let svgIdentifiers = sizes.flatMap { size in
+            [1, 2, 3].map { scale in
+                SVGImageProcessor.identifier(targetSize: size, scale: CGFloat(scale))
+            }
+        }
+        return [""] + downsampledIdentifiers + svgIdentifiers
     }()
 
     nonisolated static func imagePrefetchWorkItems(from targets: [ImagePrefetchTarget]) -> [ImagePrefetchWorkItem] {
@@ -330,9 +335,9 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
         attributes: .concurrent
     )
 
-    static func downsample(
+    static func process(
         _ data: Data,
-        using processor: DownsamplingImageProcessor
+        using processor: any ImageProcessor
     ) async -> KFCrossPlatformImage? {
         await withCheckedContinuation { continuation in
             processingQueue.async {
@@ -438,7 +443,15 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
                 return .success(workItem.url)
             }
 
-            let downloadOptions = KingfisherParsedOptionsInfo(nil)
+            let downloadOptions: KingfisherParsedOptionsInfo
+            if let downloadProcessor = LibraryImageProcessorFactory.downloadProcessor(
+                for: workItem.url,
+                targetSize: missingProcessors.first?.0
+            ) {
+                downloadOptions = KingfisherParsedOptionsInfo([.processor(downloadProcessor)])
+            } else {
+                downloadOptions = KingfisherParsedOptionsInfo(nil)
+            }
             let loadingResult = try await downloader.downloadImage(
                 with: workItem.url,
                 options: downloadOptions
@@ -447,11 +460,11 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
             let cacheKey = workItem.url.cacheKey
 
             for (targetSize, processor) in missingProcessors {
-                // Downsampling decodes the full-size original synchronously. Run it on a
+                // Variant processing decodes the original synchronously. Run it on a
                 // dedicated queue so it doesn't block Swift's cooperative executor, which
                 // other concurrent prefetch work (and the rest of the app) shares.
                 guard
-                    let image = await Self.downsample(originalData, using: processor)
+                    let image = await Self.process(originalData, using: processor)
                 else {
                     throw ImagePrefetchError.processingFailed(url: workItem.url, targetSize: targetSize)
                 }
@@ -483,16 +496,21 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
 
     private func missingProcessors(
         for workItem: LibraryImageCacheService.ImagePrefetchWorkItem
-    ) async -> [(CGSize, DownsamplingImageProcessor)] {
+    ) async -> [(CGSize, any ImageProcessor)] {
         let cacheKey = workItem.url.cacheKey
         let processors = workItem.targetSizes
-            .map { targetSize in
-                (targetSize, DownsamplingImageProcessor(size: targetSize))
+            .compactMap { targetSize in
+                LibraryImageProcessorFactory.processor(
+                    for: workItem.url,
+                    targetSize: targetSize
+                ).map { processor in
+                    (targetSize, processor)
+                }
             }
 
         let missingProcessors = await withTaskGroup(
-            of: Optional<(CGSize, DownsamplingImageProcessor)>.self,
-            returning: [(CGSize, DownsamplingImageProcessor)].self
+            of: Optional<(CGSize, any ImageProcessor)>.self,
+            returning: [(CGSize, any ImageProcessor)].self
         ) { group in
             for (targetSize, processor) in processors {
                 group.addTask {
@@ -507,7 +525,7 @@ fileprivate struct KingfisherVariantImagePrefetcher: Sendable {
                 }
             }
 
-            var missingProcessors: [(CGSize, DownsamplingImageProcessor)] = []
+            var missingProcessors: [(CGSize, any ImageProcessor)] = []
             for await processor in group {
                 if let processor {
                     missingProcessors.append(processor)
