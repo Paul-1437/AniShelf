@@ -5,8 +5,9 @@ import SwiftUI
 
 @MainActor
 enum LibraryImageCacheService {
-    /// Poster display contexts warmed by default. Gallery is added only when long-term gallery
-    /// poster caching is enabled.
+    /// Poster display contexts warmed by default.
+    ///
+    /// Gallery is added only when long-term gallery poster caching is enabled.
     ///
     /// Each context maps to a distinct sized TMDb URL, which Kingfisher keys on directly. Prefetch
     /// must build targets from these same sized URLs, or the warmed entries never match the keys the

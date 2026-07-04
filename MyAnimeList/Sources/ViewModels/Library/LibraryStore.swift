@@ -269,7 +269,7 @@ class LibraryStore {
     /// detached model actors rather than only the main-context `repository.save()`. After the
     /// operation completes, the sync recorder baseline is rebuilt from the resulting store state.
     func performWithoutSyncRecording<T>(_ operation: () async throws -> T) async throws -> T {
-        let result = try await syncChangeRecorder.withSuppressedRecording {
+        let result = try await syncChangeRecorder.withSuppressedRecordingAsync {
             try await operation()
         }
         rebuildSyncChangeTracking()
