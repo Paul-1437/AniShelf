@@ -112,6 +112,25 @@ make run-device-reset-tmdb-api-key
 
 For detailed architecture and development guidelines, see [AGENTS.md](AGENTS.md).
 
+### CLI & Agentic Access
+
+AniShelf's command-line companion lives in
+[samuelhe52/anishelf-cli](https://github.com/samuelhe52/anishelf-cli). It
+provides the `ani` command for read-only access to a user-authorized AniShelf
+CloudKit library (requires the user to enable iCloud Sync in the app).
+
+For agents, go to [SKILL.md](https://github.com/samuelhe52/anishelf-cli/blob/main/skills/anishelf-cli/SKILL.md) for details on how to install and use the `ani` command.
+
+For humans, installation/bootstrap requires Python 3.13+ and `uv`:
+
+```bash
+uv tool install --python 3.13 git+https://github.com/samuelhe52/anishelf-cli.git@v0.1.0
+ani auth login
+ani config set-tmdb-api-key
+ani lib init
+ani lib list
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
