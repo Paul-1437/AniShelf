@@ -26,6 +26,11 @@ fileprivate enum TMDbContentMode {
     case batchAdd
 }
 
+enum SearchSubmissionOrigin {
+    case regular
+    case batch
+}
+
 /// Main search page that coordinates between TMDb and Library search modes.
 struct SearchPage: View {
     @Environment(LibraryStore.self) private var store
@@ -38,7 +43,7 @@ struct SearchPage: View {
     // Callbacks for TMDb search interactions
     private let onDuplicateTapped: (Int) -> Void
     private let checkDuplicate: (Int) -> Bool
-    private let processTMDbSearchResults: (OrderedSet<SearchResult>) -> Void
+    private let processTMDbSearchResults: (OrderedSet<SearchResult>, SearchSubmissionOrigin) -> Void
     private let jumpToEntryInLibrary: (Int) -> Void
 
     // View models owned by SearchPage
@@ -48,7 +53,7 @@ struct SearchPage: View {
     init(
         onDuplicateTapped: @escaping (_ tappedID: Int) -> Void,
         checkDuplicate: @escaping (_ tmdbID: Int) -> Bool,
-        processTMDbSearchResults: @escaping (OrderedSet<SearchResult>) -> Void,
+        processTMDbSearchResults: @escaping (OrderedSet<SearchResult>, SearchSubmissionOrigin) -> Void,
         jumpToEntryInLibrary: @escaping (Int) -> Void = { _ in }
     ) {
         self.onDuplicateTapped = onDuplicateTapped
@@ -235,7 +240,7 @@ struct SearchPage: View {
         SearchPage(
             onDuplicateTapped: { _ in },
             checkDuplicate: { _ in true },
-            processTMDbSearchResults: { results in
+            processTMDbSearchResults: { results, _ in
                 print(results)
             }
         )

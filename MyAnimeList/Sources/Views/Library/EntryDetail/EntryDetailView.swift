@@ -14,6 +14,7 @@ struct EntryDetailView: View {
     @Environment(\.dataHandler) private var dataHandler
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppReviewPromptController.self) private var appReview
     @AppStorage(.preferredAnimeInfoLanguage) private var preferredLanguage: Language = .english
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) private var followsSystemLanguage: Bool =
         Language.followsSystemPreference()
@@ -30,6 +31,7 @@ struct EntryDetailView: View {
     @State private var originalTrackingUpdatedAt: Date?
     @State private var conversion = EntryDetailConversionState()
     @State private var didAutoScrollToEditingSection = false
+    @State private var hasPendingWatchedReviewOpportunity = false
     @State private var isCharacterExpanded = true
     @State private var isStaffExpanded = false
 
@@ -172,9 +174,11 @@ struct EntryDetailView: View {
                 withAnimation(.default) {
                     entry.applyDateUpdateSuggestion(suggestion)
                 }
+                schedulePendingWatchedReviewOpportunity()
             }
             Button(EntryDetailL10n.later, role: .cancel) {
                 presentation.dateUpdateSuggestion = nil
+                schedulePendingWatchedReviewOpportunity()
             }
         } message: { suggestion in
             Text(EntryDetailL10n.dateSuggestionMessage(for: suggestion))
@@ -592,10 +596,25 @@ struct EntryDetailView: View {
     private func requestWatchStatusChange(_ status: AnimeEntry.WatchStatus) {
         guard entry.watchStatus != status else { return }
 
+        let creditsCompletion = status == .watched && (entry.type == .series || entry.type == .movie)
+
         withAnimation(.default) {
             _ = entry.updateWatchStatus(status)
         }
         presentation.dateUpdateSuggestion = entry.dateUpdateSuggestion(forTargetStatus: status)
+        if creditsCompletion {
+            appReview.record(.entryWatched(entryID: entry.tmdbID), scheduleRequest: false)
+            hasPendingWatchedReviewOpportunity = true
+            if presentation.dateUpdateSuggestion == nil {
+                schedulePendingWatchedReviewOpportunity()
+            }
+        }
+    }
+
+    private func schedulePendingWatchedReviewOpportunity() {
+        guard hasPendingWatchedReviewOpportunity else { return }
+        hasPendingWatchedReviewOpportunity = false
+        appReview.scheduleRequestIfEligible()
     }
 
     private func handleEpisodeProgressCompletionSuggestion(

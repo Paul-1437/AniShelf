@@ -53,6 +53,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Resources/Info.plist,
+				Tests/MyAnimeListTests/AppReviewPromptControllerTests.swift,
 				Tests/MyAnimeListTests/EntryDetailViewModelTests.swift,
 				Tests/MyAnimeListTests/InfoFetcherLiveFetchTests.swift,
 				Tests/MyAnimeListTests/InfoFetcherMetadataMappingTests.swift,
@@ -89,6 +90,7 @@
 		9F93FC182DE1FD800071FB56 /* Exceptions for "MyAnimeList" folder in "MyAnimeListTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Tests/MyAnimeListTests/AppReviewPromptControllerTests.swift,
 				Tests/MyAnimeListTests/EntryDetailViewModelTests.swift,
 				Tests/MyAnimeListTests/InfoFetcherLiveFetchTests.swift,
 				Tests/MyAnimeListTests/InfoFetcherMetadataMappingTests.swift,

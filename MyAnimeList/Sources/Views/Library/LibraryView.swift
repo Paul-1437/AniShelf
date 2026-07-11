@@ -23,6 +23,7 @@ struct LibraryView: View {
     @State private var interaction = LibraryEntryInteractionState()
     @Environment(\.dataHandler) var dataHandler
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(AppReviewPromptController.self) private var appReview
 
     // UI state
     @State private var isSearching = false
@@ -554,12 +555,16 @@ struct LibraryView: View {
         }
     }
 
-    private func processTMDbSearchResults(_ results: OrderedSet<SearchResult>) {
+    private func processTMDbSearchResults(
+        _ results: OrderedSet<SearchResult>,
+        origin: SearchSubmissionOrigin
+    ) {
         isSearching = false
         Task {
             ToastCenter.global.loadingMessage = .message("Loading...")
             let success = await store.newEntryFromSearchResults(results)
             if success {
+                appReview.record(origin == .regular ? .regularSearchAdd : .batchSearchAdd)
                 ToastCenter.global.loadingMessage = nil
                 withAnimation {
                     newEntriesAddedToggle.toggle()
@@ -578,6 +583,9 @@ struct LibraryView: View {
 
         action.apply(to: entries)
         exitMultiSelection()
+        if entries.count >= 3 {
+            appReview.record(.multiSelectAction)
+        }
     }
 
     private func deleteSelectedEntries() {

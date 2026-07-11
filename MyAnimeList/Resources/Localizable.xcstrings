@@ -1,246 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "A clean library was created" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しい空のライブラリを作成しました"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已创建新的空资料库"
-          }
-        }
-      }
-    },
-    "AniShelf could not prepare this export. Please try again." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AniShelfはこのエクスポートを準備できませんでした。もう一度お試しください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AniShelf 无法准备此导出，请重试。"
-          }
-        }
-      }
-    },
-    "AniShelf quarantined the unreadable database files instead of deleting them." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AniShelfは読み取れないデータベースファイルを削除せず隔離しました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AniShelf 已隔离无法读取的数据库文件，而没有将其删除。"
-          }
-        }
-      }
-    },
-    "AniShelf was unable to open your database because it is corrupted or unreadable." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データベースが破損しているか読み取れないため、AniShelfは開くことができませんでした。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "由于数据库已损坏或无法读取，AniShelf 无法打开它。"
-          }
-        }
-      }
-    },
-    "Contact samuelhe52@outlook.com and attach an export below if you want the developer to investigate." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開発者による調査を希望する場合は、以下のエクスポートを添付して samuelhe52@outlook.com までご連絡ください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如需开发者协助调查，请联系 samuelhe52@outlook.com 并附上下方的导出文件。"
-          }
-        }
-      }
-    },
-    "Continue with Empty Library" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空のライブラリで続ける"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用空资料库继续"
-          }
-        }
-      }
-    },
-    "Developer assistance" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開発者によるサポート"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开发者协助"
-          }
-        }
-      }
-    },
-    "Export Diagnostic" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "診断情報をエクスポート"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导出诊断信息"
-          }
-        }
-      }
-    },
-    "Export Recovery Bundle" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "復旧バンドルをエクスポート"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导出恢复包"
-          }
-        }
-      }
-    },
-    "Library Recovery Required" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリの復旧が必要です"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需要恢复资料库"
-          }
-        }
-      }
-    },
-    "Nothing is uploaded automatically. An export is prepared only when you choose an action." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動的にアップロードされることはありません。操作を選択した場合にのみエクスポートが準備されます。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不会自动上传任何内容。只有在您选择操作后才会准备导出文件。"
-          }
-        }
-      }
-    },
-    "Optional Exports" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "任意のエクスポート"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可选导出"
-          }
-        }
-      }
-    },
-    "The replacement library is empty. A backup from an earlier build or iCloud Sync may help recover your data." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しいライブラリは空です。以前のビルドのバックアップまたはiCloud同期からデータを復旧できる場合があります。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "替代资料库为空。您可以尝试通过早期版本的备份或 iCloud 同步恢复数据。"
-          }
-        }
-      }
-    },
-    "Unable to Prepare Export" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "エクスポートを準備できません"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法准备导出"
-          }
-        }
-      }
-    },
-    "Your original files were preserved" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "元のファイルは保護されています"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原始文件已保留"
-          }
-        }
-      }
-    },
     "" : {
       "localizations" : {
         "ja" : {
@@ -501,6 +261,22 @@
         }
       }
     },
+    "A clean library was created" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい空のライブラリを作成しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已创建新的空资料库"
+          }
+        }
+      }
+    },
     "A generous coffee" : {
       "localizations" : {
         "ja" : {
@@ -613,22 +389,6 @@
         }
       }
     },
-    "Added a Settings option to cache large Gallery posters (off by default)." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "大きなギャラリーポスターをキャッシュする設定を追加しました（デフォルトではオフ）。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增缓存大尺寸图库海报的设置选项（默认关闭）。"
-          }
-        }
-      }
-    },
     "Added a rating feature: you can now rate anime in your library from 1 to 5." : {
       "localizations" : {
         "ja" : {
@@ -657,6 +417,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增了单击打开详情页的设置选项。"
+          }
+        }
+      }
+    },
+    "Added a Settings option to cache large Gallery posters (off by default)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きなギャラリーポスターをキャッシュする設定を追加しました（デフォルトではオフ）。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增缓存大尺寸图库海报的设置选项（默认关闭）。"
           }
         }
       }
@@ -983,6 +759,22 @@
         }
       }
     },
+    "AniShelf could not prepare this export. Please try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelfはこのエクスポートを準備できませんでした。もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 无法准备此导出，请重试。"
+          }
+        }
+      }
+    },
     "AniShelf keeps watch status, dates, and quick notes together so your collection stays useful over time." : {
       "localizations" : {
         "ja" : {
@@ -1027,6 +819,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "GitHub上的AniShelf"
+          }
+        }
+      }
+    },
+    "AniShelf quarantined the unreadable database files instead of deleting them." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelfは読み取れないデータベースファイルを削除せず隔離しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 已隔离无法读取的数据库文件，而没有将其删除。"
+          }
+        }
+      }
+    },
+    "AniShelf was unable to open your database because it is corrupted or unreadable." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データベースが破損しているか読み取れないため、AniShelfは開くことができませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由于数据库已损坏或无法读取，AniShelf 无法打开它。"
           }
         }
       }
@@ -1335,6 +1159,22 @@
         }
       }
     },
+    "Cache Large Gallery Posters" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きなギャラリーポスターをキャッシュ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缓存大尺寸图库海报"
+          }
+        }
+      }
+    },
     "Cache posters and artwork without refreshing metadata." : {
       "localizations" : {
         "ja" : {
@@ -1391,22 +1231,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在缓存图片：0 / %lld"
-          }
-        }
-      }
-    },
-    "Cache Large Gallery Posters" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "大きなギャラリーポスターをキャッシュ"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "缓存大尺寸图库海报"
           }
         }
       }
@@ -1604,6 +1428,9 @@
           }
         }
       }
+    },
+    "Checking TMDb API key..." : {
+
     },
     "Checking..." : {
       "localizations" : {
@@ -1830,6 +1657,22 @@
         }
       }
     },
+    "Contact samuelhe52@outlook.com and attach an export below if you want the developer to investigate." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開発者による調査を希望する場合は、以下のエクスポートを添付して samuelhe52@outlook.com までご連絡ください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如需开发者协助调查，请联系 samuelhe52@outlook.com 并附上下方的导出文件。"
+          }
+        }
+      }
+    },
     "Continue" : {
       "localizations" : {
         "ja" : {
@@ -1842,6 +1685,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "继续"
+          }
+        }
+      }
+    },
+    "Continue with Empty Library" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空のライブラリで続ける"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用空资料库继续"
           }
         }
       }
@@ -2233,6 +2092,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除所选动画？"
+          }
+        }
+      }
+    },
+    "Developer assistance" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開発者によるサポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发者协助"
           }
         }
       }
@@ -2685,6 +2560,38 @@
         }
       }
     },
+    "Export Diagnostic" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "診断情報をエクスポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出诊断信息"
+          }
+        }
+      }
+    },
+    "Export Recovery Bundle" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復旧バンドルをエクスポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出恢复包"
+          }
+        }
+      }
+    },
     "Exporting changes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2974,22 +2881,6 @@
         }
       }
     },
-    "Fixed an issue where iCloud sync could fail when the library became very large." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "资料库が非常に大きい場合に、iCloud同期が失敗することがある問題を修正しました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修复了资料库过大时，iCloud 同步可能失败的问题。"
-          }
-        }
-      }
-    },
     "Fixed an issue where adding certain anime could fail and occasionally crash the app." : {
       "localizations" : {
         "ja" : {
@@ -3018,6 +2909,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修复了已删除条目在同步后有时会重新出现的问题。"
+          }
+        }
+      }
+    },
+    "Fixed an issue where iCloud sync could fail when the library became very large." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库が非常に大きい場合に、iCloud同期が失敗することがある問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了资料库过大时，iCloud 同步可能失败的问题。"
           }
         }
       }
@@ -3599,6 +3506,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "资料库总览界面现在支持点击切换已看时长、想看时长与总时长。"
+          }
+        }
+      }
+    },
+    "Library Recovery Required" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリの復旧が必要です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要恢复资料库"
           }
         }
       }
@@ -4262,6 +4185,22 @@
         }
       }
     },
+    "Nothing is uploaded automatically. An export is prepared only when you choose an action." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動的にアップロードされることはありません。操作を選択した場合にのみエクスポートが準備されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不会自动上传任何内容。只有在您选择操作后才会准备导出文件。"
+          }
+        }
+      }
+    },
     "OK" : {
       "localizations" : {
         "ja" : {
@@ -4450,6 +4389,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "优化了详情页界面：新增Staff信息，并为海报添加了过度滚动缩放效果。"
+          }
+        }
+      }
+    },
+    "Optional Exports" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意のエクスポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选导出"
           }
         }
       }
@@ -4872,6 +4827,22 @@
         }
       }
     },
+    "Reduced disk usage. Existing users can optionally clear cache and reload metadata from Settings to reclaim more storage." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ディスク使用量を削減しました。既存ユーザーは、必要に応じて設定からキャッシュを消去し、メタデータを再読み込みすることで、さらに容量を確保できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "优化了磁盘占用。现有用户可按需在设置中清空缓存并重新加载元数据，以进一步减小占用空间。"
+          }
+        }
+      }
+    },
     "Refresh" : {
       "localizations" : {
         "ja" : {
@@ -5074,22 +5045,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已刷新 %lld 条信息"
-          }
-        }
-      }
-    },
-    "Reduced disk usage. Existing users can optionally clear cache and reload metadata from Settings to reclaim more storage." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ディスク使用量を削減しました。既存ユーザーは、必要に応じて設定からキャッシュを消去し、メタデータを再読み込みすることで、さらに容量を確保できます。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "优化了磁盘占用。现有用户可按需在设置中清空缓存并重新加载元数据，以进一步减小占用空间。"
           }
         }
       }
@@ -6332,6 +6287,22 @@
         }
       }
     },
+    "The replacement library is empty. A backup from an earlier build or iCloud Sync may help recover your data." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいライブラリは空です。以前のビルドのバックアップまたはiCloud同期からデータを復旧できる場合があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "替代资料库为空。您可以尝试通过早期版本的备份或 iCloud 同步恢复数据。"
+          }
+        }
+      }
+    },
     "These are optional tips that unlock no features, content, or services. All purchases are processed by the App Store." : {
       "localizations" : {
         "ja" : {
@@ -6392,6 +6363,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如果你想立即更新现有条目，也可以在此页面触发完整的元数据刷新。"
+          }
+        }
+      }
+    },
+    "This release fixes data correctness issues. Existing users should perform an info refresh by tapping the action button below so their library metadata can be corrected." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースではデータの正確性に関わる問題を修正しています。既存ユーザーは、ライブラリのメタデータを正しい状態に更新するため、下のアクションボタンから情報を更新してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本修复了影响数据正确性的问题。现有用户请点击下方操作按钮执行一次信息刷新，以修正资料库中的元数据。"
           }
         }
       }
@@ -6472,22 +6459,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此版本包含多项问题修复和改进。由于本版本对元数据获取做了重要优化，建议现有用户点击下方操作按钮执行一次元数据刷新。"
-          }
-        }
-      }
-    },
-    "This release fixes data correctness issues. Existing users should perform an info refresh by tapping the action button below so their library metadata can be corrected." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このリリースではデータの正確性に関わる問題を修正しています。既存ユーザーは、ライブラリのメタデータを正しい状態に更新するため、下のアクションボタンから情報を更新してください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此版本修复了影响数据正确性的问题。现有用户请点击下方操作按钮执行一次信息刷新，以修正资料库中的元数据。"
           }
         }
       }
@@ -6954,6 +6925,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前找不到此支持选项。"
+          }
+        }
+      }
+    },
+    "Unable to Prepare Export" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポートを準備できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法准备导出"
           }
         }
       }
@@ -7526,6 +7513,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在新密钥保存前，现有密钥仍然有效。"
+          }
+        }
+      }
+    },
+    "Your original files were preserved" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元のファイルは保護されています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原始文件已保留"
           }
         }
       }

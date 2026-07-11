@@ -452,58 +452,62 @@ struct TMDbImageAndTranslationTests {
             apiKey: "test-key",
             httpClient: RecordingTMDbHTTPClient { request in
                 if request.url.path == "/3/configuration" {
-                    return HTTPResponse(data: Data(#"""
-                    {
-                      "images": {
-                        "base_url": "http://image.tmdb.org/t/p/",
-                        "secure_base_url": "https://image.tmdb.org/t/p/",
-                        "backdrop_sizes": ["w1280", "original"],
-                        "logo_sizes": ["w500", "original"],
-                        "poster_sizes": ["w780", "original"],
-                        "profile_sizes": ["w185", "original"],
-                        "still_sizes": ["w300", "original"]
-                      },
-                      "change_keys": []
-                    }
-                    """#.utf8))
+                    return HTTPResponse(
+                        data: Data(
+                            #"""
+                            {
+                              "images": {
+                                "base_url": "http://image.tmdb.org/t/p/",
+                                "secure_base_url": "https://image.tmdb.org/t/p/",
+                                "backdrop_sizes": ["w1280", "original"],
+                                "logo_sizes": ["w500", "original"],
+                                "poster_sizes": ["w780", "original"],
+                                "profile_sizes": ["w185", "original"],
+                                "still_sizes": ["w300", "original"]
+                              },
+                              "change_keys": []
+                            }
+                            """#.utf8))
                 }
 
-                return HTTPResponse(data: Data(#"""
-                    {
-                      "id": 1,
-                      "posters": [],
-                      "backdrops": [],
-                      "logos": [
+                return HTTPResponse(
+                    data: Data(
+                        #"""
                         {
-                          "file_path": "/logo.png",
-                          "width": 500,
-                          "height": 200,
-                          "aspect_ratio": 2.5,
-                          "vote_average": 0,
-                          "vote_count": 0,
-                          "iso_639_1": "en"
-                        },
-                        {
-                          "file_path": "/logo.svg",
-                          "width": 500,
-                          "height": 200,
-                          "aspect_ratio": 2.5,
-                          "vote_average": 0,
-                          "vote_count": 0,
-                          "iso_639_1": "en"
-                        },
-                        {
-                          "file_path": "/logo.jpg",
-                          "width": 500,
-                          "height": 200,
-                          "aspect_ratio": 2.5,
-                          "vote_average": 0,
-                          "vote_count": 0,
-                          "iso_639_1": "en"
+                          "id": 1,
+                          "posters": [],
+                          "backdrops": [],
+                          "logos": [
+                            {
+                              "file_path": "/logo.png",
+                              "width": 500,
+                              "height": 200,
+                              "aspect_ratio": 2.5,
+                              "vote_average": 0,
+                              "vote_count": 0,
+                              "iso_639_1": "en"
+                            },
+                            {
+                              "file_path": "/logo.svg",
+                              "width": 500,
+                              "height": 200,
+                              "aspect_ratio": 2.5,
+                              "vote_average": 0,
+                              "vote_count": 0,
+                              "iso_639_1": "en"
+                            },
+                            {
+                              "file_path": "/logo.jpg",
+                              "width": 500,
+                              "height": 200,
+                              "aspect_ratio": 2.5,
+                              "vote_average": 0,
+                              "vote_count": 0,
+                              "iso_639_1": "en"
+                            }
+                          ]
                         }
-                      ]
-                    }
-                    """#.utf8))
+                        """#.utf8))
             },
             configuration: .default
         )
@@ -525,11 +529,12 @@ struct TMDbImageAndTranslationTests {
             targetSize: CGSize(width: 24, height: 24),
             scale: 2
         )
-        let svgData = Data(#"""
-        <svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
-          <rect width="12" height="12" fill="red"/>
-        </svg>
-        """#.utf8)
+        let svgData = Data(
+            #"""
+            <svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+              <rect width="12" height="12" fill="red"/>
+            </svg>
+            """#.utf8)
 
         let image = try #require(
             processor.process(
@@ -547,16 +552,18 @@ struct TMDbImageAndTranslationTests {
             targetSize: CGSize(width: 24, height: 24),
             scale: 2
         )
-        let wideSVGData = Data(#"""
-        <svg width="120" height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg">
-          <rect width="120" height="40" fill="red"/>
-        </svg>
-        """#.utf8)
-        let tallSVGData = Data(#"""
-        <svg width="40" height="120" viewBox="0 0 40 120" xmlns="http://www.w3.org/2000/svg">
-          <rect width="40" height="120" fill="blue"/>
-        </svg>
-        """#.utf8)
+        let wideSVGData = Data(
+            #"""
+            <svg width="120" height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg">
+              <rect width="120" height="40" fill="red"/>
+            </svg>
+            """#.utf8)
+        let tallSVGData = Data(
+            #"""
+            <svg width="40" height="120" viewBox="0 0 40 120" xmlns="http://www.w3.org/2000/svg">
+              <rect width="40" height="120" fill="blue"/>
+            </svg>
+            """#.utf8)
 
         let wideImage = try #require(
             processor.process(

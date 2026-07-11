@@ -466,7 +466,7 @@ struct TMDbSearchServiceBatchTests {
                     "Shared": [batchSeries]
                 ]
             ),
-            processResults: { submittedResults = Array($0) }
+            processResults: { results, _ in submittedResults = Array(results) }
         )
 
         service.register(info: regularMovie)

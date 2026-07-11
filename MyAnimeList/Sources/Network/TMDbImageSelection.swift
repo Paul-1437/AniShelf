@@ -71,7 +71,8 @@ enum TMDbImageSelection {
         originalLanguageCode: String? = nil,
         metadataLanguageCode: String? = nil
     ) -> URL? {
-        let supportedLogoResources = resources
+        let supportedLogoResources =
+            resources
             .enumerated()
             .compactMap { resource -> (Resource, Int)? in
                 guard let priority = logoFormatPriority(for: resource.element.filePath) else { return nil }

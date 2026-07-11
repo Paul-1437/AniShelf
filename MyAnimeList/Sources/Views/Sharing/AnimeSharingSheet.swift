@@ -11,11 +11,13 @@ import SwiftUI
 struct AnimeSharingSheet: View {
     @State private var viewModel: AnimeSharingViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppReviewPromptController.self) private var appReview
     @AppStorage(.preferredAnimeInfoLanguage) private var defaultLanguage: Language = .english
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) private var followsSystemLanguage: Bool =
         Language.followsSystemPreference()
 
     @State private var showPosterSelection = false
+    @State private var didActivateShare = false
 
     init(entry: AnimeEntry) {
         _viewModel = State(initialValue: AnimeSharingViewModel(entry: entry))
@@ -62,6 +64,15 @@ struct AnimeSharingSheet: View {
                             Image(systemName: "square.and.arrow.up")
                         }
                         .labelStyle(.iconOnly)
+                        .simultaneousGesture(
+                            TapGesture().onEnded {
+                                didActivateShare = true
+                                appReview.record(
+                                    .entryShare(entryID: viewModel.entry.tmdbID),
+                                    scheduleRequest: false
+                                )
+                            }
+                        )
                     } else {
                         Label("Rendering…", systemImage: "hourglass")
                             .foregroundStyle(.secondary)
@@ -94,6 +105,9 @@ struct AnimeSharingSheet: View {
             }
             .onDisappear {
                 viewModel.cleanupRenderedFiles()
+                if didActivateShare {
+                    appReview.scheduleRequestIfEligible()
+                }
             }
             .onChange(of: defaultLanguage, initial: false) { _, newValue in
                 guard !followsSystemLanguage else { return }

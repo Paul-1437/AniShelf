@@ -38,12 +38,12 @@ class TMDbSearchService {
     @ObservationIgnored var latestBatchRequestID: UUID?
     @ObservationIgnored var batchPromptCacheKey: [String] = []
     @ObservationIgnored var checkDuplicate: (Int) -> Bool
-    @ObservationIgnored var processResults: (OrderedSet<SearchResult>) -> Void
+    @ObservationIgnored var processResults: (OrderedSet<SearchResult>, SearchSubmissionOrigin) -> Void
 
     init(
         client: TMDbSearchClient = .live(),
         checkDuplicate: @escaping (Int) -> Bool = { _ in false },
-        processResults: @escaping (OrderedSet<SearchResult>) -> Void = { _ in }
+        processResults: @escaping (OrderedSet<SearchResult>, SearchSubmissionOrigin) -> Void = { _, _ in }
     ) {
         self.client = client
         self.checkDuplicate = checkDuplicate
@@ -51,9 +51,9 @@ class TMDbSearchService {
     }
 
     /// Submit the final results.
-    func submit() { processResults(OrderedSet(regularResultsToSubmit.reversed())) }
+    func submit() { processResults(OrderedSet(regularResultsToSubmit.reversed()), .regular) }
     /// Submit the final batch results.
-    func submitBatch() { processResults(OrderedSet(batchResultsToSubmit.reversed())) }
+    func submitBatch() { processResults(OrderedSet(batchResultsToSubmit.reversed()), .batch) }
     /// The count of all regular-search results pending submission.
     var registeredCount: Int { regularResultsToSubmit.count }
     var batchRegisteredCount: Int { batchResultsToSubmit.count }

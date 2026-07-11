@@ -6,6 +6,7 @@
 //
 
 import DataProvider
+import StoreKit
 import SwiftData
 import SwiftUI
 import UIKit
@@ -17,9 +18,11 @@ struct MyAnimeListApp: App {
     @State var keyStorage: TMDbAPIKeyStorage
     @State var whatsNew: WhatsNewController
     @State var supportStore: SupportStore
+    @State private var appReview: AppReviewPromptController
     @State private var startupRecovery: PersistentStoreRecovery?
     private let recoveryActivityGate: StartupRecoveryActivityGate
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
     @AppStorage(.preferredAnimeInfoLanguage) var preferredLanguage: Language = .english
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) var followsSystemLanguage: Bool =
         Language.followsSystemPreference()
@@ -39,6 +42,7 @@ struct MyAnimeListApp: App {
         )
         let whatsNew = WhatsNewController()
         let supportStore = SupportStore()
+        let appReview = AppReviewPromptController()
         let recoveryActivityGate = StartupRecoveryActivityGate(
             isBlocked: startupRecovery != nil
         )
@@ -47,6 +51,7 @@ struct MyAnimeListApp: App {
         _keyStorage = State(initialValue: keyStorage)
         _whatsNew = State(initialValue: whatsNew)
         _supportStore = State(initialValue: supportStore)
+        _appReview = State(initialValue: appReview)
         _startupRecovery = State(initialValue: startupRecovery)
         self.recoveryActivityGate = recoveryActivityGate
         RecoveryExportManager.cleanupAllTemporaryExports()
@@ -97,17 +102,20 @@ struct MyAnimeListApp: App {
             .environment(keyStorage)
             .environment(whatsNew)
             .environment(supportStore)
+            .environment(appReview)
             .environment(\.dataHandler, DataProvider.default.dataHandler)
             .onAppear {
                 keyStorage.retryInitialLookupIfNeeded()
                 if startupRecovery == nil {
                     requestSync(trigger: .appLaunch)
+                    recordActiveLibraryDayIfUsable()
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     keyStorage.retryInitialLookupIfNeeded()
                     requestSync(trigger: .foreground)
+                    recordActiveLibraryDayIfUsable()
                 } else if newPhase == .background {
                     flushPendingLocalSync()
                 }
@@ -125,6 +133,15 @@ struct MyAnimeListApp: App {
             .onAppear(perform: updateWhatsNewPresentation)
             .onChange(of: keyStorage.key) { _, _ in
                 updateWhatsNewPresentation()
+                recordActiveLibraryDayIfUsable()
+            }
+            .task(id: reviewPresentationTaskID) {
+                guard appReview.scheduledRequestToken != nil, scenePhase == .active else { return }
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled, scenePhase == .active, appReview.prepareForRequest() else {
+                    return
+                }
+                requestReview()
             }
             .globalToasts()
         }
@@ -172,6 +189,15 @@ struct MyAnimeListApp: App {
     private var hasTMDbAPIKey: Bool {
         guard let key = keyStorage.key else { return false }
         return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var reviewPresentationTaskID: String {
+        "\(appReview.scheduledRequestToken?.uuidString ?? "none")-\(scenePhase)"
+    }
+
+    private func recordActiveLibraryDayIfUsable() {
+        guard scenePhase == .active, startupRecovery == nil, hasTMDbAPIKey else { return }
+        appReview.recordActiveLibraryDay()
     }
 
     private var checkingTMDbAPIKeyResource: LocalizedStringResource {
