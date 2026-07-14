@@ -669,17 +669,11 @@ struct LibraryView: View {
     // MARK: - Entry Actions
 
     private var detailAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.32)
+        libraryViewStyleAnimation
     }
 
     private var detailReplacementTransition: AnyTransition {
-        if reduceMotion {
-            return .opacity
-        }
-        return .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.985)),
-            removal: .opacity
-        )
+        libraryViewTransition
     }
 
     private func prepareDetailSession(for entry: AnimeEntry) {
