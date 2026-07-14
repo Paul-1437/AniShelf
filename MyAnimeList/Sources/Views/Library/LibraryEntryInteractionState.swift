@@ -235,8 +235,8 @@ enum LibraryEntryDetailActivation: Equatable, Sendable {
     case userPreference
     case singleTap
 
-    init(_ presentation: LibraryPresentationPolicy.DetailPresentation) {
-        switch presentation {
+    init(_ host: LibraryEntryDetailHost) {
+        switch host {
         case .sheet:
             self = .userPreference
         case .inspector:
@@ -357,7 +357,7 @@ extension View {
         deleteEntry: @escaping (AnimeEntry) -> Void,
         detailRepository: LibraryRepository,
         resolveEntry: @escaping (LibraryEntrySyncIdentity) -> AnimeEntry?,
-        detailPresentation: LibraryPresentationPolicy.DetailPresentation,
+        detailHost: LibraryEntryDetailHost,
         detailSession: EntryDetailSession?
     ) -> some View {
         let activeSheet = Binding<ResolvedLibraryEntrySheet?>(
@@ -368,7 +368,7 @@ extension View {
                     return .workflow(workflow, entry)
                 }
 
-                guard detailPresentation == .sheet,
+                guard detailHost == .sheet,
                     let identity = state.presentedDetailEntryID,
                     let entry = resolveEntry(identity)
                 else { return nil }

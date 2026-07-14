@@ -179,6 +179,38 @@ struct LibraryEntryInteractionStateTests {
         #expect(state.desiredDetailHost == .sheet)
     }
 
+    @Test @MainActor func genuineInspectorDismissalFromTheStableHostClosesDetail() {
+        let state = LibraryEntryInteractionState()
+        let entry = AnimeEntry.template(id: 42)
+        state.transitionDetailHost(to: .inspector)
+        state.openDetails(for: entry)
+        state.detailHostDidPresent(.inspector)
+
+        state.detailHostDidDismiss(.inspector)
+
+        #expect(state.presentedDetailEntryID == nil)
+    }
+
+    @Test @MainActor func rapidHostPolicyReversalIgnoresAStaleInspectorDismissal() {
+        let state = LibraryEntryInteractionState()
+        let entry = AnimeEntry.template(id: 42)
+        state.transitionDetailHost(to: .inspector)
+        state.openDetails(for: entry)
+        state.detailHostDidPresent(.inspector)
+
+        state.transitionDetailHost(to: .sheet)
+        state.transitionDetailHost(to: .inspector)
+        state.detailHostDidDismiss(.inspector)
+
+        #expect(state.presentedDetailEntryID == entry.syncIdentity)
+        #expect(state.desiredDetailHost == .inspector)
+
+        state.detailHostDidPresent(.inspector)
+        state.detailHostDidDismiss(.inspector)
+
+        #expect(state.presentedDetailEntryID == nil)
+    }
+
     @Test @MainActor func genuineDismissalFromTheStableHostClosesDetail() {
         let state = LibraryEntryInteractionState()
         let entry = AnimeEntry.template(id: 42)

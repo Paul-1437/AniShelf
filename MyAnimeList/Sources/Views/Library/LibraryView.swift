@@ -85,7 +85,7 @@ struct LibraryView: View {
                 for: interaction.presentedDetailEntryID
             )
             let showsInspector =
-                presentation.detailPresentation == .inspector && interaction.isPresentingDetail
+                interaction.desiredDetailHost == .inspector && interaction.isPresentingDetail
             let inspectorSizing = presentation.detailInspectorSizing
             let inspectorWidth = inspectorSizing.idealWidth
             let librarySize = CGSize(
@@ -103,7 +103,7 @@ struct LibraryView: View {
             libraryNavigationStack(presentation: libraryPresentation)
                 .environment(
                     \.libraryEntryDetailActivation,
-                    LibraryEntryDetailActivation(presentation.detailPresentation)
+                    LibraryEntryDetailActivation(interaction.desiredDetailHost)
                 )
                 .environment(\.libraryEntryOpenDetailAction, openDetails)
                 .environment(\.libraryEntryEditAction, editDetails)
@@ -159,7 +159,7 @@ struct LibraryView: View {
                     },
                     detailRepository: store.repository,
                     resolveEntry: { store.repository.existingEntry(identity: $0) },
-                    detailPresentation: presentation.detailPresentation,
+                    detailHost: interaction.desiredDetailHost,
                     detailSession: detailSessionStore.presentedSession
                 )
         }
