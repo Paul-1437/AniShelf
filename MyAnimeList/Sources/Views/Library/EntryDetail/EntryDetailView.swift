@@ -14,6 +14,7 @@ struct EntryDetailView: View {
     @Environment(\.dataHandler) private var dataHandler
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppReviewPromptController.self) private var appReview
     @AppStorage(.preferredAnimeInfoLanguage) private var preferredLanguage: Language = .english
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) private var followsSystemLanguage: Bool =
@@ -82,16 +83,17 @@ struct EntryDetailView: View {
                 }
                 .scrollPosition($session.scrollPosition)
                 .coordinateSpace(name: scrollCoordinateSpaceName)
-                .onAppear {
+                .task {
                     guard session.startsInEditingMode,
                         !session.didAutoScrollToEditingSection
                     else { return }
                     session.didAutoScrollToEditingSection = true
-                    revealEditingSection(using: proxy)
+                    await revealEditingSection(using: proxy)
                 }
-                .onChange(of: editingRequestID, initial: true) { _, requestID in
+                .task(id: editingRequestID) {
+                    let requestID = editingRequestID
                     guard let requestID else { return }
-                    revealEditingSection(using: proxy)
+                    guard await revealEditingSection(using: proxy) else { return }
                     onEditingRequestHandled?(requestID)
                 }
             }
@@ -207,19 +209,31 @@ struct EntryDetailView: View {
         }
     }
 
-    private func revealEditingSection(using proxy: ScrollViewProxy) {
+    @discardableResult
+    @MainActor
+    private func revealEditingSection(using proxy: ScrollViewProxy) async -> Bool {
         session.isEditingDetails = true
-        Task {
-            try? await Task.sleep(for: .milliseconds(150))
-            await MainActor.run {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
-                    proxy.scrollTo(
-                        EntryDetailScrollTarget.editingSection,
-                        anchor: .center
-                    )
-                }
+        do {
+            try await Task.sleep(for: .milliseconds(150))
+        } catch {
+            return false
+        }
+        guard !Task.isCancelled else { return false }
+
+        if reduceMotion {
+            proxy.scrollTo(
+                EntryDetailScrollTarget.editingSection,
+                anchor: .center
+            )
+        } else {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
+                proxy.scrollTo(
+                    EntryDetailScrollTarget.editingSection,
+                    anchor: .center
+                )
             }
         }
+        return true
     }
 
     private func heroHeight(for availableWidth: CGFloat) -> CGFloat {

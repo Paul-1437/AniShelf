@@ -79,6 +79,9 @@ final class LibraryEntryInteractionState {
     }
 
     func openDetails(for entry: AnimeEntry) {
+        if inspectorEditRequest?.entryIdentity != entry.syncIdentity {
+            inspectorEditRequest = nil
+        }
         focus(entry)
         presentedDetailEntryID = entry.syncIdentity
     }
@@ -90,6 +93,11 @@ final class LibraryEntryInteractionState {
 
     func transitionDetailHost(to host: LibraryEntryDetailHost) {
         guard desiredDetailHost != host else { return }
+
+        if host == .sheet, let request = inspectorEditRequest {
+            inspectorEditRequest = nil
+            activeWorkflow = .editing(request.entryIdentity)
+        }
 
         if presentedDetailEntryID != nil,
             presentedDetailHosts.contains(desiredDetailHost)
@@ -167,6 +175,7 @@ final class LibraryEntryInteractionState {
             activeWorkflow = nil
             openDetails(for: entry)
         } else {
+            inspectorEditRequest = nil
             activeWorkflow = .editing(entry.syncIdentity)
         }
     }

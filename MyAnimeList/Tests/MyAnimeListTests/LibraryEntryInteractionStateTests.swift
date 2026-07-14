@@ -132,6 +132,36 @@ struct LibraryEntryInteractionStateTests {
         #expect(state.presentedDetailEntryID == entry.syncIdentity)
     }
 
+    @Test @MainActor func openingAnotherInspectorEntryClearsPendingEditingIntent() {
+        let state = LibraryEntryInteractionState()
+        let firstEntry = AnimeEntry.template(id: 42)
+        let secondEntry = AnimeEntry.template(id: 43)
+        state.transitionDetailHost(to: .inspector)
+        state.setEditingEntry(firstEntry)
+
+        state.openDetails(for: secondEntry)
+
+        #expect(state.presentedDetailEntryID == secondEntry.syncIdentity)
+        #expect(state.inspectorEditRequest == nil)
+
+        state.openDetails(for: firstEntry)
+        #expect(state.inspectorEditRequest == nil)
+    }
+
+    @Test @MainActor func pendingInspectorEditMigratesToTheSheetWorkflow() {
+        let state = LibraryEntryInteractionState()
+        let entry = AnimeEntry.template(id: 42)
+        state.transitionDetailHost(to: .inspector)
+        state.setEditingEntry(entry)
+
+        state.transitionDetailHost(to: .sheet)
+
+        #expect(state.desiredDetailHost == .sheet)
+        #expect(state.presentedDetailEntryID == entry.syncIdentity)
+        #expect(state.inspectorEditRequest == nil)
+        #expect(state.activeWorkflow == .editing(entry.syncIdentity))
+    }
+
     @Test @MainActor func hostMigrationDismissalsPreserveTheCanonicalDetailRoute() {
         let state = LibraryEntryInteractionState()
         let entry = AnimeEntry.template(id: 42)
