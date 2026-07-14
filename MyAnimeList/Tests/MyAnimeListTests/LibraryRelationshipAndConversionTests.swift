@@ -114,6 +114,24 @@ struct LibraryRelationshipAndConversionTests {
         #expect(repository.existingEntry(identityRawID: "invalid") == nil)
     }
 
+    @Test @MainActor func testExistingEntryByRawIdentityResolvesHiddenLocalEntry() throws {
+        let dataProvider = DataProvider(inMemory: true)
+        let repository = LibraryRepository(dataProvider: dataProvider)
+
+        let hiddenEntry = AnimeEntry(
+            name: "Hidden Parent",
+            type: .series,
+            tmdbID: 209868
+        )
+        hiddenEntry.setDisplayState(false)
+        try repository.newEntry(hiddenEntry)
+
+        let resolvedEntry = try #require(
+            repository.existingEntry(identityRawID: hiddenEntry.syncIdentity.rawID)
+        )
+        #expect(resolvedEntry.id == hiddenEntry.id)
+    }
+
     @Test @MainActor func testConvertSeasonToSeriesPreservesScoreAndDateTrackingSetting() async throws {
         let dataProvider = DataProvider(inMemory: true)
         var transactionSaveCount = 0

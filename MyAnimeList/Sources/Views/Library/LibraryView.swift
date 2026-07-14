@@ -740,7 +740,9 @@ struct LibraryView: View {
             !identityRawID.isEmpty
         else { return }
 
-        guard let entry = store.repository.existingEntry(identityRawID: identityRawID) else {
+        guard let entry = store.repository.existingEntry(identityRawID: identityRawID),
+            entry.onDisplay
+        else {
             persistedPresentedDetailEntryIdentity = nil
             interaction.dismissDetails()
             return
