@@ -162,6 +162,7 @@ fileprivate struct LibraryGridDoubleTapOpenModifier: ViewModifier {
         if isMultiSelecting {
             content.onTapGesture(perform: onSingleTap)
         } else {
+            // Recognize focus immediately while reserving detail opening for two taps.
             content
                 .simultaneousGesture(
                     TapGesture().onEnded { onSingleTap() }

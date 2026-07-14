@@ -70,6 +70,7 @@ struct AnimeEntryListRow: View {
                         onOpenDetails()
                     }
             } else {
+                // Keep focus immediate without allowing one tap to open double-tap detail.
                 Color.clear
                     .contentShape(.rect)
                     .simultaneousGesture(

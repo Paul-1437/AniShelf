@@ -654,8 +654,8 @@ struct LibraryView: View {
             return .opacity
         }
         return .asymmetric(
-            insertion: .move(edge: .trailing).combined(with: .opacity),
-            removal: .move(edge: .leading).combined(with: .opacity)
+            insertion: .opacity.combined(with: .scale(scale: 0.985)),
+            removal: .opacity
         )
     }
 
