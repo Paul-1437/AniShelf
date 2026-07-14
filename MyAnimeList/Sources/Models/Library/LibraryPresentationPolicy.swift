@@ -120,6 +120,7 @@ struct LibraryPresentationPolicy {
         let scale = contentScale(for: input.dynamicTypeSize)
         let detailInspectorSizing = detailInspectorSizing(
             availableWidth: input.availableSize.width,
+            mode: input.libraryMode,
             scale: scale
         )
 
@@ -178,13 +179,22 @@ struct LibraryPresentationPolicy {
 
     private func detailInspectorSizing(
         availableWidth: CGFloat,
+        mode: LibraryMode,
         scale: CGFloat
     ) -> DetailInspectorSizing {
         let requiredMinimumWidth = tokens.minimumDetailWidth * scale
         let minimumWidth = min(requiredMinimumWidth, tokens.maximumDetailWidth)
+        let availableMaximumWidth =
+            availableWidth
+            - minimumLibrarySize(for: mode, scale: scale).width
+            - tokens.detailColumnSpacing
+        let maximumWidth = max(
+            minimumWidth,
+            min(tokens.maximumDetailWidth, availableMaximumWidth)
+        )
         let preferredWidthCap = min(
             max(tokens.maximumPreferredDetailWidth, minimumWidth),
-            tokens.maximumDetailWidth
+            maximumWidth
         )
         let idealWidth = min(
             max(availableWidth * 0.38, minimumWidth),
@@ -194,8 +204,9 @@ struct LibraryPresentationPolicy {
         return DetailInspectorSizing(
             minimumWidth: minimumWidth,
             idealWidth: idealWidth,
-            maximumWidth: tokens.maximumDetailWidth,
+            maximumWidth: maximumWidth,
             canSatisfyMinimum: requiredMinimumWidth <= tokens.maximumDetailWidth
+                && availableMaximumWidth >= requiredMinimumWidth
         )
     }
 

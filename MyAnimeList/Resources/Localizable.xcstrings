@@ -3283,6 +3283,22 @@
         }
       }
     },
+    "Jumps to the episodes section." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エピソードセクションに移動します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳转到集数部分。"
+          }
+        }
+      }
+    },
     "JSON (.json)" : {
       "localizations" : {
         "ja" : {

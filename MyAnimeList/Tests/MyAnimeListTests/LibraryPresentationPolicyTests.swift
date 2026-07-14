@@ -216,6 +216,22 @@ struct LibraryPresentationPolicyTests {
         #expect(unsupported.detailPresentation == .sheet)
     }
 
+    @Test func inspectorMaximumWidthPreservesTheActiveLibraryMinimum() {
+        let availableSize = CGSize(width: 820, height: 560)
+        let result = policy.evaluate(
+            .init(
+                availableSize: availableSize,
+                libraryMode: .list
+            )
+        )
+
+        #expect(result.detailPresentation == .inspector)
+        #expect(result.detailInspectorSizing.minimumWidth == 400)
+        #expect(result.detailInspectorSizing.idealWidth == 400)
+        #expect(result.detailInspectorSizing.maximumWidth == 419)
+        #expect(availableSize.width - result.detailInspectorSizing.maximumWidth >= 400)
+    }
+
     @Test func galleryShelfUsesHeightDerivedPosterWidthAndShowsNeighbors() {
         let result = policy.evaluate(
             .init(
