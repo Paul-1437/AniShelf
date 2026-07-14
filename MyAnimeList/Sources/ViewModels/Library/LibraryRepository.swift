@@ -7,13 +7,16 @@ import SwiftData
 final class LibraryRepository {
     private let dataProvider: DataProvider
     private let syncChangeRecorder: LibrarySyncChangeRecorder?
+    private let transactionSaver: @MainActor (ModelContext) throws -> Void
 
     init(
         dataProvider: DataProvider,
-        syncChangeRecorder: LibrarySyncChangeRecorder? = nil
+        syncChangeRecorder: LibrarySyncChangeRecorder? = nil,
+        transactionSaver: (@MainActor (ModelContext) throws -> Void)? = nil
     ) {
         self.dataProvider = dataProvider
         self.syncChangeRecorder = syncChangeRecorder
+        self.transactionSaver = transactionSaver ?? { try $0.save() }
     }
 
     func visibleLibraryEntries() throws -> [AnimeEntry] {
@@ -30,6 +33,25 @@ final class LibraryRepository {
         do {
             try dataProvider.dataHandler.deleteEntry(entry)
         } catch {
+            if let deleteToken {
+                try? syncChangeRecorder?.restoreDeleteRecord(deleteToken)
+            }
+            throw error
+        }
+    }
+
+    func replaceEntry(_ entry: AnimeEntry, inserting replacements: [AnimeEntry]) throws {
+        entry.resolveLibraryDisplayFaultsBeforeDeletion()
+        var deleteToken: LibrarySyncChangeRecorder.PendingDeleteRestoreToken?
+        do {
+            deleteToken = try syncChangeRecorder?.recordDeletion(for: entry)
+            for replacement in replacements {
+                dataProvider.dataHandler.modelContext.insert(replacement)
+            }
+            dataProvider.dataHandler.modelContext.delete(entry)
+            try transactionSaver(dataProvider.dataHandler.modelContext)
+        } catch {
+            dataProvider.dataHandler.modelContext.rollback()
             if let deleteToken {
                 try? syncChangeRecorder?.restoreDeleteRecord(deleteToken)
             }
