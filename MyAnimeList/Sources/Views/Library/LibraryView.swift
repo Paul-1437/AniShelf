@@ -132,7 +132,10 @@ struct LibraryView: View {
                                     editingRequestID: inspectorEditingRequestID(for: identity),
                                     onEditingRequestHandled: interaction.consumeInspectorEditRequest
                                 )
-                                .containerBackground(Color.clear, for: .navigation)
+                                .containerBackground(
+                                    Color(.systemBackground),
+                                    for: .navigation
+                                )
                             }
                             .id(identity.rawID)
                             .transition(detailReplacementTransition)

@@ -205,7 +205,7 @@ struct EntryDetailView: View {
         case .sheet:
             Color(.systemGroupedBackground)
         case .inspector:
-            Color.clear
+            Color(.systemBackground)
         }
     }
 
