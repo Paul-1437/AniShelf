@@ -37,9 +37,15 @@ enum LibraryEntryWorkflow: Identifiable, Equatable, Sendable {
     }
 }
 
-struct LibraryEntryInspectorEditRequest: Equatable, Sendable {
+struct LibraryEntryDetailEditRequest: Equatable, Sendable {
     let id = UUID()
     let entryIdentity: LibraryEntrySyncIdentity
+}
+
+struct LibraryEntryPasteRequest: Identifiable, Equatable {
+    let id = UUID()
+    let entryIdentity: LibraryEntrySyncIdentity
+    let userInfo: UserEntryInfo
 }
 
 struct LibraryEntryDetailPresentation: Equatable, Sendable {
@@ -85,10 +91,9 @@ enum LibraryEntrySheetRoute: Identifiable, Equatable, Sendable {
 @MainActor
 final class LibraryEntryInteractionState {
     var focusedEntryID: LibraryEntrySyncIdentity?
-    var inspectorEditRequest: LibraryEntryInspectorEditRequest?
+    private(set) var detailEditRequest: LibraryEntryDetailEditRequest?
     var deletingEntryID: LibraryEntrySyncIdentity?
-    var showPasteAlert: Bool = false
-    var pasteAction: (() -> Void)?
+    private(set) var pendingPasteRequest: LibraryEntryPasteRequest?
     var isMultiSelecting: Bool = false
     var selectedEntryIDs: Set<Int> = []
     private(set) var desiredDetailHost: LibraryEntryDetailHost = .sheet
@@ -143,8 +148,8 @@ final class LibraryEntryInteractionState {
     }
 
     func openDetails(for entry: AnimeEntry) {
-        if inspectorEditRequest?.entryIdentity != entry.syncIdentity {
-            inspectorEditRequest = nil
+        if detailEditRequest?.entryIdentity != entry.syncIdentity {
+            detailEditRequest = nil
         }
         focus(entry)
         if detailPresentation?.entryIdentity != entry.syncIdentity {
@@ -156,7 +161,7 @@ final class LibraryEntryInteractionState {
     func dismissDetails() {
         detailPresentation = nil
         detailHostPresentation = nil
-        inspectorEditRequest = nil
+        detailEditRequest = nil
     }
 
     func dismissDetails(ifPresentationID presentationID: UUID) {
@@ -166,12 +171,6 @@ final class LibraryEntryInteractionState {
 
     func transitionDetailHost(to host: LibraryEntryDetailHost) {
         guard desiredDetailHost != host else { return }
-
-        if host == .sheet, let request = inspectorEditRequest {
-            inspectorEditRequest = nil
-            setWorkflow(.editing(request.entryIdentity))
-        }
-
         desiredDetailHost = host
         reconcileDetailHostPresentation()
     }
@@ -182,6 +181,7 @@ final class LibraryEntryInteractionState {
     }
 
     func presentWorkflow(_ workflow: LibraryEntryWorkflow) {
+        detailEditRequest = nil
         setWorkflow(workflow)
         reconcileDetailHostPresentation()
     }
@@ -274,40 +274,65 @@ final class LibraryEntryInteractionState {
 
     func setEditingEntry(_ entry: AnimeEntry) {
         if desiredDetailHost == .inspector {
-            inspectorEditRequest = LibraryEntryInspectorEditRequest(
+            detailEditRequest = LibraryEntryDetailEditRequest(
                 entryIdentity: entry.syncIdentity
             )
-            setWorkflow(nil)
             openDetails(for: entry)
         } else {
-            inspectorEditRequest = nil
             presentWorkflow(.editing(entry.syncIdentity))
         }
     }
 
-    func consumeInspectorEditRequest(_ requestID: UUID) {
-        guard inspectorEditRequest?.id == requestID else { return }
-        inspectorEditRequest = nil
+    func consumeDetailEditRequest(
+        _ requestID: UUID,
+        from host: LibraryEntryDetailHost
+    ) {
+        guard desiredDetailHost == host,
+            detailEditRequest?.id == requestID
+        else { return }
+        detailEditRequest = nil
     }
 
     func pasteInfo(for entry: AnimeEntry) {
-        if let pasted = UserEntryInfo.fromPasteboard() {
-            let paste = {
-                entry.updateUserInfoFromUserAction(pasted)
-                ToastCenter.global.pasted = true
-            }
-            if entry.userInfo.isEmpty {
-                paste()
-            } else {
-                showPasteAlert = true
-                pasteAction = paste
-            }
-        } else {
+        guard let pasted = UserEntryInfo.fromPasteboard() else {
             ToastCenter.global.completionState = .init(
                 state: .failed,
                 messageResource: "No info found on pasteboard."
             )
+            return
         }
+        preparePaste(pasted, for: entry)
+    }
+
+    func preparePaste(_ userInfo: UserEntryInfo, for entry: AnimeEntry) {
+        if entry.userInfo.isEmpty {
+            entry.updateUserInfoFromUserAction(userInfo)
+            ToastCenter.global.pasted = true
+        } else {
+            pendingPasteRequest = LibraryEntryPasteRequest(
+                entryIdentity: entry.syncIdentity,
+                userInfo: userInfo
+            )
+        }
+    }
+
+    func confirmPaste(
+        requestID: UUID,
+        resolveEntry: (LibraryEntrySyncIdentity) -> AnimeEntry?
+    ) {
+        guard let request = pendingPasteRequest,
+            request.id == requestID
+        else { return }
+
+        pendingPasteRequest = nil
+        guard let entry = resolveEntry(request.entryIdentity) else { return }
+        entry.updateUserInfoFromUserAction(request.userInfo)
+        ToastCenter.global.pasted = true
+    }
+
+    func clearPasteRequest(requestID: UUID) {
+        guard pendingPasteRequest?.id == requestID else { return }
+        pendingPasteRequest = nil
     }
 
     func highlightBinding(for entry: AnimeEntry, highlightedEntryID: Binding<Int?>) -> Binding<Bool> {
@@ -465,6 +490,7 @@ extension View {
         detailSession: EntryDetailSession?
     ) -> some View {
         let presentedSheet = state.activeSheetRoute
+        let presentedPasteRequest = state.pendingPasteRequest
         let activeSheet = Binding<LibraryEntrySheetRoute?>(
             get: { state.activeSheetRoute },
             set: { destination in
@@ -498,12 +524,25 @@ extension View {
             .alert(
                 "Paste Info?",
                 isPresented: Binding(
-                    get: { state.showPasteAlert },
-                    set: { state.showPasteAlert = $0 }
+                    get: {
+                        guard let requestID = presentedPasteRequest?.id else { return false }
+                        return state.pendingPasteRequest?.id == requestID
+                    },
+                    set: { isPresented in
+                        guard !isPresented,
+                            let requestID = presentedPasteRequest?.id
+                        else { return }
+                        state.clearPasteRequest(requestID: requestID)
+                    }
                 ),
-                presenting: state.pasteAction
-            ) { action in
-                Button("Paste", role: .destructive, action: action)
+                presenting: presentedPasteRequest
+            ) { request in
+                Button("Paste", role: .destructive) {
+                    state.confirmPaste(
+                        requestID: request.id,
+                        resolveEntry: resolveEntry
+                    )
+                }
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
                 Text("This anime already has edits. Pasting will overwrite current info.")
@@ -526,7 +565,15 @@ extension View {
                                         ifPresentationID: presentation.detailPresentationID
                                     )
                                 },
-                                session: detailSession
+                                session: detailSession,
+                                editingRequestID: state.detailEditRequest?.entryIdentity == identity
+                                    ? state.detailEditRequest?.id : nil,
+                                onEditingRequestHandled: { requestID in
+                                    state.consumeDetailEditRequest(
+                                        requestID,
+                                        from: .sheet
+                                    )
+                                }
                             )
                         }
                     }

@@ -135,8 +135,13 @@ struct LibraryView: View {
                                         )
                                     },
                                     session: inspectorSession,
-                                    editingRequestID: inspectorEditingRequestID(for: identity),
-                                    onEditingRequestHandled: interaction.consumeInspectorEditRequest
+                                    editingRequestID: detailEditingRequestID(for: identity),
+                                    onEditingRequestHandled: { requestID in
+                                        interaction.consumeDetailEditRequest(
+                                            requestID,
+                                            from: .inspector
+                                        )
+                                    }
                                 )
                                 .containerBackground(
                                     Color(.systemBackground),
@@ -691,11 +696,11 @@ struct LibraryView: View {
         }
     }
 
-    private func inspectorEditingRequestID(
+    private func detailEditingRequestID(
         for identity: LibraryEntrySyncIdentity
     ) -> UUID? {
-        guard interaction.inspectorEditRequest?.entryIdentity == identity else { return nil }
-        return interaction.inspectorEditRequest?.id
+        guard interaction.detailEditRequest?.entryIdentity == identity else { return nil }
+        return interaction.detailEditRequest?.id
     }
 
     private func toggleFavorite(_ entry: AnimeEntry) {

@@ -108,7 +108,7 @@ struct LibraryEntryInteractionStateTests {
         state.setEditingEntry(entry)
 
         #expect(state.presentedDetailEntryID == nil)
-        #expect(state.inspectorEditRequest == nil)
+        #expect(state.detailEditRequest == nil)
         #expect(state.activeWorkflow == .editing(entry.syncIdentity))
     }
 
@@ -119,16 +119,16 @@ struct LibraryEntryInteractionStateTests {
 
         state.setEditingEntry(entry)
 
-        let request = state.inspectorEditRequest
+        let request = state.detailEditRequest
         #expect(state.focusedEntryID == entry.syncIdentity)
         #expect(state.presentedDetailEntryID == entry.syncIdentity)
         #expect(request?.entryIdentity == entry.syncIdentity)
         #expect(state.activeWorkflow == nil)
 
         if let request {
-            state.consumeInspectorEditRequest(request.id)
+            state.consumeDetailEditRequest(request.id, from: .inspector)
         }
-        #expect(state.inspectorEditRequest == nil)
+        #expect(state.detailEditRequest == nil)
         #expect(state.presentedDetailEntryID == entry.syncIdentity)
     }
 
@@ -142,24 +142,180 @@ struct LibraryEntryInteractionStateTests {
         state.openDetails(for: secondEntry)
 
         #expect(state.presentedDetailEntryID == secondEntry.syncIdentity)
-        #expect(state.inspectorEditRequest == nil)
+        #expect(state.detailEditRequest == nil)
 
         state.openDetails(for: firstEntry)
-        #expect(state.inspectorEditRequest == nil)
+        #expect(state.detailEditRequest == nil)
     }
 
-    @Test @MainActor func pendingInspectorEditMigratesToTheSheetWorkflow() {
+    @Test @MainActor func pendingInspectorEditMigratesWithThePassiveDetailRoute() throws {
         let state = LibraryEntryInteractionState()
         let entry = AnimeEntry.template(id: 42)
         state.transitionDetailHost(to: .inspector)
         state.setEditingEntry(entry)
+        let request = try #require(state.detailEditRequest)
 
         state.transitionDetailHost(to: .sheet)
 
         #expect(state.desiredDetailHost == .sheet)
         #expect(state.presentedDetailEntryID == entry.syncIdentity)
-        #expect(state.inspectorEditRequest == nil)
-        #expect(state.activeWorkflow == .editing(entry.syncIdentity))
+        #expect(state.detailEditRequest?.id == request.id)
+        #expect(state.activeWorkflow == nil)
+        guard case .detail(_, let routeIdentity) = state.activeSheetRoute else {
+            Issue.record("Expected migrated detail sheet route")
+            return
+        }
+        #expect(routeIdentity == entry.syncIdentity)
+    }
+
+    @Test @MainActor func outgoingHostCannotAcknowledgeMigratedEditRequest() throws {
+        let state = LibraryEntryInteractionState()
+        let entry = AnimeEntry.template(id: 42)
+        state.transitionDetailHost(to: .inspector)
+        state.setEditingEntry(entry)
+        let request = try #require(state.detailEditRequest)
+
+        state.transitionDetailHost(to: .sheet)
+        state.consumeDetailEditRequest(request.id, from: .inspector)
+
+        #expect(state.detailEditRequest?.id == request.id)
+
+        state.consumeDetailEditRequest(request.id, from: .sheet)
+
+        #expect(state.detailEditRequest == nil)
+    }
+
+    @Test @MainActor func newerWorkflowSupersedesPendingInspectorEdit() {
+        let state = LibraryEntryInteractionState()
+        let entry = AnimeEntry.template(id: 42)
+        state.transitionDetailHost(to: .inspector)
+        state.setEditingEntry(entry)
+
+        state.presentWorkflow(.sharing(entry.syncIdentity))
+        state.transitionDetailHost(to: .sheet)
+
+        #expect(state.detailEditRequest == nil)
+        #expect(state.activeWorkflow == .sharing(entry.syncIdentity))
+        guard case .workflow(let presentation) = state.activeSheetRoute else {
+            Issue.record("Expected sharing workflow sheet route")
+            return
+        }
+        #expect(presentation.workflow == .sharing(entry.syncIdentity))
+    }
+
+    @Test @MainActor func inspectorEditMigrationPreservesExactDetailSession() throws {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let state = LibraryEntryInteractionState()
+        let sessionStore = EntryDetailSessionStore()
+        let entry = AnimeEntry.template(id: 42)
+        entry.notes = "Saved note"
+        sessionStore.synchronizePresentedDetail(
+            identity: entry.syncIdentity,
+            repository: repository,
+            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+        )
+        let inspectorSession = try #require(sessionStore.presentedSession)
+        inspectorSession.isEditingDetails = true
+        inspectorSession.scrollPosition.scrollTo(y: 248)
+        entry.notes = "Unsaved replacement"
+        state.transitionDetailHost(to: .inspector)
+        state.setEditingEntry(entry)
+
+        state.transitionDetailHost(to: .sheet)
+        sessionStore.synchronizePresentedDetail(
+            identity: state.presentedDetailEntryID,
+            repository: repository,
+            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+        )
+        let sheetSession = try #require(sessionStore.presentedSession)
+
+        #expect(sheetSession === inspectorSession)
+        #expect(sheetSession.isEditingDetails)
+        #expect(sheetSession.originalUserInfo.notes == "Saved note")
+        #expect(sheetSession.entry.notes == "Unsaved replacement")
+        #expect(sheetSession.scrollPosition.y == 248)
+        #expect(state.detailEditRequest?.entryIdentity == entry.syncIdentity)
+        #expect(state.activeWorkflow == nil)
+    }
+
+    @Test @MainActor func pasteConfirmationResolvesTheCurrentModelByIdentity() throws {
+        let state = LibraryEntryInteractionState()
+        let original = AnimeEntry.template(id: 42)
+        original.notes = "Original model"
+        let replacement = AnimeEntry.template(id: 42)
+        replacement.notes = "Replacement model"
+        let source = AnimeEntry.template(id: 99)
+        source.notes = "Pasted note"
+
+        state.preparePaste(source.userInfo, for: original)
+        let request = try #require(state.pendingPasteRequest)
+        state.confirmPaste(requestID: request.id) { identity in
+            identity == replacement.syncIdentity ? replacement : nil
+        }
+
+        #expect(original.notes == "Original model")
+        #expect(replacement.notes == "Pasted note")
+        #expect(state.pendingPasteRequest == nil)
+    }
+
+    @Test @MainActor func stalePasteCallbacksCannotAffectANewerRequest() throws {
+        let state = LibraryEntryInteractionState()
+        let first = AnimeEntry.template(id: 41)
+        first.notes = "First original"
+        let second = AnimeEntry.template(id: 42)
+        second.notes = "Second original"
+        let firstSource = AnimeEntry.template(id: 91)
+        firstSource.notes = "First pasted"
+        let secondSource = AnimeEntry.template(id: 92)
+        secondSource.notes = "Second pasted"
+
+        state.preparePaste(firstSource.userInfo, for: first)
+        let firstRequest = try #require(state.pendingPasteRequest)
+        state.preparePaste(secondSource.userInfo, for: second)
+        let secondRequest = try #require(state.pendingPasteRequest)
+        var staleConfirmationResolved = false
+
+        state.confirmPaste(requestID: firstRequest.id) { _ in
+            staleConfirmationResolved = true
+            return second
+        }
+        state.clearPasteRequest(requestID: firstRequest.id)
+
+        #expect(!staleConfirmationResolved)
+        #expect(state.pendingPasteRequest?.id == secondRequest.id)
+        #expect(second.notes == "Second original")
+
+        state.confirmPaste(requestID: secondRequest.id) { _ in second }
+
+        #expect(second.notes == "Second pasted")
+        #expect(state.pendingPasteRequest == nil)
+    }
+
+    @Test @MainActor func unresolvedPasteConfirmationClearsTheRequest() throws {
+        let state = LibraryEntryInteractionState()
+        let target = AnimeEntry.template(id: 42)
+        target.notes = "Existing note"
+        let source = AnimeEntry.template(id: 99)
+        source.notes = "Pasted note"
+        state.preparePaste(source.userInfo, for: target)
+        let request = try #require(state.pendingPasteRequest)
+
+        state.confirmPaste(requestID: request.id) { _ in nil }
+
+        #expect(target.notes == "Existing note")
+        #expect(state.pendingPasteRequest == nil)
+    }
+
+    @Test @MainActor func pasteIntoEmptyEntryAppliesImmediatelyWithoutARequest() {
+        let state = LibraryEntryInteractionState()
+        let target = AnimeEntry.template(id: 42)
+        let source = AnimeEntry.template(id: 99)
+        source.notes = "Pasted note"
+
+        state.preparePaste(source.userInfo, for: target)
+
+        #expect(target.notes == "Pasted note")
+        #expect(state.pendingPasteRequest == nil)
     }
 
     @Test @MainActor func hostMigrationDismissalsPreserveTheCanonicalDetailRoute() {
