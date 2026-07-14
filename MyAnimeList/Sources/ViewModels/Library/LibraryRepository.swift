@@ -112,6 +112,27 @@ final class LibraryRepository {
         }
     }
 
+    func existingEntry(identityRawID: String) -> AnimeEntry? {
+        guard let suffix = identityRawID.split(separator: ":").last,
+            let tmdbID = Int(suffix)
+        else {
+            libraryStoreLogger.warning(
+                "Failed to parse TMDb ID from local entry identity \(identityRawID, privacy: .private).")
+            return nil
+        }
+        do {
+            return try matchingEntries(tmdbID: tmdbID)
+                .filter { $0.syncIdentity.rawID == identityRawID }
+                .sorted(by: compareExistingEntries)
+                .first
+        } catch {
+            libraryStoreLogger.warning(
+                "Failed to fetch local entry identity \(identityRawID, privacy: .private): \(error.localizedDescription)"
+            )
+            return nil
+        }
+    }
+
     private func matchingEntries(tmdbID: Int) throws -> [AnimeEntry] {
         try dataProvider.getModels(
             ofType: AnimeEntry.self,

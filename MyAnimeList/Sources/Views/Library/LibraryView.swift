@@ -37,10 +37,13 @@ struct LibraryView: View {
     @State private var isShowingBatchDeleteConfirmation = false
     @State private var selectionDisplayItems: [LibraryEntryDisplayItem]?
     @State private var selectionEntriesByID: [Int: AnimeEntry] = [:]
+    @State private var didRestorePresentedDetail = false
 
     // Persistent UI preference
     @AppStorage(.libraryViewStyle) var libraryViewStyle: LibraryViewStyle = .gallery
     @AppStorage(.libraryScoringEnabled) private var scoringEnabled = true
+    @AppStorage(.libraryPresentedDetailEntryIdentity)
+    private var persistedPresentedDetailEntryIdentity: String?
 
     // MARK: - Body
 
@@ -63,6 +66,12 @@ struct LibraryView: View {
         .onChange(of: scoringEnabled) { _, newValue in
             guard !newValue, store.groupStrategy == .score else { return }
             store.groupStrategy = .none
+        }
+        .onAppear {
+            restorePresentedDetailIfNeeded()
+        }
+        .onChange(of: interaction.presentedDetailEntryID) { _, identity in
+            persistedPresentedDetailEntryIdentity = identity?.rawID
         }
         #if DEBUG
             .onAppear {
@@ -720,6 +729,25 @@ struct LibraryView: View {
         if identity != nil, !didResolveDetail {
             interaction.dismissDetails()
         }
+    }
+
+    private func restorePresentedDetailIfNeeded() {
+        guard !didRestorePresentedDetail else { return }
+        didRestorePresentedDetail = true
+
+        guard interaction.presentedDetailEntryID == nil,
+            let identityRawID = persistedPresentedDetailEntryIdentity,
+            !identityRawID.isEmpty
+        else { return }
+
+        guard let entry = store.repository.existingEntry(identityRawID: identityRawID) else {
+            persistedPresentedDetailEntryIdentity = nil
+            interaction.dismissDetails()
+            return
+        }
+
+        prepareDetailSession(for: entry)
+        interaction.openDetails(for: entry)
     }
 
     #if DEBUG

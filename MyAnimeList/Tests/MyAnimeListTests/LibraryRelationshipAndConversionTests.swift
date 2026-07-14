@@ -89,6 +89,31 @@ struct LibraryRelationshipAndConversionTests {
         #expect(resolvedEntry.id == seriesEntry.id)
     }
 
+    @Test @MainActor func testExistingEntryByRawIdentityRestoresTheExactLocalEntry() throws {
+        let dataProvider = DataProvider(inMemory: true)
+        let repository = LibraryRepository(dataProvider: dataProvider)
+
+        let seriesEntry = AnimeEntry(
+            name: "Series Duplicate",
+            type: .series,
+            tmdbID: 209867
+        )
+        try repository.newEntry(seriesEntry)
+
+        let movieEntry = AnimeEntry(
+            name: "Movie Duplicate",
+            type: .movie,
+            tmdbID: 209867
+        )
+        try repository.newEntry(movieEntry)
+
+        let resolvedEntry = try #require(
+            repository.existingEntry(identityRawID: seriesEntry.syncIdentity.rawID)
+        )
+        #expect(resolvedEntry.id == seriesEntry.id)
+        #expect(repository.existingEntry(identityRawID: "invalid") == nil)
+    }
+
     @Test @MainActor func testConvertSeasonToSeriesPreservesScoreAndDateTrackingSetting() async throws {
         let dataProvider = DataProvider(inMemory: true)
         var transactionSaveCount = 0
