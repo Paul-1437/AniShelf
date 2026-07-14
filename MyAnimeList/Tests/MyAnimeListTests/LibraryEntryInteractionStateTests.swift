@@ -148,4 +148,34 @@ struct LibraryEntryInteractionStateTests {
         #expect(state.focusedEntryID == second.syncIdentity)
         #expect(state.presentedDetailEntryID == second.syncIdentity)
     }
+
+    @Test @MainActor func switchingInspectorEntriesKeepsPresentationWhileSessionCatchesUp() {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let state = LibraryEntryInteractionState()
+        let sessionStore = EntryDetailSessionStore()
+        let first = AnimeEntry.template(id: 42)
+        let second = AnimeEntry.template(id: 43)
+        let entries = [first.syncIdentity: first, second.syncIdentity: second]
+
+        state.openDetails(for: first)
+        sessionStore.synchronizePresentedDetail(
+            identity: first.syncIdentity,
+            repository: repository,
+            resolveEntry: { entries[$0] }
+        )
+
+        state.openDetails(for: second)
+
+        #expect(state.isPresentingDetail)
+        #expect(sessionStore.session(for: second.syncIdentity) == nil)
+
+        sessionStore.synchronizePresentedDetail(
+            identity: second.syncIdentity,
+            repository: repository,
+            resolveEntry: { entries[$0] }
+        )
+
+        #expect(state.isPresentingDetail)
+        #expect(sessionStore.session(for: second.syncIdentity)?.entryIdentity == second.syncIdentity)
+    }
 }

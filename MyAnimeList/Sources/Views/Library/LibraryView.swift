@@ -84,7 +84,7 @@ struct LibraryView: View {
                 for: interaction.presentedDetailEntryID
             )
             let showsInspector =
-                presentation.detailPresentation == .inspector && inspectorSession != nil
+                presentation.detailPresentation == .inspector && interaction.isPresentingDetail
             let inspectorWidth = detailInspectorWidth(for: geometry.size)
             let librarySize = CGSize(
                 width: geometry.size.width - (showsInspector ? inspectorWidth : 0),
@@ -151,11 +151,14 @@ struct LibraryView: View {
                 )
         }
         .onChange(of: interaction.presentedDetailEntryID, initial: true) { _, identity in
-            detailSessionStore.synchronizePresentedDetail(
+            let didResolveDetail = detailSessionStore.synchronizePresentedDetail(
                 identity: identity,
                 repository: store.repository,
                 resolveEntry: { store.repository.existingEntry(identity: $0) }
             )
+            if identity != nil, !didResolveDetail {
+                interaction.dismissDetails()
+            }
         }
         .onChange(of: store.libraryRevision) {
             refreshSelectionDisplayItemsIfNeeded()

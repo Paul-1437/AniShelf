@@ -60,6 +60,10 @@ final class LibraryEntryInteractionState {
         deletingEntryID != nil
     }
 
+    var isPresentingDetail: Bool {
+        presentedDetailEntryID != nil
+    }
+
     func focus(_ entry: AnimeEntry) {
         focusedEntryID = entry.syncIdentity
     }
@@ -326,7 +330,6 @@ extension View {
 
                 guard detailPresentation == .sheet,
                     let identity = state.presentedDetailEntryID,
-                    detailSession?.entryIdentity == identity,
                     let entry = resolveEntry(identity)
                 else { return nil }
                 return .detail(entry)

@@ -84,26 +84,28 @@ final class EntryDetailSession {
 final class EntryDetailSessionStore {
     private(set) var presentedSession: EntryDetailSession?
 
+    @discardableResult
     func synchronizePresentedDetail(
         identity: LibraryEntrySyncIdentity?,
         repository: LibraryRepository,
         resolveEntry: (LibraryEntrySyncIdentity) -> AnimeEntry?
-    ) {
+    ) -> Bool {
         guard let identity else {
             presentedSession = nil
-            return
+            return true
         }
 
-        guard presentedSession?.entryIdentity != identity else { return }
+        guard presentedSession?.entryIdentity != identity else { return true }
         guard let entry = resolveEntry(identity) else {
             presentedSession = nil
-            return
+            return false
         }
 
         presentedSession = EntryDetailSession(
             entry: entry,
             repository: repository
         )
+        return true
     }
 
     func session(for identity: LibraryEntrySyncIdentity?) -> EntryDetailSession? {

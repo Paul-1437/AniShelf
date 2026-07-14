@@ -100,4 +100,25 @@ struct EntryDetailSessionTests {
         )
         #expect(store.presentedSession == nil)
     }
+
+    @Test @MainActor func unresolvablePresentedEntryClearsSessionAndReportsFailure() {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let entry = AnimeEntry.template(id: 42)
+        let store = EntryDetailSessionStore()
+
+        store.synchronizePresentedDetail(
+            identity: entry.syncIdentity,
+            repository: repository,
+            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+        )
+
+        let didResolve = store.synchronizePresentedDetail(
+            identity: AnimeEntry.template(id: 43).syncIdentity,
+            repository: repository,
+            resolveEntry: { _ in nil }
+        )
+
+        #expect(!didResolve)
+        #expect(store.presentedSession == nil)
+    }
 }
