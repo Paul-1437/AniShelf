@@ -37,11 +37,17 @@ enum LibraryEntryWorkflow: Identifiable, Equatable, Sendable {
     }
 }
 
+struct LibraryEntryInspectorEditRequest: Equatable, Sendable {
+    let id = UUID()
+    let entryIdentity: LibraryEntrySyncIdentity
+}
+
 @Observable
 @MainActor
 final class LibraryEntryInteractionState {
     var focusedEntryID: LibraryEntrySyncIdentity?
     var presentedDetailEntryID: LibraryEntrySyncIdentity?
+    var inspectorEditRequest: LibraryEntryInspectorEditRequest?
     var activeWorkflow: LibraryEntryWorkflow?
     var deletingEntryID: LibraryEntrySyncIdentity?
     var showPasteAlert: Bool = false
@@ -79,6 +85,7 @@ final class LibraryEntryInteractionState {
 
     func dismissDetails() {
         presentedDetailEntryID = nil
+        inspectorEditRequest = nil
     }
 
     func transitionDetailHost(to host: LibraryEntryDetailHost) {
@@ -153,7 +160,20 @@ final class LibraryEntryInteractionState {
     }
 
     func setEditingEntry(_ entry: AnimeEntry) {
-        activeWorkflow = .editing(entry.syncIdentity)
+        if desiredDetailHost == .inspector {
+            inspectorEditRequest = LibraryEntryInspectorEditRequest(
+                entryIdentity: entry.syncIdentity
+            )
+            activeWorkflow = nil
+            openDetails(for: entry)
+        } else {
+            activeWorkflow = .editing(entry.syncIdentity)
+        }
+    }
+
+    func consumeInspectorEditRequest(_ requestID: UUID) {
+        guard inspectorEditRequest?.id == requestID else { return }
+        inspectorEditRequest = nil
     }
 
     func pasteInfo(for entry: AnimeEntry) {
@@ -229,6 +249,9 @@ extension EnvironmentValues {
         get { self[LibraryEntryDetailActivationKey.self] }
         set { self[LibraryEntryDetailActivationKey.self] = newValue }
     }
+
+    @Entry var libraryEntryOpenDetailAction: ((AnimeEntry) -> Void)?
+    @Entry var libraryEntryEditAction: ((AnimeEntry) -> Void)?
 }
 
 extension LibraryEntryInteractionState {
@@ -249,9 +272,16 @@ extension LibraryEntryInteractionState {
         }
     }
 
-    func editButton(for entry: AnimeEntry) -> some View {
+    func editButton(
+        for entry: AnimeEntry,
+        editEntry: ((AnimeEntry) -> Void)? = nil
+    ) -> some View {
         Button("Edit", systemImage: "pencil") {
-            self.activeWorkflow = .editing(entry.syncIdentity)
+            if let editEntry {
+                editEntry(entry)
+            } else {
+                self.setEditingEntry(entry)
+            }
         }
     }
 
@@ -296,13 +326,14 @@ extension LibraryEntryInteractionState {
     @ViewBuilder
     func contextMenu(
         for entry: AnimeEntry,
-        toggleFavorite: @escaping (AnimeEntry) -> Void
+        toggleFavorite: @escaping (AnimeEntry) -> Void,
+        editEntry: ((AnimeEntry) -> Void)? = nil
     ) -> some View {
         ControlGroup {
             favoriteButton(for: entry, toggleFavorite: toggleFavorite)
             shareButton(for: entry)
         }
-        editButton(for: entry)
+        editButton(for: entry, editEntry: editEntry)
         switchPosterButton(for: entry)
         Divider()
         savePosterButton(for: entry)

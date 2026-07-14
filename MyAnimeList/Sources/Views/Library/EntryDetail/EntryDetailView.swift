@@ -23,6 +23,8 @@ struct EntryDetailView: View {
 
     private let presentationStyle: EntryDetailPresentationStyle
     private let onClose: (() -> Void)?
+    private let editingRequestID: UUID?
+    private let onEditingRequestHandled: ((UUID) -> Void)?
 
     @State private var session: EntryDetailSession
 
@@ -36,10 +38,14 @@ struct EntryDetailView: View {
         startInEditingMode: Bool = false,
         presentationStyle: EntryDetailPresentationStyle = .sheet,
         onClose: (() -> Void)? = nil,
-        session: EntryDetailSession? = nil
+        session: EntryDetailSession? = nil,
+        editingRequestID: UUID? = nil,
+        onEditingRequestHandled: ((UUID) -> Void)? = nil
     ) {
         self.presentationStyle = presentationStyle
         self.onClose = onClose
+        self.editingRequestID = editingRequestID
+        self.onEditingRequestHandled = onEditingRequestHandled
         self._session = State(
             initialValue: session
                 ?? EntryDetailSession(
@@ -81,18 +87,12 @@ struct EntryDetailView: View {
                         !session.didAutoScrollToEditingSection
                     else { return }
                     session.didAutoScrollToEditingSection = true
-                    session.isEditingDetails = true
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(150))
-                        await MainActor.run {
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
-                                proxy.scrollTo(
-                                    EntryDetailScrollTarget.editingSection,
-                                    anchor: .center
-                                )
-                            }
-                        }
-                    }
+                    revealEditingSection(using: proxy)
+                }
+                .onChange(of: editingRequestID, initial: true) { _, requestID in
+                    guard let requestID else { return }
+                    revealEditingSection(using: proxy)
+                    onEditingRequestHandled?(requestID)
                 }
             }
         }
@@ -203,7 +203,22 @@ struct EntryDetailView: View {
         case .sheet:
             Color(.systemGroupedBackground)
         case .inspector:
-            Color(.systemBackground)
+            Color.clear
+        }
+    }
+
+    private func revealEditingSection(using proxy: ScrollViewProxy) {
+        session.isEditingDetails = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            await MainActor.run {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
+                    proxy.scrollTo(
+                        EntryDetailScrollTarget.editingSection,
+                        anchor: .center
+                    )
+                }
+            }
         }
     }
 

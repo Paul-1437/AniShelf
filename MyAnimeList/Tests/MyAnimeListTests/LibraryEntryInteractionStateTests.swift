@@ -99,6 +99,39 @@ struct LibraryEntryInteractionStateTests {
         #expect(state.activeWorkflow == .editing(entry.syncIdentity))
     }
 
+    @Test @MainActor func sheetEditingKeepsTheDedicatedWorkflow() {
+        let state = LibraryEntryInteractionState()
+        let entry = AnimeEntry.template(id: 42)
+
+        state.transitionDetailHost(to: .inspector)
+        state.transitionDetailHost(to: .sheet)
+        state.setEditingEntry(entry)
+
+        #expect(state.presentedDetailEntryID == nil)
+        #expect(state.inspectorEditRequest == nil)
+        #expect(state.activeWorkflow == .editing(entry.syncIdentity))
+    }
+
+    @Test @MainActor func inspectorEditingRoutesDetailAndRequestsTheEditingSection() {
+        let state = LibraryEntryInteractionState()
+        let entry = AnimeEntry.template(id: 42)
+        state.transitionDetailHost(to: .inspector)
+
+        state.setEditingEntry(entry)
+
+        let request = state.inspectorEditRequest
+        #expect(state.focusedEntryID == entry.syncIdentity)
+        #expect(state.presentedDetailEntryID == entry.syncIdentity)
+        #expect(request?.entryIdentity == entry.syncIdentity)
+        #expect(state.activeWorkflow == nil)
+
+        if let request {
+            state.consumeInspectorEditRequest(request.id)
+        }
+        #expect(state.inspectorEditRequest == nil)
+        #expect(state.presentedDetailEntryID == entry.syncIdentity)
+    }
+
     @Test @MainActor func hostMigrationDismissalsPreserveTheCanonicalDetailRoute() {
         let state = LibraryEntryInteractionState()
         let entry = AnimeEntry.template(id: 42)

@@ -67,14 +67,17 @@ struct AnimeEntryListRow: View {
                 Color.clear
                     .contentShape(.rect)
                     .onTapGesture {
-                        onTap?()
                         onOpenDetails()
                     }
             } else {
                 Color.clear
                     .contentShape(.rect)
-                    .onTapGesture { onTap?() }
-                    .onTapGesture(count: 2) { onOpenDetails() }
+                    .simultaneousGesture(
+                        TapGesture().onEnded { onTap?() }
+                    )
+                    .simultaneousGesture(
+                        TapGesture(count: 2).onEnded { onOpenDetails() }
+                    )
             }
         } else {
             Color.clear
