@@ -7,6 +7,7 @@
 
 import Collections
 import DataProvider
+import LibrarySync
 import SwiftData
 import SwiftUI
 
@@ -151,17 +152,11 @@ struct LibraryView: View {
                 )
         }
         .onChange(of: interaction.presentedDetailEntryID, initial: true) { _, identity in
-            let didResolveDetail = detailSessionStore.synchronizePresentedDetail(
-                identity: identity,
-                repository: store.repository,
-                resolveEntry: { store.repository.existingEntry(identity: $0) }
-            )
-            if identity != nil, !didResolveDetail {
-                interaction.dismissDetails()
-            }
+            synchronizePresentedDetail(identity)
         }
         .onChange(of: store.libraryRevision) {
             refreshSelectionDisplayItemsIfNeeded()
+            synchronizePresentedDetail(interaction.presentedDetailEntryID)
         }
         .onChange(of: store.filters) {
             refreshSelectionDisplayItemsIfNeeded()
@@ -644,6 +639,17 @@ struct LibraryView: View {
 
     private func toggleFavorite(_ entry: AnimeEntry) {
         dataHandler?.toggleFavorite(entry: entry)
+    }
+
+    private func synchronizePresentedDetail(_ identity: LibraryEntrySyncIdentity?) {
+        let didResolveDetail = detailSessionStore.synchronizePresentedDetail(
+            identity: identity,
+            repository: store.repository,
+            resolveEntry: { store.repository.existingEntry(identity: $0) }
+        )
+        if identity != nil, !didResolveDetail {
+            interaction.dismissDetails()
+        }
     }
 
     #if DEBUG

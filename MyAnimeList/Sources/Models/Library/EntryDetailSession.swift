@@ -95,16 +95,18 @@ final class EntryDetailSessionStore {
             return true
         }
 
-        guard presentedSession?.entryIdentity != identity else { return true }
         guard let entry = resolveEntry(identity) else {
             presentedSession = nil
             return false
         }
+        guard presentedSession?.entry === entry else {
+            presentedSession = EntryDetailSession(
+                entry: entry,
+                repository: repository
+            )
+            return true
+        }
 
-        presentedSession = EntryDetailSession(
-            entry: entry,
-            repository: repository
-        )
         return true
     }
 
