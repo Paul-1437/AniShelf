@@ -36,6 +36,7 @@
 - Use conventional commits: `<type>: <subject>`.
 - Write imperative, capitalized subjects; keep them concise and avoid periods.
 - Add a body when the change needs explanation.
+- For long-running, complex tasks expected to produce a very large diff (roughly 1,500 changed lines or more), make coherent checkpoint commits along the way instead of waiting until the entire task is complete.
 
 ## Additional Notes
 
