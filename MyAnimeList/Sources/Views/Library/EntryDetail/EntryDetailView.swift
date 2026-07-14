@@ -366,17 +366,27 @@ struct EntryDetailView: View {
         if !session.model.statCards.isEmpty {
             LazyVGrid(columns: statColumns, spacing: 12) {
                 ForEach(session.model.statCards) { card in
-                    DetailStatCard(card: card)
-                        .onTapGesture {
-                            if card.id == "episodes" {
-                                withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
-                                    proxy.scrollTo(
-                                        EntryDetailScrollTarget.episodesSection,
-                                        anchor: .top
-                                    )
-                                }
+                    if card.id == "episodes" {
+                        Button {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
+                                proxy.scrollTo(
+                                    EntryDetailScrollTarget.episodesSection,
+                                    anchor: .top
+                                )
                             }
+                        } label: {
+                            DetailStatCard(card: card)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            Text(
+                                verbatim: "\(card.value), \(String(localized: card.title))"
+                            )
+                        )
+                        .accessibilityHint(Text(EntryDetailL10n.jumpsToEpisodesSection))
+                    } else {
+                        DetailStatCard(card: card)
+                    }
                 }
             }
         }

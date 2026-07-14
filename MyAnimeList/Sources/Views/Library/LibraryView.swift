@@ -86,7 +86,8 @@ struct LibraryView: View {
             )
             let showsInspector =
                 presentation.detailPresentation == .inspector && interaction.isPresentingDetail
-            let inspectorWidth = detailInspectorWidth(for: geometry.size)
+            let inspectorSizing = presentation.detailInspectorSizing
+            let inspectorWidth = inspectorSizing.idealWidth
             let librarySize = CGSize(
                 width: geometry.size.width - (showsInspector ? inspectorWidth : 0),
                 height: geometry.size.height
@@ -128,9 +129,9 @@ struct LibraryView: View {
                         }
                         .id(identity.rawID)
                         .inspectorColumnWidth(
-                            min: 400,
+                            min: inspectorSizing.minimumWidth,
                             ideal: inspectorWidth,
-                            max: 520
+                            max: inspectorSizing.maximumWidth
                         )
                         .onAppear {
                             interaction.detailHostDidPresent(.inspector)
@@ -205,10 +206,6 @@ struct LibraryView: View {
                 Text(batchDeleteConfirmationMessage)
             }
         }
-    }
-
-    private func detailInspectorWidth(for availableSize: CGSize) -> CGFloat {
-        min(max(availableSize.width * 0.38, 400), 480)
     }
 
     // MARK: - Content

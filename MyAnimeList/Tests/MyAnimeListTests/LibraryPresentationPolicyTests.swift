@@ -193,6 +193,29 @@ struct LibraryPresentationPolicyTests {
         #expect(accessibility.detailPresentation == .sheet)
     }
 
+    @Test func inspectorSizingMatchesDynamicTypeCapacityAndHostLimits() {
+        let supported = policy.evaluate(
+            .init(
+                availableSize: CGSize(width: 1_301, height: 468),
+                libraryMode: .list,
+                dynamicTypeSize: .accessibility2
+            )
+        )
+        let unsupported = policy.evaluate(
+            .init(
+                availableSize: CGSize(width: 1_601, height: 576),
+                libraryMode: .list,
+                dynamicTypeSize: .accessibility5
+            )
+        )
+
+        #expect(supported.detailPresentation == .inspector)
+        #expect(supported.detailInspectorSizing.minimumWidth == 520)
+        #expect(supported.detailInspectorSizing.idealWidth == 520)
+        #expect(supported.detailInspectorSizing.maximumWidth == 520)
+        #expect(unsupported.detailPresentation == .sheet)
+    }
+
     @Test func galleryShelfUsesHeightDerivedPosterWidthAndShowsNeighbors() {
         let result = policy.evaluate(
             .init(

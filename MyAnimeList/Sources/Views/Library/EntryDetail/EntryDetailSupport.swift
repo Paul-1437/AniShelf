@@ -37,6 +37,8 @@ enum EntryDetailL10n {
     static let noScore: LocalizedStringResource = "No score"
     static let clear: LocalizedStringResource = "Clear"
     static let episodes: LocalizedStringResource = "Episodes"
+    static let jumpsToEpisodesSection: LocalizedStringResource =
+        "Jumps to the episodes section."
     static let characters: LocalizedStringResource = "Characters"
     static let staff: LocalizedStringResource = "Staff"
     static let convertToWhichSeason: LocalizedStringResource = "Convert to which season?"

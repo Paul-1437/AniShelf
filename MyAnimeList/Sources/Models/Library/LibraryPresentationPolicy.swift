@@ -12,6 +12,8 @@ struct LibraryPresentationPolicy {
     struct GeometryTokens: Equatable {
         /// Minimum width at which entry detail remains useful as a trailing surface.
         var minimumDetailWidth: CGFloat = 400
+        var maximumPreferredDetailWidth: CGFloat = 480
+        var maximumDetailWidth: CGFloat = 520
 
         /// Width retained for the active library mode while detail is visible.
         var minimumGalleryWidthWithDetail: CGFloat = 430
@@ -75,6 +77,13 @@ struct LibraryPresentationPolicy {
         case page
     }
 
+    struct DetailInspectorSizing: Equatable {
+        var minimumWidth: CGFloat
+        var idealWidth: CGFloat
+        var maximumWidth: CGFloat
+        fileprivate var canSatisfyMinimum: Bool
+    }
+
     struct Input: Equatable {
         var availableSize: CGSize
         var libraryMode: LibraryMode
@@ -96,6 +105,7 @@ struct LibraryPresentationPolicy {
 
     struct Result: Equatable {
         var detailPresentation: DetailPresentation
+        var detailInspectorSizing: DetailInspectorSizing
         var galleryArrangement: GalleryArrangement
         var modalSizing: ModalSizing
     }
@@ -108,13 +118,19 @@ struct LibraryPresentationPolicy {
 
     func evaluate(_ input: Input) -> Result {
         let scale = contentScale(for: input.dynamicTypeSize)
+        let detailInspectorSizing = detailInspectorSizing(
+            availableWidth: input.availableSize.width,
+            scale: scale
+        )
 
         return Result(
             detailPresentation: detailPresentation(
                 availableSize: input.availableSize,
                 mode: input.libraryMode,
-                scale: scale
+                scale: scale,
+                inspectorSizing: detailInspectorSizing
             ),
+            detailInspectorSizing: detailInspectorSizing,
             galleryArrangement: galleryArrangement(
                 availableSize: input.availableSize,
                 mode: input.libraryMode,
@@ -131,12 +147,13 @@ struct LibraryPresentationPolicy {
     private func detailPresentation(
         availableSize: CGSize,
         mode: LibraryMode,
-        scale: CGFloat
+        scale: CGFloat,
+        inspectorSizing: DetailInspectorSizing
     ) -> DetailPresentation {
         let minimumLibrarySize = minimumLibrarySize(for: mode, scale: scale)
         let requiredWidth =
             minimumLibrarySize.width
-            + tokens.minimumDetailWidth * scale
+            + inspectorSizing.idealWidth
             + tokens.detailColumnSpacing
         let requiredHeight = max(
             minimumLibrarySize.height,
@@ -150,11 +167,36 @@ struct LibraryPresentationPolicy {
             >= requiredWidth + tokens.additionalWidthForShortDetail * scale
             && availableSize.height >= minimumLibrarySize.height
 
-        guard fitsPreferredGeometry || fitsWideShortGeometry else {
+        guard inspectorSizing.canSatisfyMinimum,
+            fitsPreferredGeometry || fitsWideShortGeometry
+        else {
             return .sheet
         }
 
         return .inspector
+    }
+
+    private func detailInspectorSizing(
+        availableWidth: CGFloat,
+        scale: CGFloat
+    ) -> DetailInspectorSizing {
+        let requiredMinimumWidth = tokens.minimumDetailWidth * scale
+        let minimumWidth = min(requiredMinimumWidth, tokens.maximumDetailWidth)
+        let preferredWidthCap = min(
+            max(tokens.maximumPreferredDetailWidth, minimumWidth),
+            tokens.maximumDetailWidth
+        )
+        let idealWidth = min(
+            max(availableWidth * 0.38, minimumWidth),
+            preferredWidthCap
+        )
+
+        return DetailInspectorSizing(
+            minimumWidth: minimumWidth,
+            idealWidth: idealWidth,
+            maximumWidth: tokens.maximumDetailWidth,
+            canSatisfyMinimum: requiredMinimumWidth <= tokens.maximumDetailWidth
+        )
     }
 
     private func galleryArrangement(
