@@ -13,6 +13,7 @@ import TMDb
 
 typealias EntryDetailInfoLoader =
     @Sendable (AnimeType, Int, Language) async throws -> AnimeEntryDetailDTO
+typealias EntryDetailPersistenceSaver = @MainActor (DataHandler?) throws -> Void
 
 @MainActor
 @Observable
@@ -148,6 +149,7 @@ final class EntryDetailViewModel {
     private let repository: LibraryRepository
     private let infoFetcher: InfoFetcher
     private let detailInfoLoader: EntryDetailInfoLoader
+    private let detailPersistenceSaver: EntryDetailPersistenceSaver
 
     private(set) var isLoading = false
     private(set) var loadError: String?
@@ -174,7 +176,8 @@ final class EntryDetailViewModel {
     init(
         repository: LibraryRepository,
         infoFetcher: InfoFetcher = .init(),
-        detailInfoLoader: EntryDetailInfoLoader? = nil
+        detailInfoLoader: EntryDetailInfoLoader? = nil,
+        detailPersistenceSaver: EntryDetailPersistenceSaver? = nil
     ) {
         self.repository = repository
         self.infoFetcher = infoFetcher
@@ -186,6 +189,11 @@ final class EntryDetailViewModel {
                     tmdbID: tmdbID,
                     language: language
                 )
+            }
+        self.detailPersistenceSaver =
+            detailPersistenceSaver
+            ?? { dataHandler in
+                try dataHandler?.modelContext.save()
             }
     }
 
@@ -233,8 +241,11 @@ final class EntryDetailViewModel {
                 return
             }
 
-            let detail = entry.replaceDetail(from: detailDTO)
-            try? dataHandler?.modelContext.save()
+            let detail = try replaceAndPersistDetail(
+                for: entry,
+                with: detailDTO,
+                dataHandler: dataHandler
+            )
             apply(detail: detail, entry: entry, language: language)
             loadedRequestKey = requestKey
         } catch {
@@ -248,6 +259,28 @@ final class EntryDetailViewModel {
         }
         if loadGeneration == generation {
             isLoading = false
+        }
+    }
+
+    private func replaceAndPersistDetail(
+        for entry: AnimeEntry,
+        with detailDTO: AnimeEntryDetailDTO,
+        dataHandler: DataHandler?
+    ) throws -> AnimeEntryDetail {
+        let previousDetailSnapshot = entry.detail?.snapshotDTO()
+        let detail = entry.replaceDetail(from: detailDTO)
+
+        do {
+            try detailPersistenceSaver(dataHandler)
+            return detail
+        } catch {
+            if let previousDetailSnapshot {
+                detail.apply(dto: previousDetailSnapshot)
+            } else {
+                entry.detail = nil
+                detail.modelContext?.delete(detail)
+            }
+            throw error
         }
     }
 

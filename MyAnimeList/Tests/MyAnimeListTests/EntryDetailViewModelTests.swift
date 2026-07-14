@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 import TMDb
 import Testing
 
@@ -495,6 +496,172 @@ struct EntryDetailViewModelTests {
 
         #expect(await loader.requestCount == 2)
         #expect(viewModel.loadError != nil)
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test @MainActor func testEntryDetailRestoresPersistedDetailAndRetriesAfterSaveFailure()
+        async throws
+    {
+        let dataProvider = DataProvider(inMemory: true)
+        let repository = LibraryRepository(dataProvider: dataProvider)
+        let entry = AnimeEntry(
+            name: "Series",
+            type: .series,
+            tmdbID: 40,
+            detail: AnimeEntryDetail(
+                language: Language.english.rawValue,
+                title: "Persisted Detail",
+                overview: "Persisted overview",
+                characters: [
+                    AnimeEntryCharacter(
+                        id: 1,
+                        characterName: "Persisted Character",
+                        actorName: "Persisted Actor"
+                    )
+                ],
+                staff: [
+                    AnimeEntryStaff(
+                        id: 2,
+                        name: "Persisted Staff",
+                        role: "Director",
+                        jobs: [
+                            AnimeEntryStaffJob(
+                                creditID: "persisted-director",
+                                job: "Director",
+                                episodeCount: 12
+                            )
+                        ]
+                    )
+                ],
+                seasons: [
+                    AnimeEntrySeasonSummary(
+                        id: 3,
+                        seasonNumber: 1,
+                        title: "Persisted Season"
+                    )
+                ],
+                episodes: [
+                    AnimeEntryEpisodeSummary(
+                        id: 4,
+                        episodeNumber: 1,
+                        title: "Persisted Episode"
+                    )
+                ]
+            )
+        )
+        try dataProvider.dataHandler.newEntry(entry)
+        entry.notes = "Unsaved user note"
+
+        let loader = RetryingPersistedEntryDetailLoader()
+        var saveAttemptCount = 0
+        let viewModel = EntryDetailViewModel(
+            repository: repository,
+            detailInfoLoader: { entryType, tmdbID, language in
+                try await loader.load(entryType: entryType, tmdbID: tmdbID, language: language)
+            },
+            detailPersistenceSaver: { dataHandler in
+                saveAttemptCount += 1
+                if saveAttemptCount == 1 {
+                    throw EntryDetailPersistenceError()
+                }
+                try dataHandler?.modelContext.save()
+            }
+        )
+
+        await viewModel.load(for: entry, language: .english, dataHandler: dataProvider.dataHandler)
+
+        #expect(await loader.requestCount == 1)
+        #expect(saveAttemptCount == 1)
+        #expect(viewModel.loadError == "The detail could not be saved.")
+        #expect(viewModel.displayTitle == "Persisted Detail")
+        #expect(entry.detail?.title == "Persisted Detail")
+        #expect(entry.detail?.overview == "Persisted overview")
+        #expect(entry.detail?.orderedCharacters.map(\.characterName) == ["Persisted Character"])
+        #expect(entry.detail?.orderedStaff.map(\.name) == ["Persisted Staff"])
+        #expect(entry.detail?.orderedStaff.first?.orderedJobs.map(\.creditID) == ["persisted-director"])
+        #expect(entry.detail?.seasons.map(\.title) == ["Persisted Season"])
+        #expect(entry.detail?.orderedEpisodes.map(\.title) == ["Persisted Episode"])
+        #expect(entry.notes == "Unsaved user note")
+        #expect(!viewModel.isLoading)
+
+        let verificationContext = ModelContext(dataProvider.sharedModelContainer)
+        let persistedEntries = try verificationContext.fetch(
+            FetchDescriptor<AnimeEntry>(
+                predicate: #Predicate { $0.tmdbID == 40 }
+            )
+        )
+        let persistedEntry = try #require(persistedEntries.first)
+        #expect(persistedEntry.detail?.title == "Persisted Detail")
+        #expect(persistedEntry.detail?.overview == "Persisted overview")
+        #expect(
+            persistedEntry.detail?.orderedCharacters.map(\.characterName)
+                == ["Persisted Character"]
+        )
+        #expect(persistedEntry.detail?.orderedStaff.map(\.name) == ["Persisted Staff"])
+        #expect(
+            persistedEntry.detail?.orderedStaff.first?.orderedJobs.map(\.creditID)
+                == ["persisted-director"]
+        )
+        #expect(persistedEntry.detail?.seasons.map(\.title) == ["Persisted Season"])
+        #expect(persistedEntry.detail?.orderedEpisodes.map(\.title) == ["Persisted Episode"])
+
+        await viewModel.load(for: entry, language: .english, dataHandler: dataProvider.dataHandler)
+
+        #expect(await loader.requestCount == 2)
+        #expect(saveAttemptCount == 2)
+        #expect(viewModel.loadError == nil)
+        #expect(viewModel.displayTitle == "Retried Detail")
+        #expect(entry.detail?.title == "Retried Detail")
+        #expect(entry.detail?.overview == "Retried overview")
+        #expect(entry.detail?.orderedCharacters.map(\.characterName) == ["Retried Character"])
+        #expect(entry.notes == "Unsaved user note")
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test @MainActor func testEntryDetailRemovesNewDetailAfterSaveFailureAndRetries() async throws {
+        let dataProvider = DataProvider(inMemory: true)
+        let repository = LibraryRepository(dataProvider: dataProvider)
+        let entry = AnimeEntry(name: "Movie", type: .movie, tmdbID: 41)
+        try dataProvider.dataHandler.newEntry(entry)
+
+        let loader = RetryingPersistedEntryDetailLoader()
+        var saveAttemptCount = 0
+        let viewModel = EntryDetailViewModel(
+            repository: repository,
+            detailInfoLoader: { entryType, tmdbID, language in
+                try await loader.load(entryType: entryType, tmdbID: tmdbID, language: language)
+            },
+            detailPersistenceSaver: { dataHandler in
+                saveAttemptCount += 1
+                if saveAttemptCount == 1 {
+                    throw EntryDetailPersistenceError()
+                }
+                try dataHandler?.modelContext.save()
+            }
+        )
+
+        await viewModel.load(for: entry, language: .english, dataHandler: dataProvider.dataHandler)
+
+        #expect(await loader.requestCount == 1)
+        #expect(viewModel.loadError == "The detail could not be saved.")
+        #expect(entry.detail == nil)
+        #expect(!viewModel.isLoading)
+
+        let verificationContext = ModelContext(dataProvider.sharedModelContainer)
+        let persistedEntries = try verificationContext.fetch(
+            FetchDescriptor<AnimeEntry>(
+                predicate: #Predicate { $0.tmdbID == 41 }
+            )
+        )
+        #expect(try #require(persistedEntries.first).detail == nil)
+
+        await viewModel.load(for: entry, language: .english, dataHandler: dataProvider.dataHandler)
+
+        #expect(await loader.requestCount == 2)
+        #expect(saveAttemptCount == 2)
+        #expect(viewModel.loadError == nil)
+        #expect(viewModel.displayTitle == "Retried Detail")
+        #expect(entry.detail?.title == "Retried Detail")
         #expect(!viewModel.isLoading)
     }
 
@@ -1081,6 +1248,10 @@ struct EntryDetailViewModelTests {
 
 fileprivate struct EntryDetailLoaderError: Error {}
 
+fileprivate struct EntryDetailPersistenceError: LocalizedError {
+    var errorDescription: String? { "The detail could not be saved." }
+}
+
 private actor FailingEntryDetailLoader {
     private(set) var requestCount = 0
 
@@ -1089,6 +1260,29 @@ private actor FailingEntryDetailLoader {
     {
         requestCount += 1
         throw EntryDetailLoaderError()
+    }
+}
+
+private actor RetryingPersistedEntryDetailLoader {
+    private(set) var requestCount = 0
+
+    func load(entryType: AnimeType, tmdbID: Int, language: MyAnimeList.Language) async throws
+        -> AnimeEntryDetailDTO
+    {
+        requestCount += 1
+        return AnimeEntryDetailDTO(
+            language: language.rawValue,
+            title: requestCount == 1 ? "Failed Detail" : "Retried Detail",
+            overview: requestCount == 1 ? "Failed overview" : "Retried overview",
+            logoImagePath: requestCount == 1 ? "/failed-logo.png" : "/retried-logo.png",
+            characters: [
+                AnimeEntryCharacterDTO(
+                    id: requestCount + 1,
+                    characterName: requestCount == 1 ? "Failed Character" : "Retried Character",
+                    actorName: "Actor"
+                )
+            ]
+        )
     }
 }
 
