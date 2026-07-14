@@ -556,6 +556,31 @@ struct EntryDetailViewModelTests {
         #expect(!viewModel.isLoading)
     }
 
+    @Test @MainActor func testCancelledBeforeStartDetailLoadDoesNotMutateCurrentState() async {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let loader = ImmediateLanguageEntryDetailLoader()
+        let viewModel = EntryDetailViewModel(
+            repository: repository,
+            detailInfoLoader: { entryType, tmdbID, language in
+                try await loader.load(entryType: entryType, tmdbID: tmdbID, language: language)
+            }
+        )
+        let entry = AnimeEntry.template(id: 42)
+
+        await viewModel.load(for: entry, language: .english, dataHandler: nil)
+
+        let cancelledLoad = Task { @MainActor in
+            await viewModel.load(for: entry, language: .japanese, dataHandler: nil)
+        }
+        cancelledLoad.cancel()
+        await cancelledLoad.value
+
+        #expect(await loader.requestCount == 1)
+        #expect(viewModel.displayTitle == "English Detail")
+        #expect(viewModel.loadError == nil)
+        #expect(!viewModel.isLoading)
+    }
+
     @Test func testReplaceDetailRewritesFlattenedAggregateStaffIntoPersistedJobs() throws {
         let entry = AnimeEntry.template()
         entry.detail = AnimeEntryDetail(
@@ -726,6 +751,197 @@ struct EntryDetailViewModelTests {
             failingViewModel.overviewText == String(localized: EntryDetailL10n.noOverviewAvailable)
         )
         #expect(failingViewModel.staffRows.isEmpty)
+    }
+
+    @Test @MainActor func testEpisodePreviewRetriesSameRequestAfterFailure() async {
+        let loader = RetryingEpisodePreviewLoader(failureMode: .error)
+        let viewModel = EpisodePreviewViewModel { context, episodeNumber in
+            try await loader.load(context: context, episodeNumber: episodeNumber)
+        }
+
+        await viewModel.load(card: makeEpisodePreviewCard(), context: makeEpisodePreviewContext())
+        await viewModel.load(card: makeEpisodePreviewCard(), context: makeEpisodePreviewContext())
+
+        #expect(await loader.requestCount == 2)
+        #expect(viewModel.overviewText == "Retried preview")
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test @MainActor func testEpisodePreviewCancellationIsSilentAndRetryable() async {
+        let loader = RetryingEpisodePreviewLoader(failureMode: .cancellation)
+        let viewModel = EpisodePreviewViewModel { context, episodeNumber in
+            try await loader.load(context: context, episodeNumber: episodeNumber)
+        }
+
+        let cancelledLoad = Task { @MainActor in
+            await viewModel.load(
+                card: makeEpisodePreviewCard(),
+                context: makeEpisodePreviewContext()
+            )
+        }
+        while await loader.requestCount == 0 {
+            await Task.yield()
+        }
+        cancelledLoad.cancel()
+        await cancelledLoad.value
+
+        #expect(!viewModel.isLoading)
+
+        await viewModel.load(card: makeEpisodePreviewCard(), context: makeEpisodePreviewContext())
+
+        #expect(await loader.requestCount == 2)
+        #expect(viewModel.overviewText == "Retried preview")
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test @MainActor func testEpisodePreviewURLCancellationIsSilentAndRetryable() async {
+        let loader = RetryingEpisodePreviewLoader(failureMode: .urlCancellation)
+        let viewModel = EpisodePreviewViewModel { context, episodeNumber in
+            try await loader.load(context: context, episodeNumber: episodeNumber)
+        }
+
+        await viewModel.load(card: makeEpisodePreviewCard(), context: makeEpisodePreviewContext())
+
+        #expect(!viewModel.isLoading)
+
+        await viewModel.load(card: makeEpisodePreviewCard(), context: makeEpisodePreviewContext())
+
+        #expect(await loader.requestCount == 2)
+        #expect(viewModel.overviewText == "Retried preview")
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test @MainActor func testOlderEpisodePreviewCannotOverwriteNewerLanguage() async {
+        let loader = DelayedLanguageEpisodePreviewLoader()
+        let viewModel = EpisodePreviewViewModel { context, episodeNumber in
+            try await loader.load(context: context, episodeNumber: episodeNumber)
+        }
+
+        let olderLoad = Task { @MainActor in
+            await viewModel.load(
+                card: makeEpisodePreviewCard(),
+                context: makeEpisodePreviewContext(language: .japanese)
+            )
+        }
+        while await loader.requestCount == 0 {
+            await Task.yield()
+        }
+        await viewModel.load(
+            card: makeEpisodePreviewCard(),
+            context: makeEpisodePreviewContext(language: .english)
+        )
+        await olderLoad.value
+
+        #expect(viewModel.overviewText == "English preview")
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test @MainActor func testSeasonEpisodeLoaderRestartsAfterCancellation() async {
+        let loader = RetryingSeasonEpisodeLoader()
+        let viewModel = SeriesSeasonEpisodeLoader { seriesID, seasonNumber, language in
+            try await loader.load(
+                seriesID: seriesID,
+                seasonNumber: seasonNumber,
+                language: language
+            )
+        }
+
+        let cancelledLoad = Task { @MainActor in
+            await viewModel.load(
+                requestKey: "1429-1-en-US",
+                seriesTMDbID: 1429,
+                seasonNumber: 1,
+                language: .english
+            )
+        }
+        while await loader.requestCount == 0 {
+            await Task.yield()
+        }
+        cancelledLoad.cancel()
+        await cancelledLoad.value
+
+        #expect(!viewModel.isLoading)
+        #expect(!viewModel.loadFailed)
+
+        await viewModel.load(
+            requestKey: "1429-1-en-US",
+            seriesTMDbID: 1429,
+            seasonNumber: 1,
+            language: .english
+        )
+
+        #expect(await loader.requestCount == 2)
+        #expect(viewModel.episodes.map(\.title) == ["1. Retried episode"])
+        #expect(viewModel.loadedRequestKey == "1429-1-en-US")
+        #expect(!viewModel.isLoading)
+    }
+
+    @Test @MainActor func testOlderSeasonEpisodeLoadCannotOverwriteNewerLanguage() async {
+        let loader = DelayedLanguageSeasonEpisodeLoader()
+        let viewModel = SeriesSeasonEpisodeLoader { seriesID, seasonNumber, language in
+            try await loader.load(
+                seriesID: seriesID,
+                seasonNumber: seasonNumber,
+                language: language
+            )
+        }
+
+        let olderLoad = Task { @MainActor in
+            await viewModel.load(
+                requestKey: "1429-1-ja-JP",
+                seriesTMDbID: 1429,
+                seasonNumber: 1,
+                language: .japanese
+            )
+        }
+        while await loader.requestCount == 0 {
+            await Task.yield()
+        }
+        await viewModel.load(
+            requestKey: "1429-1-en-US",
+            seriesTMDbID: 1429,
+            seasonNumber: 1,
+            language: .english
+        )
+        await olderLoad.value
+
+        #expect(viewModel.episodes.map(\.title) == ["1. English episode"])
+        #expect(viewModel.loadedRequestKey == "1429-1-en-US")
+        #expect(!viewModel.isLoading)
+        #expect(!viewModel.loadFailed)
+    }
+
+    @Test @MainActor func testSeasonEpisodeURLCancellationIsSilentAndRetryable() async {
+        let loader = URLCancelledSeasonEpisodeLoader()
+        let viewModel = SeriesSeasonEpisodeLoader { seriesID, seasonNumber, language in
+            try await loader.load(
+                seriesID: seriesID,
+                seasonNumber: seasonNumber,
+                language: language
+            )
+        }
+
+        await viewModel.load(
+            requestKey: "1429-1-en-US",
+            seriesTMDbID: 1429,
+            seasonNumber: 1,
+            language: .english
+        )
+
+        #expect(!viewModel.isLoading)
+        #expect(!viewModel.loadFailed)
+
+        await viewModel.load(
+            requestKey: "1429-1-en-US",
+            seriesTMDbID: 1429,
+            seasonNumber: 1,
+            language: .english
+        )
+
+        #expect(await loader.requestCount == 2)
+        #expect(viewModel.episodes.map(\.title) == ["1. Retried episode"])
+        #expect(!viewModel.isLoading)
+        #expect(!viewModel.loadFailed)
     }
 
     @Test func testEpisodePresentationMarksWatchedEpisodesFromContiguousProgress() {
@@ -914,6 +1130,113 @@ private actor DelayedLanguageEntryDetailLoader {
             title: language == .japanese ? "Japanese Detail" : "English Detail",
             logoImagePath: "/\(language.rawValue)-logo.png"
         )
+    }
+}
+
+private actor ImmediateLanguageEntryDetailLoader {
+    private(set) var requestCount = 0
+
+    func load(entryType: AnimeType, tmdbID: Int, language: MyAnimeList.Language) async throws
+        -> AnimeEntryDetailDTO
+    {
+        requestCount += 1
+        return AnimeEntryDetailDTO(
+            language: language.rawValue,
+            title: language == .japanese ? "Japanese Detail" : "English Detail",
+            logoImagePath: "/\(language.rawValue)-logo.png"
+        )
+    }
+}
+
+private actor RetryingEpisodePreviewLoader {
+    enum FailureMode {
+        case error
+        case cancellation
+        case urlCancellation
+    }
+
+    private let failureMode: FailureMode
+    private(set) var requestCount = 0
+
+    init(failureMode: FailureMode) {
+        self.failureMode = failureMode
+    }
+
+    func load(context: EpisodePreviewContext, episodeNumber: Int) async throws -> TVEpisode {
+        requestCount += 1
+        if requestCount == 1 {
+            switch failureMode {
+            case .error:
+                throw EntryDetailLoaderError()
+            case .cancellation:
+                try await Task.sleep(for: .seconds(30))
+            case .urlCancellation:
+                throw URLError(.cancelled)
+            }
+        }
+        return makeEpisodePreviewDetail(overview: "Retried preview", crew: [])
+    }
+}
+
+private actor DelayedLanguageEpisodePreviewLoader {
+    private(set) var requestCount = 0
+
+    func load(context: EpisodePreviewContext, episodeNumber: Int) async throws -> TVEpisode {
+        requestCount += 1
+        if context.language == .japanese {
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        let overview = context.language == .japanese ? "Japanese preview" : "English preview"
+        return makeEpisodePreviewDetail(overview: overview, crew: [])
+    }
+}
+
+private actor RetryingSeasonEpisodeLoader {
+    private(set) var requestCount = 0
+
+    func load(seriesID: Int, seasonNumber: Int, language: MyAnimeList.Language) async throws
+        -> [AnimeEntryEpisodeSummaryDTO]
+    {
+        requestCount += 1
+        if requestCount == 1 {
+            try await Task.sleep(for: .seconds(30))
+        }
+        return [
+            AnimeEntryEpisodeSummaryDTO(
+                id: 1,
+                episodeNumber: 1,
+                title: "Retried episode"
+            )
+        ]
+    }
+}
+
+private actor DelayedLanguageSeasonEpisodeLoader {
+    private(set) var requestCount = 0
+
+    func load(seriesID: Int, seasonNumber: Int, language: MyAnimeList.Language) async throws
+        -> [AnimeEntryEpisodeSummaryDTO]
+    {
+        requestCount += 1
+        if language == .japanese {
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        let title = language == .japanese ? "Japanese episode" : "English episode"
+        return [AnimeEntryEpisodeSummaryDTO(id: 1, episodeNumber: 1, title: title)]
+    }
+}
+
+private actor URLCancelledSeasonEpisodeLoader {
+    private(set) var requestCount = 0
+
+    func load(seriesID: Int, seasonNumber: Int, language: MyAnimeList.Language) async throws
+        -> [AnimeEntryEpisodeSummaryDTO]
+    {
+        requestCount += 1
+        if requestCount == 1 {
+            throw URLError(.cancelled)
+        }
+        return [AnimeEntryEpisodeSummaryDTO(id: 1, episodeNumber: 1, title: "Retried episode")]
     }
 }
 

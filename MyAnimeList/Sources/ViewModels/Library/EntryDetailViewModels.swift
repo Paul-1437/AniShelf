@@ -190,6 +190,8 @@ final class EntryDetailViewModel {
     }
 
     func load(for entry: AnimeEntry, language: Language, dataHandler: DataHandler?) async {
+        guard !Task.isCancelled else { return }
+
         let requestKey = "\(entry.tmdbID)-\(language.rawValue)"
         guard loadedRequestKey != requestKey else { return }
 
@@ -605,7 +607,8 @@ final class EpisodePreviewViewModel {
     private(set) var staffRows: [EpisodePreviewStaffRow] = []
     private(set) var isLoading = false
 
-    private var lastRequestKey: String?
+    private var completedRequestKey: String?
+    private var loadGeneration = 0
 
     init(
         fetchEpisodeDetail: @escaping @Sendable (EpisodePreviewContext, Int) async throws -> TVEpisode = {
@@ -623,17 +626,27 @@ final class EpisodePreviewViewModel {
     }
 
     func load(card: EntryDetailEpisodeCard, context: EpisodePreviewContext) async {
+        guard !Task.isCancelled else { return }
+
         let requestKey =
             "\(context.seriesTMDbID)-\(context.seasonNumber)-\(card.episodeNumber)-\(context.language.rawValue)"
-        guard lastRequestKey != requestKey else { return }
-        lastRequestKey = requestKey
+        guard completedRequestKey != requestKey else { return }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        completedRequestKey = nil
         overviewText = String(localized: EntryDetailL10n.loading)
         staffRows = []
         isLoading = true
-        defer { isLoading = false }
 
         do {
             let detail = try await fetchEpisodeDetail(context, card.episodeNumber)
+            guard loadGeneration == generation else { return }
+            guard !Task.isCancelled else {
+                isLoading = false
+                return
+            }
+
             let resolvedOverviewText =
                 detail.overview?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 ? detail.overview!
@@ -646,12 +659,24 @@ final class EpisodePreviewViewModel {
                 overviewText = resolvedOverviewText
                 staffRows = resolvedStaffRows
             }
+            completedRequestKey = requestKey
+            isLoading = false
         } catch {
+            guard loadGeneration == generation else { return }
+            if Task.isCancelled || Self.isCancellation(error) {
+                isLoading = false
+                return
+            }
             withAnimation(detailLoadAnimation) {
                 overviewText = String(localized: EntryDetailL10n.noOverviewAvailable)
                 staffRows = []
             }
+            isLoading = false
         }
+    }
+
+    private static func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
     private static func makeEpisodePreviewStaffRows(
