@@ -12,14 +12,11 @@ import SwiftUI
 import UIKit
 
 enum LibraryEntryWorkflow: Identifiable, Equatable, Sendable {
-    case editing(LibraryEntrySyncIdentity)
     case posterSelection(LibraryEntrySyncIdentity)
     case sharing(LibraryEntrySyncIdentity)
 
     var id: String {
         switch self {
-        case .editing(let identity):
-            "editing:\(identity.rawID)"
         case .posterSelection(let identity):
             "poster:\(identity.rawID)"
         case .sharing(let identity):
@@ -29,8 +26,7 @@ enum LibraryEntryWorkflow: Identifiable, Equatable, Sendable {
 
     var entryIdentity: LibraryEntrySyncIdentity {
         switch self {
-        case .editing(let identity),
-            .posterSelection(let identity),
+        case .posterSelection(let identity),
             .sharing(let identity):
             identity
         }
@@ -48,43 +44,14 @@ struct LibraryEntryPasteRequest: Identifiable, Equatable {
     let userInfo: UserEntryInfo
 }
 
-struct LibraryEntryDetailPresentation: Equatable, Sendable {
+struct LibraryEntryDetailPresentation: Identifiable, Equatable, Sendable {
     let id = UUID()
     let entryIdentity: LibraryEntrySyncIdentity
-}
-
-struct LibraryEntryDetailHostPresentation: Identifiable, Equatable, Sendable {
-    let id = UUID()
-    let detailPresentationID: UUID
-    let host: LibraryEntryDetailHost
 }
 
 struct LibraryEntryWorkflowPresentation: Identifiable, Equatable, Sendable {
     let id = UUID()
     let workflow: LibraryEntryWorkflow
-}
-
-enum LibraryEntrySheetRoute: Identifiable, Equatable, Sendable {
-    case detail(LibraryEntryDetailHostPresentation, LibraryEntrySyncIdentity)
-    case workflow(LibraryEntryWorkflowPresentation)
-
-    var id: UUID {
-        switch self {
-        case .detail(let presentation, _):
-            presentation.id
-        case .workflow(let presentation):
-            presentation.id
-        }
-    }
-
-    var entryIdentity: LibraryEntrySyncIdentity {
-        switch self {
-        case .detail(_, let identity):
-            identity
-        case .workflow(let presentation):
-            presentation.workflow.entryIdentity
-        }
-    }
 }
 
 @Observable
@@ -96,14 +63,8 @@ final class LibraryEntryInteractionState {
     private(set) var pendingPasteRequest: LibraryEntryPasteRequest?
     var isMultiSelecting: Bool = false
     var selectedEntryIDs: Set<Int> = []
-    private(set) var desiredDetailHost: LibraryEntryDetailHost
     private(set) var detailPresentation: LibraryEntryDetailPresentation?
-    private(set) var detailHostPresentation: LibraryEntryDetailHostPresentation?
     private(set) var workflowPresentation: LibraryEntryWorkflowPresentation?
-
-    init(initialDetailHost: LibraryEntryDetailHost = .sheet) {
-        desiredDetailHost = initialDetailHost
-    }
 
     var presentedDetailEntryID: LibraryEntrySyncIdentity? {
         detailPresentation?.entryIdentity
@@ -111,24 +72,6 @@ final class LibraryEntryInteractionState {
 
     var activeWorkflow: LibraryEntryWorkflow? {
         workflowPresentation?.workflow
-    }
-
-    var inspectorPresentation: LibraryEntryDetailHostPresentation? {
-        guard detailHostPresentation?.host == .inspector else { return nil }
-        return detailHostPresentation
-    }
-
-    var activeSheetRoute: LibraryEntrySheetRoute? {
-        if let workflowPresentation {
-            return .workflow(workflowPresentation)
-        }
-
-        guard let detailPresentation,
-            let detailHostPresentation,
-            detailHostPresentation.host == .sheet,
-            detailHostPresentation.detailPresentationID == detailPresentation.id
-        else { return nil }
-        return .detail(detailHostPresentation, detailPresentation.entryIdentity)
     }
 
     var selectedEntryCount: Int {
@@ -157,12 +100,10 @@ final class LibraryEntryInteractionState {
         }
         focus(entry)
         detailPresentation = LibraryEntryDetailPresentation(entryIdentity: entry.syncIdentity)
-        reconcileDetailHostPresentation()
     }
 
     func dismissDetails() {
         detailPresentation = nil
-        detailHostPresentation = nil
         detailEditRequest = nil
     }
 
@@ -171,61 +112,23 @@ final class LibraryEntryInteractionState {
         dismissDetails()
     }
 
-    func transitionDetailHost(to host: LibraryEntryDetailHost) {
-        guard desiredDetailHost != host else { return }
-        desiredDetailHost = host
-        reconcileDetailHostPresentation()
-    }
-
-    func detailHostDidDismiss(_ presentation: LibraryEntryDetailHostPresentation) {
-        guard detailHostPresentation?.id == presentation.id else { return }
+    func detailPresentationDidDismiss(_ presentation: LibraryEntryDetailPresentation) {
+        guard detailPresentation?.id == presentation.id else { return }
         dismissDetails()
     }
 
     func presentWorkflow(_ workflow: LibraryEntryWorkflow) {
         detailEditRequest = nil
         workflowPresentation = LibraryEntryWorkflowPresentation(workflow: workflow)
-        reconcileDetailHostPresentation()
     }
 
-    func sheetDidDismiss(_ route: LibraryEntrySheetRoute) {
-        guard activeSheetRoute?.id == route.id else { return }
-
-        switch route {
-        case .detail(let presentation, _):
-            detailHostDidDismiss(presentation)
-        case .workflow(let presentation):
-            guard workflowPresentation?.id == presentation.id else { return }
-            workflowPresentation = nil
-            reconcileDetailHostPresentation()
-        }
+    func workflowPresentationDidDismiss(_ presentation: LibraryEntryWorkflowPresentation) {
+        guard workflowPresentation?.id == presentation.id else { return }
+        workflowPresentation = nil
     }
 
-    func isCurrentDetailHostPresentation(_ presentationID: UUID) -> Bool {
-        detailHostPresentation?.id == presentationID
-    }
-
-    private func reconcileDetailHostPresentation() {
-        guard let detailPresentation else {
-            detailHostPresentation = nil
-            return
-        }
-
-        if desiredDetailHost == .sheet, workflowPresentation != nil {
-            detailHostPresentation = nil
-            return
-        }
-
-        if detailHostPresentation?.detailPresentationID == detailPresentation.id,
-            detailHostPresentation?.host == desiredDetailHost
-        {
-            return
-        }
-
-        detailHostPresentation = LibraryEntryDetailHostPresentation(
-            detailPresentationID: detailPresentation.id,
-            host: desiredDetailHost
-        )
+    func isCurrentDetailPresentation(_ presentationID: UUID) -> Bool {
+        detailPresentation?.id == presentationID
     }
 
     func enterMultiSelection() {
@@ -274,23 +177,14 @@ final class LibraryEntryInteractionState {
     }
 
     func setEditingEntry(_ entry: AnimeEntry) {
-        if desiredDetailHost == .inspector {
-            detailEditRequest = LibraryEntryDetailEditRequest(
-                entryIdentity: entry.syncIdentity
-            )
-            openDetails(for: entry)
-        } else {
-            presentWorkflow(.editing(entry.syncIdentity))
-        }
+        detailEditRequest = LibraryEntryDetailEditRequest(
+            entryIdentity: entry.syncIdentity
+        )
+        openDetails(for: entry)
     }
 
-    func consumeDetailEditRequest(
-        _ requestID: UUID,
-        from host: LibraryEntryDetailHost
-    ) {
-        guard desiredDetailHost == host,
-            detailEditRequest?.id == requestID
-        else { return }
+    func consumeDetailEditRequest(_ requestID: UUID) {
+        guard detailEditRequest?.id == requestID else { return }
         detailEditRequest = nil
     }
 
@@ -348,32 +242,9 @@ final class LibraryEntryInteractionState {
     }
 }
 
-enum LibraryEntryDetailHost: Hashable, Sendable {
-    case sheet
-    case inspector
-
-    init(_ presentation: LibraryPresentationPolicy.DetailPresentation) {
-        switch presentation {
-        case .sheet:
-            self = .sheet
-        case .inspector:
-            self = .inspector
-        }
-    }
-}
-
 enum LibraryEntryDetailActivation: Equatable, Sendable {
     case userPreference
     case singleTap
-
-    init(_ host: LibraryEntryDetailHost) {
-        switch host {
-        case .sheet:
-            self = .userPreference
-        case .inspector:
-            self = .singleTap
-        }
-    }
 
     func usesSingleTap(userPreference: Bool) -> Bool {
         self == .singleTap || userPreference
@@ -486,17 +357,15 @@ extension View {
     func libraryEntryInteractionOverlays(
         state: LibraryEntryInteractionState,
         deleteEntry: @escaping (AnimeEntry) -> Void,
-        detailRepository: LibraryRepository,
-        resolveEntry: @escaping (LibraryEntrySyncIdentity) -> AnimeEntry?,
-        detailSession: EntryDetailSession?
+        resolveEntry: @escaping (LibraryEntrySyncIdentity) -> AnimeEntry?
     ) -> some View {
-        let presentedSheet = state.activeSheetRoute
+        let presentedWorkflow = state.workflowPresentation
         let presentedPasteRequest = state.pendingPasteRequest
-        let activeSheet = Binding<LibraryEntrySheetRoute?>(
-            get: { state.activeSheetRoute },
+        let activeWorkflow = Binding<LibraryEntryWorkflowPresentation?>(
+            get: { state.workflowPresentation },
             set: { destination in
-                guard destination == nil, let presentedSheet else { return }
-                state.sheetDidDismiss(presentedSheet)
+                guard destination == nil, let presentedWorkflow else { return }
+                state.workflowPresentationDidDismiss(presentedWorkflow)
             }
         )
 
@@ -549,69 +418,28 @@ extension View {
                 Text("This anime already has edits. Pasting will overwrite current info.")
             }
             .sheet(
-                item: activeSheet
-            ) { destination in
-                switch destination {
-                case .detail(let presentation, let identity):
-                    NavigationStack {
-                        if let entry = resolveEntry(identity),
-                            let detailSession,
-                            detailSession.entryIdentity == entry.syncIdentity
-                        {
-                            EntryDetailView(
-                                entry: entry,
-                                repository: detailRepository,
-                                onClose: { _ in
-                                    state.dismissDetails(
-                                        ifPresentationID: presentation.detailPresentationID
-                                    )
-                                },
-                                session: detailSession,
-                                editingRequestID: state.detailEditRequest?.entryIdentity == identity
-                                    ? state.detailEditRequest?.id : nil,
-                                onEditingRequestHandled: { requestID in
-                                    state.consumeDetailEditRequest(
-                                        requestID,
-                                        from: .sheet
-                                    )
-                                },
-                                hostPresentationID: presentation.id,
-                                isCurrentHostPresentation: {
-                                    state.isCurrentDetailHostPresentation($0)
+                item: activeWorkflow
+            ) { presentation in
+                if let entry = resolveEntry(presentation.workflow.entryIdentity) {
+                    switch presentation.workflow {
+                    case .posterSelection:
+                        NavigationStack {
+                            PosterSelectionView(
+                                tmdbID: entry.tmdbID,
+                                type: entry.type,
+                                originalPosterLanguageCode: entry.originalLanguageCode
+                                    ?? entry.parentSeriesEntry?.originalLanguageCode
+                            ) { url in
+                                if url != entry.posterURL
+                                    || !entry.usingCustomPoster
+                                {
+                                    entry.updateCustomPosterURL(url)
                                 }
-                            )
-                        }
-                    }
-                case .workflow(let presentation):
-                    if let entry = resolveEntry(presentation.workflow.entryIdentity) {
-                        switch presentation.workflow {
-                        case .editing:
-                            NavigationStack {
-                                EntryDetailView(
-                                    entry: entry,
-                                    repository: detailRepository,
-                                    startInEditingMode: true
-                                )
                             }
-                        case .posterSelection:
-                            NavigationStack {
-                                PosterSelectionView(
-                                    tmdbID: entry.tmdbID,
-                                    type: entry.type,
-                                    originalPosterLanguageCode: entry.originalLanguageCode
-                                        ?? entry.parentSeriesEntry?.originalLanguageCode
-                                ) { url in
-                                    if url != entry.posterURL
-                                        || !entry.usingCustomPoster
-                                    {
-                                        entry.updateCustomPosterURL(url)
-                                    }
-                                }
-                                .navigationTitle("Pick a poster")
-                            }
-                        case .sharing:
-                            AnimeSharingSheet(entry: entry)
+                            .navigationTitle("Pick a poster")
                         }
+                    case .sharing:
+                        AnimeSharingSheet(entry: entry)
                     }
                 }
             }

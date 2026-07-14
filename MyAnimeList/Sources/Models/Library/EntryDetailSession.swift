@@ -79,12 +79,12 @@ final class EntryDetailSession {
     }
 
     func updatePresentation(
-        from hostPresentationID: UUID?,
-        ifCurrent isCurrentHostPresentation: ((UUID) -> Bool)?,
+        from detailPresentationID: UUID?,
+        ifCurrent isCurrentDetailPresentation: ((UUID) -> Bool)?,
         _ update: (inout EntryDetailPresentationState) -> Void
     ) {
-        if let hostPresentationID {
-            guard isCurrentHostPresentation?(hostPresentationID) == true else { return }
+        if let detailPresentationID {
+            guard isCurrentDetailPresentation?(detailPresentationID) == true else { return }
         }
         update(&presentation)
     }

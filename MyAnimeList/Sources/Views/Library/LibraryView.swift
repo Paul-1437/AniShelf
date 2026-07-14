@@ -21,7 +21,7 @@ struct LibraryView: View {
     // MARK: - Stored Properties
 
     @Environment(LibraryStore.self) private var store
-    @State private var interaction = LibraryEntryInteractionState(initialDetailHost: .inspector)
+    @State private var interaction = LibraryEntryInteractionState()
     @State private var detailSessionStore = EntryDetailSessionStore()
     @Environment(\.dataHandler) var dataHandler
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -84,7 +84,7 @@ struct LibraryView: View {
         let inspectorSession = detailSessionStore.session(
             for: interaction.presentedDetailEntryID
         )
-        let inspectorPresentation = interaction.inspectorPresentation
+        let inspectorPresentation = interaction.detailPresentation
         let showsInspector = inspectorPresentation != nil
         let detailActivation: LibraryEntryDetailActivation =
             horizontalSizeClass == .regular ? .singleTap : .userPreference
@@ -100,7 +100,7 @@ struct LibraryView: View {
                     get: { showsInspector },
                     set: { isPresented in
                         if !isPresented, let inspectorPresentation {
-                            interaction.detailHostDidDismiss(inspectorPresentation)
+                            interaction.detailPresentationDidDismiss(inspectorPresentation)
                         }
                     }
                 )
@@ -117,21 +117,17 @@ struct LibraryView: View {
                                 presentationStyle: .inspector,
                                 onClose: { _ in
                                     interaction.dismissDetails(
-                                        ifPresentationID: inspectorPresentation
-                                            .detailPresentationID
+                                        ifPresentationID: inspectorPresentation.id
                                     )
                                 },
                                 session: inspectorSession,
                                 editingRequestID: detailEditingRequestID(for: identity),
                                 onEditingRequestHandled: { requestID in
-                                    interaction.consumeDetailEditRequest(
-                                        requestID,
-                                        from: .inspector
-                                    )
+                                    interaction.consumeDetailEditRequest(requestID)
                                 },
-                                hostPresentationID: inspectorPresentation.id,
-                                isCurrentHostPresentation: {
-                                    interaction.isCurrentDetailHostPresentation($0)
+                                detailPresentationID: inspectorPresentation.id,
+                                isCurrentDetailPresentation: {
+                                    interaction.isCurrentDetailPresentation($0)
                                 }
                             )
                             .containerBackground(
@@ -152,9 +148,7 @@ struct LibraryView: View {
                 deleteEntry: { entry in
                     store.deleteEntry(entry) { scrollState.scrolledID = $0 }
                 },
-                detailRepository: store.repository,
-                resolveEntry: { store.repository.existingEntry(identity: $0) },
-                detailSession: detailSessionStore.presentedSession
+                resolveEntry: { store.repository.existingEntry(identity: $0) }
             )
             .onChange(of: interaction.presentedDetailEntryID, initial: true) { _, identity in
                 synchronizePresentedDetail(identity)

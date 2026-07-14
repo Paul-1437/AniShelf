@@ -27,8 +27,8 @@ struct EntryDetailView: View {
     private let onClose: ((LibraryEntrySyncIdentity) -> Void)?
     private let editingRequestID: UUID?
     private let onEditingRequestHandled: ((UUID) -> Void)?
-    private let hostPresentationID: UUID?
-    private let isCurrentHostPresentation: ((UUID) -> Bool)?
+    private let detailPresentationID: UUID?
+    private let isCurrentDetailPresentation: ((UUID) -> Bool)?
 
     @State private var session: EntryDetailSession
     @State private var conversionTask: Task<Void, Never>?
@@ -47,15 +47,15 @@ struct EntryDetailView: View {
         session: EntryDetailSession? = nil,
         editingRequestID: UUID? = nil,
         onEditingRequestHandled: ((UUID) -> Void)? = nil,
-        hostPresentationID: UUID? = nil,
-        isCurrentHostPresentation: ((UUID) -> Bool)? = nil
+        detailPresentationID: UUID? = nil,
+        isCurrentDetailPresentation: ((UUID) -> Bool)? = nil
     ) {
         self.presentationStyle = presentationStyle
         self.onClose = onClose
         self.editingRequestID = editingRequestID
         self.onEditingRequestHandled = onEditingRequestHandled
-        self.hostPresentationID = hostPresentationID
-        self.isCurrentHostPresentation = isCurrentHostPresentation
+        self.detailPresentationID = detailPresentationID
+        self.isCurrentDetailPresentation = isCurrentDetailPresentation
         self._session = State(
             initialValue: session
                 ?? EntryDetailSession(
@@ -706,8 +706,8 @@ struct EntryDetailView: View {
         _ update: (inout EntryDetailPresentationState) -> Void
     ) {
         session.updatePresentation(
-            from: hostPresentationID,
-            ifCurrent: isCurrentHostPresentation,
+            from: detailPresentationID,
+            ifCurrent: isCurrentDetailPresentation,
             update
         )
     }

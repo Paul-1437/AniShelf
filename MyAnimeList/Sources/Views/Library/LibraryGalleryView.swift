@@ -36,13 +36,13 @@ struct LibraryGalleryView: View {
 
     private var libraryContent: some View {
         GeometryReader { geometry in
-            let arrangement = LibraryPresentationPolicy().evaluate(
-                .init(
-                    availableSize: geometry.size,
-                    libraryMode: .gallery,
-                    dynamicTypeSize: dynamicTypeSize
-                )
-            ).galleryArrangement
+            let arrangement = LibraryGalleryLayoutPolicy().arrangement(
+                for:
+                    .init(
+                        availableSize: geometry.size,
+                        dynamicTypeSize: dynamicTypeSize
+                    )
+            )
 
             switch arrangement {
             case .singlePage:

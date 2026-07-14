@@ -18,8 +18,7 @@ The implementation must preserve the current on-device iPhone experience exactly
 **Goals:**
 
 - Keep the library as the primary full-canvas surface in all three display modes.
-- Present entry detail beside the library only on demand and only when both surfaces satisfy mode-specific minimum viable geometry.
-- Preserve the existing detail sheet path when simultaneous library and detail surfaces do not fit.
+- Present entry detail on demand through one system inspector and let SwiftUI choose its context-appropriate column or sheet form.
 - Make Gallery more browsable in wide scenes without turning it into Grid or a narrow master column.
 - Adapt content-heavy sheets by task type and available content area.
 - Preserve state and active work through live scene resizing.
@@ -40,28 +39,21 @@ The implementation must preserve the current on-device iPhone experience exactly
 
 ### 1. Use a full-canvas library with an on-demand detail inspector
 
-Gallery, List, and Grid continue to own the complete library canvas whenever entry detail is closed. Opening detail chooses one of two renderings of the same presentation intent:
-
-- A trailing inspector when the active library mode and detail surface can coexist usefully.
-- The existing sheet experience when they cannot.
+Gallery, List, and Grid continue to own the complete library canvas whenever entry detail is closed. Opening detail declares one system inspector. SwiftUI presents that inspector as a trailing column in an appropriate regular environment and adapts it to a sheet in a compact environment.
 
 The detail surface is never an always-visible empty column. Closing it restores the full library canvas. While an inspector is open in List or Grid, focusing another entry updates the inspector. Gallery remains the primary surface rather than becoming a sidebar.
 
-The spacious composition uses SwiftUI's platform inspector host instead of a manually divided and independently animated `HStack`. In inspector-capable geometry, a primary tap is the explicit open-detail action and opens or updates the inspector immediately. Constrained geometry continues to honor the user's existing single- versus double-tap preference exactly.
+The app does not measure the root window or migrate detail between application-owned hosts. In a horizontally regular environment, a primary tap opens or updates the inspector immediately. Compact environments continue to honor the user's existing single- versus double-tap preference.
 
 This uses inspector semantics rather than master-detail navigation semantics: detail supplements selected library content and is dismissible. A permanent `NavigationSplitView` was rejected because its collapsed navigation behavior would change the current iPhone sheet interaction and because its leading column would constrain all three browsing modes even when detail is closed.
 
-### 2. Choose presentation from content fit, not device identity
+### 2. Choose the Gallery arrangement from content fit, not device identity
 
-A centralized `LibraryPresentationPolicy` evaluates the scene's available content size, the active library mode, Dynamic Type requirements, and the minimum viable size of the detail surface. Size classes may inform the policy but SHALL NOT map directly to named product modes such as “phone” or “iPad.” In particular, one compact axis SHALL NOT automatically force the legacy layout.
+A Gallery-local `LibraryGalleryLayoutPolicy` evaluates Gallery's proposed size and Dynamic Type requirements. It does not participate in detail presentation and does not invalidate the root library hierarchy during continuous resizing.
 
-The policy exposes semantic results such as:
+The policy exposes one semantic result: `galleryArrangement`, which is either single-page or shelf.
 
-- `detailPresentation`: sheet or inspector.
-- `galleryArrangement`: single-page or shelf.
-- `modalSizing`: automatic, form, or page.
-
-Minimum sizes are design tokens derived from the actual content surfaces, not device-width breakpoints. Gallery may require more retained library width than List or Grid. A minimum usable height prevents a current landscape iPhone from receiving a compromised two-surface layout, while a nearly full but vertically constrained iPad window can still qualify when its actual geometry is sufficient.
+Minimum sizes are Gallery design tokens derived from poster geometry and visible chrome, not device-width breakpoints. Detail column-versus-sheet adaptation remains the system inspector's responsibility.
 
 The first implementation will validate and tune these tokens using resizable previews/simulators and the regression matrix rather than embedding device names or idiom checks.
 
@@ -77,7 +69,7 @@ The shelf preserves the difference between modes:
 - Grid: small cards, vertical movement, many entries visible simultaneously.
 - List: rich textual rows, vertical movement, synopsis and status scanning.
 
-The shelf does not gain Gallery multi-selection and does not become a detail master column. When the detail inspector opens, the shelf recomputes within the remaining primary width; if that would make the primary surface unusable, the policy selects a sheet instead.
+The shelf does not gain Gallery multi-selection and does not become a detail master column. When a trailing inspector changes Gallery's proposed width, Gallery locally recomputes its arrangement and can return to single-page layout without changing the detail presentation route.
 
 ### 4. Separate focused selection, detail presentation, and active workflows
 
@@ -85,20 +77,18 @@ The current `detailingEntry` state conflates selection with presentation. A scen
 
 - `focusedEntryID`: the entry currently focused by Gallery, List, or Grid.
 - `presentedDetailEntryID`: an explicitly opened detail presentation.
-- `activeWorkflow`: edit, poster selection, sharing, Search/Add, or other modal task.
+- `activeWorkflow`: poster selection, sharing, Search/Add, or another explicit modal task.
 - Existing multi-selection IDs, scroll state, highlight state, and display mode.
 
-Views resolve identifiers through `LibraryStore` rather than storing heavy views or long-lived presentation models in route values. Mutually exclusive sheet destinations use one enum-driven route instead of multiple optional entries and stacked sheet modifiers.
+Views resolve identifiers through `LibraryStore` rather than storing heavy views or long-lived presentation models in route values. Entry editing is requested within the canonical detail presentation, while mutually exclusive workflow sheets use enum-driven state.
 
-Presentation state is owned above the responsive layout branch so changing scene geometry does not reset selection or dismiss work. Passive detail may adapt between inspector and sheet as capacity changes. An active editing or modal workflow retains its identity, model state, and unsaved-change protection throughout the transition.
+Presentation state is owned above Gallery's responsive layout branch so changing scene geometry does not reset selection or dismiss work. SwiftUI adapts the same inspector presentation in place. Active editing and modal workflows retain their identity, model state, and unsaved-change protection.
 
 ### 5. Separate entry-detail content from presentation chrome
 
-`EntryDetailView` currently assumes sheet-specific behavior such as a drag indicator and a fixed 420-point hero. Its reusable content will be separated from its host presentation so the same detail experience can render in a sheet or inspector without duplicating business logic.
+`EntryDetailView` keeps reusable content and session state independent from the system inspector container. The same detail instance survives the inspector's context-dependent column or sheet adaptation without duplicating business logic.
 
-The sheet host retains current phone dismissal behavior. The inspector host owns inspector-specific dismissal and toolbar placement. Entry-detail content adapts its hero height and readable content width to the proposed container while preserving all current sections and actions.
-
-The inspector uses a coherent system surface rather than carrying the sheet-only grouped background beside the library. Its hero height is derived from the proposed inspector width, and dense statistic regions reduce their column count before their content becomes cramped. The canonical detail route remains independent of either host's asynchronous dismissal lifecycle so a completed host migration cannot close the newly presented destination.
+The inspector uses a coherent system surface. Its hero height is derived from the proposed width, and dense statistic regions reduce their column count before their content becomes cramped. Presentation generation identifiers ensure delayed callbacks from replaced detail content cannot close the current destination.
 
 If the complete episode, character, and staff experience proves unsuitable at the minimum inspector width during the visual spike, the inspector may use a condensed summary followed by an “Open Full Details” action. This is an implementation fallback, not the default contract; the first prototype uses the complete detail content.
 
@@ -108,7 +98,7 @@ Presentation type is selected by task semantics and then adapted to available sp
 
 | Destination | Spacious presentation | Constrained presentation | Internal adaptation |
 | --- | --- | --- | --- |
-| Entry detail/edit | On-demand inspector when viable | Existing sheet | Adaptive hero and readable content width |
+| Entry detail/edit | System inspector column | System-adapted inspector sheet | Adaptive hero and readable content width |
 | Search/Add Anime | Page-sized sheet | Existing full-width sheet | Preserve current search modes and behavior |
 | Poster selection | Page-sized sheet | Existing sheet | Existing adaptive poster grid |
 | Poster preview | Full-screen cover | Full-screen cover | Preserve media-focused paging |
@@ -133,10 +123,10 @@ At all current on-device iPhone portrait and landscape geometries, the implement
 - Existing List and Grid composition.
 - Existing single/double-tap detail preference.
 - Existing bottom and top toolbar placement.
-- Existing detail/edit sheet presentation, detents, drag behavior, transitions, and dismissal safeguards.
+- Existing detail/edit interaction semantics and dismissal safeguards through the system-adapted inspector.
 - Existing sheet and full-screen workflows for Search, sharing, and poster selection.
 
-This guarantee is enforced with regression scenarios, not `userInterfaceIdiom == .phone`. A large resizable iPhone-app scene may use the richer inspector or Gallery shelf whenever its content area satisfies the same policy as any other scene.
+This guarantee is enforced with regression scenarios, not `userInterfaceIdiom == .phone`. A resizable iPhone-app scene receives the same system inspector adaptation and Gallery sizing rules as any other scene.
 
 The existing idiom check in `ShareSheetPresenter` will be replaced with presentation-context anchoring that works in any idiom and scene size.
 
@@ -157,18 +147,18 @@ Screenshots and previews assert layout invariants at representative sizes, while
 
 - **[Risk] Content-derived thresholds still feel like arbitrary breakpoints.** → Define them as named minimum widths/heights owned by the relevant surfaces, validate them visually across a resize sweep, and avoid device-specific values.
 - **[Risk] A full `EntryDetailView` is too dense for an inspector.** → Adapt hero/content composition first; fall back to a condensed inspector with an explicit full-detail action only if the prototype proves necessary.
-- **[Risk] Switching between inspector and sheet resets editing or scroll state.** → Own detail session and presentation state above the responsive branch and test resizing during active work.
+- **[Risk] System inspector adaptation resets editing or scroll state.** → Own detail session and presentation state above Gallery's responsive branch and test resizing during active work.
 - **[Risk] Gallery shelf becomes visually indistinguishable from Grid.** → Preserve large card scale, horizontal paging, focus alignment, dates, and poster overlays; never use the small vertical grid composition.
 - **[Risk] Centralizing sheets causes subtle iPhone regressions.** → Land state-routing refactors separately from visual adaptations and gate progress on the current-iPhone regression matrix.
-- **[Risk] Inspector reduces Gallery to one card while open.** → Treat the inspector as dismissible, on-demand supplementation; use a sheet whenever remaining Gallery width falls below its minimum viable surface.
+- **[Risk] Inspector reduces Gallery width while open.** → Keep Gallery's continuous sizing local so it can return to its viable single-page arrangement without invalidating the root hierarchy.
 - **[Trade-off] Modes do not share one identical wide-window structure.** → Accept the difference because Gallery is a focus mode while List and Grid are scanning modes; shared state and presentation policy maintain consistency.
 
 ## Migration Plan
 
 1. Add regression coverage for the current iPhone library and detail workflows before structural refactoring.
-2. Introduce scene-owned focus and enum-driven presentation state while preserving the current sheet outputs.
-3. Extract presentation-neutral entry-detail content and retain the current phone sheet host.
-4. Add the content-fit policy and on-demand inspector behind the existing detail action.
+2. Introduce scene-owned focus, canonical detail presentation, and enum-driven workflow state.
+3. Extract reusable entry-detail content and session state for the system inspector.
+4. Attach one on-demand system inspector and rely on its standard compact adaptation.
 5. Add the wide Gallery shelf while leaving the compact Gallery implementation unchanged.
 6. Apply semantic sizing and internal responsive composition to content-heavy modal destinations in small groups.
 7. Replace the share presenter idiom check with scene/presentation-context behavior.
@@ -178,6 +168,5 @@ Each step is independently reversible. Data rollback and schema migration are no
 
 ## Open Questions
 
-- What exact named minimum geometry tokens produce the best transition for Gallery, List, Grid, and full entry detail? Resolve with a resizable visual spike before enabling inspector presentation.
 - At the minimum inspector width, does the complete entry-detail document remain usable, or is a condensed inspector plus “Open Full Details” necessary?
 - Should wide Gallery show one focused card with neighboring peeks or multiple complete cards? The specification requires neighboring visibility but leaves the exact amount to visual tuning.

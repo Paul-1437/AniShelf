@@ -1,19 +1,15 @@
 ## ADDED Requirements
 
-### Requirement: Device-independent layout policy
-The system SHALL select the library and detail composition from the available content area and the minimum viable geometry of the active library mode. The system MUST NOT use device idiom, named device model, fold state, or interface orientation as the structural layout decision.
+### Requirement: Device-independent Gallery layout policy
+Gallery SHALL select its arrangement from its own proposed content size and viable card geometry. It MUST NOT use device idiom, named device model, fold state, or interface orientation as the structural layout decision. Entry detail SHALL rely on the system inspector's context-dependent presentation instead of this policy.
 
-#### Scenario: Nearly full iPad window has useful coexistence space
-- **WHEN** a window has enough usable width and height for the active library mode and entry detail to coexist
-- **THEN** the system offers entry detail beside the full-canvas library even if a size-class axis is compact
+#### Scenario: Gallery gains useful shelf space
+- **WHEN** Gallery's proposed size can show a viable focused card and neighboring content
+- **THEN** Gallery uses the shelf arrangement without checking device identity
 
-#### Scenario: Resizable phone app gains a large scene
-- **WHEN** a phone-idiom app runs in a scene that satisfies the same coexistence requirements
-- **THEN** the system offers the same spacious composition without checking the phone idiom
-
-#### Scenario: Available geometry cannot support both surfaces
-- **WHEN** either the library mode or detail would fall below its minimum viable geometry
-- **THEN** the system retains the single-canvas library and uses the constrained detail presentation
+#### Scenario: Gallery loses useful shelf space
+- **WHEN** Gallery's proposed width or height cannot support the shelf geometry
+- **THEN** Gallery returns to its single-page arrangement without changing the detail presentation route
 
 ### Requirement: Full-canvas library modes
 The system SHALL give Gallery, List, and Grid the complete library canvas whenever entry detail is not presented. The system MUST NOT reserve an empty permanent detail column.
@@ -39,22 +35,22 @@ The system SHALL preserve the current one-entry-per-page Gallery at current on-d
 
 #### Scenario: Inspector would compromise Gallery
 - **WHEN** opening detail beside Gallery would reduce Gallery below its minimum viable width or height
-- **THEN** detail uses the sheet presentation and Gallery does not become a narrow sidebar
+- **THEN** Gallery returns to its single-page arrangement and does not become a narrow sidebar
 
 ### Requirement: On-demand adaptive entry detail
-The system SHALL present entry detail only after an explicit open-detail action. It SHALL use a trailing inspector when detail and the active library mode can coexist usefully, and SHALL otherwise use the existing sheet experience.
+The system SHALL present entry detail only after an explicit open-detail action through one SwiftUI inspector. The app SHALL NOT measure the root geometry or migrate detail between application-owned sheet and inspector hosts.
 
 #### Scenario: Detail opens in a spacious List or Grid
-- **WHEN** the user opens an entry and the active mode plus detail satisfy coexistence requirements
+- **WHEN** the user opens an entry and the system inspector uses its trailing-column presentation
 - **THEN** a dismissible trailing inspector appears while the library remains the primary surface
 
-#### Scenario: Primary tap targets an inspector-capable entry
-- **WHEN** the available geometry selects the trailing inspector presentation and the user taps an entry once
+#### Scenario: Primary tap targets an entry in regular width
+- **WHEN** the horizontal environment is regular and the user taps an entry once
 - **THEN** that explicit tap opens or updates the inspector regardless of the constrained-layout tap preference
 
-#### Scenario: Detail opens without coexistence capacity
-- **WHEN** the user opens an entry and coexistence requirements are not satisfied
-- **THEN** the current detail sheet presentation appears
+#### Scenario: System inspector adapts to a sheet
+- **WHEN** the user opens an entry in a compact presentation environment
+- **THEN** SwiftUI adapts the same inspector presentation to a sheet without an application-owned host transition
 
 #### Scenario: Selection changes while inspector is open
 - **WHEN** the user focuses another entry in List, Grid, or Gallery while the inspector is visible
@@ -78,13 +74,13 @@ The system SHALL distinguish the focused library entry, an explicitly presented 
 ### Requirement: Non-destructive live resizing
 The system SHALL preserve display mode, focused entry, scroll position, multi-selection, presented destination, and active workflow state while the scene resizes. Resizing MUST NOT dismiss or reset unsaved work.
 
-#### Scenario: Passive detail crosses the layout boundary
-- **WHEN** the scene resizes between inspector-capable and sheet-only geometry while passive detail is presented
+#### Scenario: Passive detail crosses the system adaptation boundary
+- **WHEN** the scene resizes while passive detail is presented and the system changes the inspector's physical form
 - **THEN** the presentation adapts without losing the selected entry or detail session state
 
-#### Scenario: Outgoing host finishes dismissal after migration
-- **WHEN** the previous sheet or inspector reports its asynchronous dismissal after detail has migrated to the other host
-- **THEN** the system consumes that host dismissal without clearing the canonical detail route
+#### Scenario: Replaced detail finishes a delayed callback
+- **WHEN** an older detail presentation reports an asynchronous callback after another entry or generation is presented
+- **THEN** the callback is rejected without clearing the canonical detail route
 
 #### Scenario: Editing during resize
 - **WHEN** the scene resizes while entry edits are unsaved
@@ -95,7 +91,7 @@ The system SHALL preserve display mode, focused entry, scroll position, multi-se
 - **THEN** the focused entry and scroll position remain stable and no modal appears solely because of resizing
 
 ### Requirement: Current iPhone experience compatibility
-At all supported current on-device iPhone portrait and landscape sizes, the system SHALL preserve the existing library and detail experience without visible or behavioral changes.
+At all supported current on-device iPhone portrait and landscape sizes, the system SHALL preserve the existing library composition and detail-opening semantics while using the system inspector's compact adaptation.
 
 #### Scenario: Current iPhone uses any library mode
 - **WHEN** Gallery, List, or Grid is used on a current on-device iPhone geometry
@@ -103,11 +99,11 @@ At all supported current on-device iPhone portrait and landscape sizes, the syst
 
 #### Scenario: Current iPhone opens detail or edit
 - **WHEN** the user opens entry detail or editing on a current on-device iPhone geometry
-- **THEN** the current sheet, detent, drag, navigation, and dismissal behavior is preserved
+- **THEN** the system-adapted inspector sheet preserves navigation, session state, editing, and dismissal safeguards
 
 ### Requirement: Adaptive accessibility capacity
-The layout policy SHALL account for Dynamic Type and accessibility requirements when deciding whether surfaces can coexist.
+The Gallery layout policy SHALL account for Dynamic Type and accessibility requirements when deciding whether the shelf remains viable.
 
-#### Scenario: Larger text makes coexistence unusable
-- **WHEN** the current accessibility configuration causes the library or detail surface to fall below its viable content size
-- **THEN** the system selects the single-canvas library and constrained detail presentation without truncating essential controls
+#### Scenario: Larger text makes the shelf unusable
+- **WHEN** the current accessibility configuration causes Gallery cards or chrome to exceed the shelf's viable content size
+- **THEN** Gallery uses the single-page arrangement without truncating essential controls

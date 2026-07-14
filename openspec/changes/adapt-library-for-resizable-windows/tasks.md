@@ -2,33 +2,33 @@
 
 - [x] 1.1 Add representative current-iPhone portrait and landscape regression coverage for Gallery, List, Grid, entry detail, and entry editing before changing presentation structure
 - [x] 1.2 Add a resizable preview or test harness that exercises narrow, nearly full, full-screen, very wide, and very short content areas with configurable Dynamic Type
-- [x] 1.3 Prototype and name the minimum viable geometry tokens for each library mode, entry detail, and modal content region, including the wide Gallery card sizing range
-- [x] 1.4 Implement a device-independent `LibraryPresentationPolicy` that derives semantic detail, Gallery, and modal arrangements from content size, active mode, and accessibility requirements
-- [x] 1.5 Add focused policy tests covering a nearly full iPad window with a compact axis, a large resizable phone-idiom scene, insufficient coexistence geometry, very short scenes, and accessibility Dynamic Type
+- [x] 1.3 Prototype and name the minimum viable geometry tokens for the wide Gallery card sizing range
+- [x] 1.4 Implement a device-independent `LibraryGalleryLayoutPolicy` that derives Gallery arrangements from Gallery's proposed size and accessibility requirements
+- [x] 1.5 Add focused Gallery policy tests covering wide, narrow, very short, and accessibility Dynamic Type layouts
 
 ## 2. Stable Library Presentation State
 
 - [x] 2.1 Refactor `LibraryEntryInteractionState` to distinguish focused entry, explicitly presented detail, multi-selection, and enum-driven active workflow state using stable entry identifiers
 - [x] 2.2 Move presentation ownership above responsive layout branches and resolve route identifiers through the library store without retaining view instances in routes
-- [x] 2.3 Consolidate mutually exclusive library sheet modifiers into one route-driven presentation host while preserving every current iPhone destination, gesture, detent, transition, and dismissal safeguard
-- [x] 2.4 Add interaction-state tests proving that Gallery focus does not implicitly open detail, List and Grid multi-selection remains independent, and resizing does not duplicate or dismiss an active route
+- [x] 2.3 Consolidate mutually exclusive library workflow sheets into one route-driven host while entry detail uses one system inspector
+- [x] 2.4 Add interaction-state tests proving that Gallery focus does not implicitly open detail, List and Grid multi-selection remains independent, and stale presentation callbacks do not dismiss current state
 
 ## 3. Reusable Entry Detail and On-Demand Inspector
 
-- [x] 3.1 Separate reusable entry-detail content and session state from sheet-specific drag indicators, dismissal behavior, toolbar placement, and presentation chrome
+- [x] 3.1 Separate reusable entry-detail content and session state from the system inspector container and presentation generation
 - [x] 3.2 Make the entry-detail hero, sections, and readable content width respond to the host proposal while keeping all current actions and information reachable
-- [x] 3.3 Retain the existing sheet host unchanged for current iPhone and other constrained geometries
-- [x] 3.4 Add a dismissible trailing inspector host that is selected only when the active library mode and detail both satisfy their minimum viable geometry
-- [x] 3.5 Update an open inspector when the focused entry changes, reclaim the complete library canvas when it closes, and fall back to a sheet whenever the remaining Gallery surface would be compromised
-- [x] 3.6 Preserve the detail session, scroll state, and unsaved editing state when live resizing changes the selected presentation, with tests for passive detail and active editing transitions
-- [x] 3.7 Replace the manual split with the platform inspector, consume delayed host-migration dismissals, use single-tap activation in inspector-capable geometry, and tune inspector surface and hero proportions
+- [x] 3.3 Use the system inspector's standard compact sheet adaptation for current iPhone and other compact environments
+- [x] 3.4 Attach one dismissible system inspector without root geometry measurement or application-owned host switching
+- [x] 3.5 Update an open inspector when the focused entry changes and reclaim the complete library canvas when it closes
+- [x] 3.6 Preserve the detail session, scroll state, and unsaved editing state while the system inspector adapts during live resizing
+- [x] 3.7 Keep a stable root navigation hierarchy, reject delayed callbacks from replaced detail generations, use regular-width single-tap activation, and tune inspector surface and hero proportions
 
 ## 4. Adaptive Gallery Shelf
 
 - [x] 4.1 Preserve the existing full-width one-entry-per-page Gallery code path for all supported current on-device iPhone portrait and landscape geometries
 - [x] 4.2 Implement the spacious Gallery shelf using height-informed 2:3 card widths, focused scroll targets, and partial or complete neighboring-card visibility
 - [x] 4.3 Keep Gallery gestures, overlays, dates, focus state, and detail-opening behavior consistent across single-page and shelf arrangements without adding multi-selection
-- [x] 4.4 Preserve the focused entry and scroll alignment while resizing between Gallery arrangements and while opening or closing an eligible inspector
+- [x] 4.4 Preserve the focused entry and scroll alignment while resizing between Gallery arrangements and while opening or closing the system inspector
 - [x] 4.5 Add layout and interaction coverage confirming that Gallery remains a large-card horizontal focus mode and never becomes a narrow master column or small vertical grid
 
 ## 5. Content-Heavy Modal Adaptation
@@ -54,7 +54,7 @@
 
 ## 8. Regression and Resize Matrix
 
-- [x] 8.1 Run the targeted app tests for presentation policy, interaction state, detail routing, Gallery behavior, and modal routing
+- [x] 8.1 Run the targeted app tests for Gallery layout policy, interaction state, detail routing, Gallery behavior, and modal routing
 - [x] 8.2 Visually compare Gallery, List, Grid, detail, editing, Search, sharing, and poster workflows against the current iPhone portrait and landscape baselines
 - [ ] 8.3 Sweep narrow, nearly full, full-screen, very wide, and very short iPad scenes in every library mode with detail closed and open
 - [ ] 8.4 Resize while detail, editing, sharing, poster selection, Search, and settings content are active and confirm that state is retained and no presentation is duplicated

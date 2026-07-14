@@ -11,7 +11,7 @@ import Testing
 @testable import MyAnimeList
 
 struct EntryDetailSessionTests {
-    @Test @MainActor func samePresentedEntryKeepsSessionAndScrollStateAcrossHostChanges() throws {
+    @Test @MainActor func samePresentedEntryKeepsSessionAndScrollStateAcrossSynchronization() throws {
         let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
         let entry = AnimeEntry.template(id: 42)
         let store = EntryDetailSessionStore()
@@ -21,25 +21,25 @@ struct EntryDetailSessionTests {
             repository: repository,
             resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
         )
-        let sheetSession = try #require(store.presentedSession)
-        sheetSession.scrollPosition.scrollTo(y: 312)
-        sheetSession.isCharacterExpanded = false
-        sheetSession.presentation.activeSheet = .sharing
+        let originalSession = try #require(store.presentedSession)
+        originalSession.scrollPosition.scrollTo(y: 312)
+        originalSession.isCharacterExpanded = false
+        originalSession.presentation.activeSheet = .sharing
 
         store.synchronizePresentedDetail(
             identity: entry.syncIdentity,
             repository: repository,
             resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
         )
-        let inspectorSession = try #require(store.presentedSession)
+        let reusedSession = try #require(store.presentedSession)
 
-        #expect(inspectorSession === sheetSession)
-        #expect(inspectorSession.scrollPosition.y == 312)
-        #expect(!inspectorSession.isCharacterExpanded)
-        #expect(inspectorSession.presentation.activeSheet == .sharing)
+        #expect(reusedSession === originalSession)
+        #expect(reusedSession.scrollPosition.y == 312)
+        #expect(!reusedSession.isCharacterExpanded)
+        #expect(reusedSession.presentation.activeSheet == .sharing)
     }
 
-    @Test @MainActor func activeEditingAndOriginalValuesSurviveHostChanges() throws {
+    @Test @MainActor func activeEditingAndOriginalValuesSurviveSynchronization() throws {
         let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
         let entry = AnimeEntry.template(id: 84)
         entry.notes = "Saved note"
@@ -50,9 +50,9 @@ struct EntryDetailSessionTests {
             repository: repository,
             resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
         )
-        let sheetSession = try #require(store.presentedSession)
-        sheetSession.isEditingDetails = true
-        sheetSession.scrollPosition.scrollTo(y: 196)
+        let originalSession = try #require(store.presentedSession)
+        originalSession.isEditingDetails = true
+        originalSession.scrollPosition.scrollTo(y: 196)
         entry.notes = "Unsaved replacement"
 
         store.synchronizePresentedDetail(
@@ -60,41 +60,29 @@ struct EntryDetailSessionTests {
             repository: repository,
             resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
         )
-        let inspectorSession = try #require(store.presentedSession)
+        let reusedSession = try #require(store.presentedSession)
 
-        #expect(inspectorSession === sheetSession)
-        #expect(inspectorSession.isEditingDetails)
-        #expect(inspectorSession.originalUserInfo.notes == "Saved note")
-        #expect(inspectorSession.entry.notes == "Unsaved replacement")
-        #expect(inspectorSession.scrollPosition.y == 196)
+        #expect(reusedSession === originalSession)
+        #expect(reusedSession.isEditingDetails)
+        #expect(reusedSession.originalUserInfo.notes == "Saved note")
+        #expect(reusedSession.entry.notes == "Unsaved replacement")
+        #expect(reusedSession.scrollPosition.y == 196)
     }
 
-    @Test @MainActor func outgoingHostCannotClearNestedPresentationsAfterMigration() throws {
+    @Test @MainActor func staleDetailPresentationCannotClearNestedPresentationState() throws {
         let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
         let entry = AnimeEntry.template(id: 42)
         let state = LibraryEntryInteractionState()
         let session = EntryDetailSession(entry: entry, repository: repository)
         state.openDetails(for: entry)
-        let sheet = try #require(state.detailHostPresentation)
+        let firstPresentation = try #require(state.detailPresentation)
         session.presentation = populatedPresentationState()
 
-        state.transitionDetailHost(to: .inspector)
-        let inspector = try #require(state.detailHostPresentation)
+        state.openDetails(for: entry)
+        let secondPresentation = try #require(state.detailPresentation)
         session.updatePresentation(
-            from: sheet.id,
-            ifCurrent: { state.isCurrentDetailHostPresentation($0) },
-            { presentation in
-                presentation = EntryDetailPresentationState()
-            }
-        )
-
-        assertPresentationIsPopulated(session.presentation)
-
-        state.transitionDetailHost(to: .sheet)
-        let replacementSheet = try #require(state.detailHostPresentation)
-        session.updatePresentation(
-            from: inspector.id,
-            ifCurrent: { state.isCurrentDetailHostPresentation($0) },
+            from: firstPresentation.id,
+            ifCurrent: { state.isCurrentDetailPresentation($0) },
             { presentation in
                 presentation = EntryDetailPresentationState()
             }
@@ -103,8 +91,8 @@ struct EntryDetailSessionTests {
         assertPresentationIsPopulated(session.presentation)
 
         session.updatePresentation(
-            from: replacementSheet.id,
-            ifCurrent: { state.isCurrentDetailHostPresentation($0) },
+            from: secondPresentation.id,
+            ifCurrent: { state.isCurrentDetailPresentation($0) },
             { presentation in
                 presentation = EntryDetailPresentationState()
             }
