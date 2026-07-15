@@ -56,35 +56,40 @@ struct EntryDetailView: View {
     }
 
     var body: some View {
-        @Bindable var session = session
+        @Bindable var bindableSession = session
 
-        ScrollViewReader { proxy in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    stretchyHeroSection(heroHeight: heroHeight)
+        ZStack {
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        stretchyHeroSection(heroHeight: heroHeight)
 
-                    VStack(alignment: .leading, spacing: 20) {
-                        quickActionsRow
-                            .padding(.top, -20)
-                            .padding(.bottom, 4)
-                        detailsContent(proxy)
+                        VStack(alignment: .leading, spacing: 20) {
+                            quickActionsRow
+                                .padding(.top, -20)
+                                .padding(.bottom, 4)
+                            detailsContent(proxy)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                        .padding(.bottom, 40)
+                        .frame(maxWidth: 1_000)
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
-                    .padding(.bottom, 40)
-                    .frame(maxWidth: 1_000)
-                    .frame(maxWidth: .infinity)
+                }
+                .scrollPosition($bindableSession.scrollPosition)
+                .coordinateSpace(name: scrollCoordinateSpaceName)
+                .task(id: editingRequestID) {
+                    let requestID = editingRequestID
+                    guard let requestID else { return }
+                    guard await revealEditingSection(using: proxy) else { return }
+                    onEditingRequestHandled?(requestID)
                 }
             }
-            .scrollPosition($session.scrollPosition)
-            .coordinateSpace(name: scrollCoordinateSpaceName)
-            .task(id: editingRequestID) {
-                let requestID = editingRequestID
-                guard let requestID else { return }
-                guard await revealEditingSection(using: proxy) else { return }
-                onEditingRequestHandled?(requestID)
-            }
+            .id(session.instanceID)
+            .transition(.opacity)
         }
+        .animation(entryReplacementAnimation, value: session.instanceID)
         .ignoresSafeArea(edges: .top)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar { toolbarContent }
@@ -201,8 +206,12 @@ struct EntryDetailView: View {
         detailHost == .sheet ? Color(.systemGroupedBackground) : Color(.systemBackground)
     }
 
+    private var entryReplacementAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.18)
+    }
+
     private var editingSectionRevealDelay: Duration {
-        detailHost == .inspector ? .milliseconds(500) : .milliseconds(150)
+        detailHost == .inspector ? .milliseconds(250) : .milliseconds(150)
     }
 
     @discardableResult
