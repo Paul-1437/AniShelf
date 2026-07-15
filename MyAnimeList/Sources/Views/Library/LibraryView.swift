@@ -384,6 +384,7 @@ struct LibraryView: View {
             )
         }
         if supportsMultiSelection && !interaction.isMultiSelecting {
+            // Counterbalances the trailing controls so the principal title sits visually left of center.
             ToolbarItem(placement: .topBarTrailing) {
                 Color.clear
                     .frame(width: 10, height: 0)

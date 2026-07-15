@@ -38,6 +38,7 @@ struct LibraryNavigationTitleCapsule: View {
                     .contentTransition(.identity)
             }
             .animation(.bouncy, value: count)
+            .fixedSize(horizontal: true, vertical: false)
         }
     }
 
