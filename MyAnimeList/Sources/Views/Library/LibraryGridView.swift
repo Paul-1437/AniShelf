@@ -11,6 +11,7 @@ import SwiftUI
 struct LibraryGridView: View {
     @AppStorage(.libraryOpenDetailWithSingleTap) private var openDetailWithSingleTap = false
     @Environment(\.libraryEntryDetailActivation) private var detailActivation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Environment(LibraryStore.self) private var store
     @Environment(\.toggleFavorite) var toggleFavorite
@@ -31,6 +32,9 @@ struct LibraryGridView: View {
                             .geometryGroup()
                     }
                 }
+                .transaction(value: isInspectorPresented) { transaction in
+                    transaction.animation = reduceMotion ? nil : .smooth(duration: 0.3)
+                }
                 .onChange(of: scrolledID) { onChangeOfScrolledID(proxy: proxy) }
                 .onAppear { onGridViewAppear(proxy: proxy) }
                 .padding(.horizontal, 14)
@@ -44,11 +48,17 @@ struct LibraryGridView: View {
         }
     }
 
+    private var isInspectorPresented: Bool {
+        interaction.inspectorPresentation != nil
+    }
+
     private func onChangeOfScrolledID(proxy: ScrollViewProxy) {
-        if let scrolledID {
-            withAnimation(.bouncy) {
-                proxy.scrollTo(scrolledID)
-            }
+        guard let scrolledID else { return }
+        guard interaction.inspectorPresentation?.entryIdentity.tmdbID != scrolledID else {
+            return
+        }
+        withAnimation(.bouncy) {
+            proxy.scrollTo(scrolledID)
         }
     }
 
