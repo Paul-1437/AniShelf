@@ -526,4 +526,154 @@ struct LibraryEntryInteractionStateTests {
         #expect(state.isPresentingDetail)
         #expect(sessionStore.session(for: second.syncIdentity)?.entryIdentity == second.syncIdentity)
     }
+
+    @Test @MainActor func inspectorDetailPersistenceWritesVisibleInspectorEntriesAndClearsCanonicalDismissal() {
+        let state = LibraryEntryInteractionState(initialDetailHost: .inspector)
+        let entry = AnimeEntry.template(id: 42)
+
+        state.openDetails(for: entry)
+
+        #expect(
+            LibraryInspectorDetailWorkspaceState.persistenceAction(
+                for: state.presentedDetailEntryID,
+                committedHostPresentation: state.detailHostPresentation
+            ) == .persist(entry.syncIdentity)
+        )
+
+        state.dismissDetails()
+
+        #expect(
+            LibraryInspectorDetailWorkspaceState.persistenceAction(
+                for: state.presentedDetailEntryID,
+                committedHostPresentation: state.detailHostPresentation
+            ) == .clear
+        )
+    }
+
+    @Test @MainActor func inspectorDetailPersistencePreservesSavedContextForSheetAndSuppressedHosts() throws {
+        let state = LibraryEntryInteractionState(initialDetailHost: .inspector)
+        let entry = AnimeEntry.template(id: 42)
+        state.openDetails(for: entry)
+
+        state.requestDetailHost(
+            .sheet,
+            source: .displayMode,
+            migrationBlocked: false
+        )
+
+        #expect(
+            LibraryInspectorDetailWorkspaceState.persistenceAction(
+                for: state.presentedDetailEntryID,
+                committedHostPresentation: state.detailHostPresentation
+            ) == .preserve
+        )
+
+        state.requestDetailHost(
+            .inspector,
+            source: .displayMode,
+            migrationBlocked: false
+        )
+        let inspectorPresentation = try #require(state.inspectorPresentation)
+        state.interactiveResizeDidChange(true, migrationBlocked: false)
+        state.detailHostDidDismiss(inspectorPresentation)
+
+        #expect(
+            LibraryInspectorDetailWorkspaceState.persistenceAction(
+                for: state.presentedDetailEntryID,
+                committedHostPresentation: state.detailHostPresentation
+            ) == .preserve
+        )
+    }
+
+    @Test @MainActor func sheetToInspectorMigrationAndInspectorReplacementPersistCurrentEntry() {
+        let state = LibraryEntryInteractionState()
+        let first = AnimeEntry.template(id: 42)
+        let second = AnimeEntry.template(id: 43)
+        state.openDetails(for: first)
+
+        #expect(
+            LibraryInspectorDetailWorkspaceState.persistenceAction(
+                for: state.presentedDetailEntryID,
+                committedHostPresentation: state.detailHostPresentation
+            ) == .preserve
+        )
+
+        state.requestDetailHost(
+            .inspector,
+            source: .displayMode,
+            migrationBlocked: false
+        )
+
+        #expect(
+            LibraryInspectorDetailWorkspaceState.persistenceAction(
+                for: state.presentedDetailEntryID,
+                committedHostPresentation: state.detailHostPresentation
+            ) == .persist(first.syncIdentity)
+        )
+
+        state.openDetails(for: second)
+
+        #expect(
+            LibraryInspectorDetailWorkspaceState.persistenceAction(
+                for: state.presentedDetailEntryID,
+                committedHostPresentation: state.detailHostPresentation
+            ) == .persist(second.syncIdentity)
+        )
+    }
+
+    @Test func inspectorLaunchRestorationRestoresOnlyOnceForInspectorPolicy() {
+        var workspaceState = LibraryInspectorDetailWorkspaceState()
+
+        let action = workspaceState.initialRestorationAction(
+            for: .inspector,
+            presentedDetailEntryIdentity: nil,
+            savedIdentityRawID: "movie:42",
+            isRestorableIdentity: { $0 == "movie:42" }
+        )
+
+        #expect(action == .restore("movie:42"))
+        #expect(workspaceState.hasCompletedLaunchRestoration)
+    }
+
+    @Test func compactLaunchLeavesSavedInspectorContextDormantAfterLaterResize() {
+        var workspaceState = LibraryInspectorDetailWorkspaceState()
+
+        let compactAction = workspaceState.initialRestorationAction(
+            for: .sheet,
+            presentedDetailEntryIdentity: nil,
+            savedIdentityRawID: "movie:42",
+            isRestorableIdentity: { _ in false }
+        )
+        let resizedAction = workspaceState.initialRestorationAction(
+            for: .inspector,
+            presentedDetailEntryIdentity: nil,
+            savedIdentityRawID: "movie:42",
+            isRestorableIdentity: { $0 == "movie:42" }
+        )
+
+        #expect(compactAction == .none)
+        #expect(resizedAction == .none)
+        #expect(workspaceState.hasCompletedLaunchRestoration)
+    }
+
+    @Test func invalidSavedInspectorIdentityClearsOnlyWhenInspectorRestorationIsAttempted() {
+        var inspectorWorkspaceState = LibraryInspectorDetailWorkspaceState()
+        var compactWorkspaceState = LibraryInspectorDetailWorkspaceState()
+
+        let inspectorAction = inspectorWorkspaceState.initialRestorationAction(
+            for: .inspector,
+            presentedDetailEntryIdentity: nil,
+            savedIdentityRawID: "movie:missing",
+            isRestorableIdentity: { _ in false }
+        )
+        let compactAction = compactWorkspaceState.initialRestorationAction(
+            for: .sheet,
+            presentedDetailEntryIdentity: nil,
+            savedIdentityRawID: "movie:missing",
+            isRestorableIdentity: { _ in false }
+        )
+
+        #expect(inspectorAction == .clearInvalidSavedIdentity)
+        #expect(compactAction == .none)
+    }
 }

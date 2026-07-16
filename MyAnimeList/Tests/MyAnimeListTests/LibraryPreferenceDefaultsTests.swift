@@ -12,8 +12,9 @@ import Testing
 @testable import MyAnimeList
 
 struct LibraryPreferenceDefaultsTests {
-    @Test func testPresentedDetailIdentityIsExcludedFromPortableBackups() {
-        #expect(!String.allPreferenceKeys.contains(.libraryPresentedDetailEntryIdentity))
+    @Test func testLastInspectorDetailIdentityIsExcludedFromPortableBackupsAndCloudSync() {
+        #expect(!String.allPreferenceKeys.contains(.libraryLastInspectorDetailEntryIdentity))
+        #expect(!String.cloudSyncedPreferenceKeys.contains(.libraryLastInspectorDetailEntryIdentity))
     }
 
     @Test func testSingleTapDetailPreferenceDefaultsAndBackupInclusion() {

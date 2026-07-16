@@ -17,6 +17,53 @@ extension EnvironmentValues {
     @Entry var toggleFavorite: (AnimeEntry) -> Void = { _ in }
 }
 
+enum LibraryInspectorDetailPersistenceAction: Equatable {
+    case clear
+    case persist(LibraryEntrySyncIdentity)
+    case preserve
+}
+
+enum LibraryInspectorDetailLaunchRestorationAction: Equatable {
+    case clearInvalidSavedIdentity
+    case none
+    case restore(String)
+}
+
+struct LibraryInspectorDetailWorkspaceState {
+    private(set) var hasCompletedLaunchRestoration = false
+
+    static func persistenceAction(
+        for presentedDetailEntryIdentity: LibraryEntrySyncIdentity?,
+        committedHostPresentation: LibraryEntryDetailHostPresentation?
+    ) -> LibraryInspectorDetailPersistenceAction {
+        guard let presentedDetailEntryIdentity else { return .clear }
+        guard committedHostPresentation?.host == .inspector,
+            committedHostPresentation?.isHostPresented == true
+        else { return .preserve }
+        return .persist(presentedDetailEntryIdentity)
+    }
+
+    mutating func initialRestorationAction(
+        for host: LibraryEntryDetailHost,
+        presentedDetailEntryIdentity: LibraryEntrySyncIdentity?,
+        savedIdentityRawID: String?,
+        isRestorableIdentity: (String) -> Bool
+    ) -> LibraryInspectorDetailLaunchRestorationAction {
+        guard !hasCompletedLaunchRestoration else { return .none }
+        hasCompletedLaunchRestoration = true
+
+        guard host == .inspector,
+            presentedDetailEntryIdentity == nil,
+            let savedIdentityRawID,
+            !savedIdentityRawID.isEmpty
+        else { return .none }
+        guard isRestorableIdentity(savedIdentityRawID) else {
+            return .clearInvalidSavedIdentity
+        }
+        return .restore(savedIdentityRawID)
+    }
+}
+
 struct LibraryView: View {
     // MARK: - Stored Properties
 
@@ -36,13 +83,13 @@ struct LibraryView: View {
     @State private var isShowingBatchDeleteConfirmation = false
     @State private var selectionDisplayItems: [LibraryEntryDisplayItem]?
     @State private var selectionEntriesByID: [Int: AnimeEntry] = [:]
-    @State private var didRestorePresentedDetail = false
+    @State private var inspectorDetailWorkspaceState = LibraryInspectorDetailWorkspaceState()
 
     // Persistent UI preference
     @AppStorage(.libraryViewStyle) var libraryViewStyle: LibraryViewStyle = .gallery
     @AppStorage(.libraryScoringEnabled) private var scoringEnabled = true
-    @AppStorage(.libraryPresentedDetailEntryIdentity)
-    private var persistedPresentedDetailEntryIdentity: String?
+    @AppStorage(.libraryLastInspectorDetailEntryIdentity)
+    private var persistedLastInspectorDetailEntryIdentity: String?
 
     // MARK: - Body
 
@@ -86,8 +133,11 @@ struct LibraryView: View {
                 migrationBlocked: detailHostMigrationBlocked
             )
         }
-        .onChange(of: interaction.presentedDetailEntryID) { _, identity in
-            persistedPresentedDetailEntryIdentity = identity?.rawID
+        .onChange(of: interaction.presentedDetailEntryID) {
+            reconcileInspectorDetailPersistence()
+        }
+        .onChange(of: interaction.detailHostPresentation) {
+            reconcileInspectorDetailPersistence()
         }
         #if DEBUG
             .onAppear {
@@ -779,25 +829,50 @@ struct LibraryView: View {
         }
     }
 
-    private func restorePresentedDetailIfNeeded() {
-        guard !didRestorePresentedDetail else { return }
-        didRestorePresentedDetail = true
-
-        guard interaction.presentedDetailEntryID == nil,
-            let identityRawID = persistedPresentedDetailEntryIdentity,
-            !identityRawID.isEmpty
-        else { return }
-
-        guard let entry = store.repository.existingEntry(identityRawID: identityRawID),
-            entry.onDisplay
-        else {
-            persistedPresentedDetailEntryIdentity = nil
-            interaction.dismissDetails()
-            return
+    private func reconcileInspectorDetailPersistence() {
+        switch LibraryInspectorDetailWorkspaceState.persistenceAction(
+            for: interaction.presentedDetailEntryID,
+            committedHostPresentation: interaction.detailHostPresentation
+        ) {
+        case .clear:
+            persistedLastInspectorDetailEntryIdentity = nil
+        case .persist(let identity):
+            persistedLastInspectorDetailEntryIdentity = identity.rawID
+        case .preserve:
+            break
         }
+    }
 
-        prepareDetailSession(for: entry)
-        interaction.openDetails(for: entry)
+    private func restorePresentedDetailIfNeeded() {
+        let restorationAction = inspectorDetailWorkspaceState.initialRestorationAction(
+            for: interaction.desiredDetailHost,
+            presentedDetailEntryIdentity: interaction.presentedDetailEntryID,
+            savedIdentityRawID: persistedLastInspectorDetailEntryIdentity,
+            isRestorableIdentity: { identityRawID in
+                guard let entry = store.repository.existingEntry(identityRawID: identityRawID) else {
+                    return false
+                }
+                return entry.onDisplay
+            }
+        )
+
+        switch restorationAction {
+        case .clearInvalidSavedIdentity:
+            persistedLastInspectorDetailEntryIdentity = nil
+            interaction.dismissDetails()
+        case .none:
+            return
+        case .restore(let identityRawID):
+            guard let entry = store.repository.existingEntry(identityRawID: identityRawID),
+                entry.onDisplay
+            else {
+                persistedLastInspectorDetailEntryIdentity = nil
+                interaction.dismissDetails()
+                return
+            }
+            prepareDetailSession(for: entry)
+            interaction.openDetails(for: entry)
+        }
     }
 
     #if DEBUG
