@@ -105,6 +105,11 @@ struct LibraryView: View {
         .onChange(of: windowSceneIdentifier) {
             handleAiringReminderRoute()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)) { _ in
+            // A route targeting the closed window falls back to the remaining windows. Retry on the
+            // next turn so the disconnected scene has left `connectedScenes`.
+            Task { @MainActor in handleAiringReminderRoute() }
+        }
         .alert(
             airingReminderWarningTitle,
             isPresented: Binding(
