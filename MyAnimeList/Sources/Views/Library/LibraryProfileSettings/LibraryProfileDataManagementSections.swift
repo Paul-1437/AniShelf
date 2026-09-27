@@ -12,7 +12,7 @@ import SwiftUI
 struct LibraryProfileICloudSyncSection: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var showRestorationDetails = false
-    @State private var showPendingReconstructionDetails = false
+    @State private var showSyncIssues = false
 
     let libraryCloudSyncStatus: LibraryCloudSyncStatus
     let cloudSyncToggleBinding: Binding<Bool>
@@ -43,13 +43,62 @@ struct LibraryProfileICloudSyncSection: View {
 
             if libraryCloudSyncStatus.isEnabled {
                 cloudSyncStatusRow
-
             }
         }
         .animation(.default, value: cloudSyncIsBusy)
         .padding(14)
         .libraryProfileInsetPanel(cornerRadius: 22, tint: .indigo)
+        .sheet(isPresented: $showSyncIssues) {
+            LibraryCloudSyncIssuesSheet(
+                issues: syncIssues,
+                cloudSyncIsBusy: cloudSyncIsBusy,
+                onDiscard: onDiscardFailedEntry
+            )
+        }
+        .onChange(of: syncIssues.isEmpty) { _, isEmpty in
+            if isEmpty { showSyncIssues = false }
+        }
+    }
 
+    /// Problems a completed sync left behind.
+    ///
+    /// Restoration failures are shown separately.
+    private var syncIssues: [LibraryCloudSyncIssue] {
+        guard libraryCloudSyncStatus.isEnabled else { return [] }
+        var issues: [LibraryCloudSyncIssue] = []
+        let pendingFailures = libraryCloudSyncStatus.currentPendingReconstructionFailures
+        if libraryCloudSyncStatus.restoration == nil, !pendingFailures.isEmpty {
+            issues.append(.unloadedEntries(pendingFailures.map(LibraryCloudSyncFailedEntry.init)))
+        }
+        if libraryCloudSyncStatus.rejectedUploadCount > 0 {
+            issues.append(.rejectedUploads(libraryCloudSyncStatus.rejectedUploadCount))
+        }
+        if libraryCloudSyncStatus.quarantinedRecordCount > 0 {
+            issues.append(.unreadableRecords(libraryCloudSyncStatus.quarantinedRecordCount))
+        }
+        return issues
+    }
+
+    /// One issue is named directly; several fold into a single count.
+    private var syncIssuesRow: some View {
+        let issues = syncIssues
+        let title: LocalizedStringResource =
+            issues.count == 1
+            ? issues[0].summary : "\(issues.reduce(0) { $0 + $1.count }) sync issues"
+        return Button {
+            showSyncIssues = true
+        } label: {
+            HStack(spacing: 3) {
+                Text(title)
+                    .contentTransition(.numericText())
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+            }
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func failedEntriesInfoButton(
@@ -82,6 +131,20 @@ struct LibraryProfileICloudSyncSection: View {
     }
 
     private var cloudSyncStatusRow: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            cloudSyncStatusAndRetryRow
+
+            // Full width, so the issue line doesn't wrap beside the retry button.
+            if !syncIssues.isEmpty {
+                syncIssuesRow
+            }
+        }
+        .animation(.default, value: syncIssues.map(\.count))
+        .padding(.top, 4)
+        .padding(.vertical, 1)
+    }
+
+    private var cloudSyncStatusAndRetryRow: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(libraryCloudSyncStatus.statusDisplay.title)
@@ -106,58 +169,6 @@ struct LibraryProfileICloudSyncSection: View {
                     Text(libraryCloudSyncStatus.detailDisplayResource)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-
-                let pendingFailures = libraryCloudSyncStatus.currentPendingReconstructionFailures
-                if libraryCloudSyncStatus.restoration == nil, !pendingFailures.isEmpty {
-                    HStack(spacing: 2) {
-                        Text("Entries that couldn't be loaded: \(pendingFailures.count)")
-                            .foregroundStyle(.orange)
-                        failedEntriesInfoButton(
-                            isPresented: $showPendingReconstructionDetails,
-                            title: "Entries that couldn't be loaded",
-                            message: String(
-                                localized:
-                                    "Entries TMDb no longer lists can be discarded from iCloud. Others retry automatically."
-                            ),
-                            entries: pendingFailures.map(LibraryCloudSyncFailedEntry.init)
-                        )
-                    }
-                    .font(.caption)
-                }
-
-                if libraryCloudSyncStatus.rejectedUploadCount > 0 {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("Changes not uploaded: \(libraryCloudSyncStatus.rejectedUploadCount)")
-                            .foregroundStyle(.orange)
-
-                        InfoTip(
-                            title: "Changes Not Uploaded",
-                            message:
-                                "iCloud didn't accept these changes. They stay saved on this device, and AniShelf tries uploading them again on later syncs.",
-                            width: 280,
-                            iconFont: .caption
-                        )
-                        .foregroundStyle(.secondary)
-                    }
-                    .font(.caption)
-                }
-
-                if libraryCloudSyncStatus.quarantinedRecordCount > 0 {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("Unreadable iCloud records: \(libraryCloudSyncStatus.quarantinedRecordCount)")
-                            .foregroundStyle(.orange)
-
-                        InfoTip(
-                            title: "Unreadable iCloud Records",
-                            message:
-                                "AniShelf couldn't read these records. They may have been saved by a newer version of the app. They stay untouched in iCloud, and this device won't overwrite them. Updating AniShelf may resolve this.",
-                            width: 280,
-                            iconFont: .caption
-                        )
-                        .foregroundStyle(.secondary)
-                    }
-                    .font(.caption)
                 }
 
                 if libraryCloudSyncStatus.restoration?.failures.isEmpty != false,
@@ -192,8 +203,6 @@ struct LibraryProfileICloudSyncSection: View {
             .disabled(cloudSyncManualRetryDisabled)
             .opacity(cloudSyncManualRetryDisabled ? 0.52 : 1)
         }
-        .padding(.top, 4)
-        .padding(.vertical, 1)
     }
 }
 
@@ -236,15 +245,118 @@ struct LibraryCloudSyncFailedEntry: Identifiable {
     }
 }
 
+/// A problem a completed sync left behind.
+fileprivate enum LibraryCloudSyncIssue: Identifiable {
+    case unloadedEntries([LibraryCloudSyncFailedEntry])
+    case rejectedUploads(Int)
+    case unreadableRecords(Int)
+
+    var id: String {
+        switch self {
+        case .unloadedEntries: "unloadedEntries"
+        case .rejectedUploads: "rejectedUploads"
+        case .unreadableRecords: "unreadableRecords"
+        }
+    }
+
+    var count: Int {
+        switch self {
+        case .unloadedEntries(let entries): entries.count
+        case .rejectedUploads(let count), .unreadableRecords(let count): count
+        }
+    }
+
+    var summary: LocalizedStringResource {
+        switch self {
+        case .unloadedEntries(let entries): "\(entries.count) entries not loaded"
+        case .rejectedUploads(let count): "\(count) changes not uploaded"
+        case .unreadableRecords(let count): "\(count) unreadable records"
+        }
+    }
+
+    var explanation: LocalizedStringResource {
+        switch self {
+        case .unloadedEntries:
+            "Entries TMDb no longer lists can be discarded from iCloud. Others retry automatically."
+        case .rejectedUploads:
+            "iCloud didn't accept these changes. They stay saved on this device, and AniShelf tries uploading them again on later syncs."
+        case .unreadableRecords:
+            "AniShelf couldn't read these records. They may have been saved by a newer version of the app. They stay untouched in iCloud, and this device won't overwrite them. Updating AniShelf may resolve this."
+        }
+    }
+}
+
+fileprivate struct LibraryCloudSyncIssuesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let issues: [LibraryCloudSyncIssue]
+    let cloudSyncIsBusy: Bool
+    let onDiscard: (LibraryCloudSyncFailedEntry) -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(issues) { issue in
+                        issueSection(issue)
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    }
+                }
+                .animation(.default, value: issues.map(\.id))
+                .animation(.default, value: issues.map(\.count))
+                .padding(20)
+            }
+            .preferredNavigationBarScrollEdgeEffect()
+            .navigationTitle("Sync Issues")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Color(.systemGroupedBackground))
+    }
+
+    private func issueSection(_ issue: LibraryCloudSyncIssue) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(issue.summary)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.orange)
+                .contentTransition(.numericText())
+            Text(issue.explanation)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if case .unloadedEntries(let entries) = issue {
+                Divider()
+                    .padding(.vertical, 6)
+                LibraryFailedEntriesList(
+                    entries: entries,
+                    animatesChanges: true,
+                    cloudSyncIsBusy: cloudSyncIsBusy,
+                    onDiscard: onDiscard
+                )
+                .font(.footnote)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+    }
+}
+
 fileprivate struct LibraryFailedEntriesPopover: View {
     let title: LocalizedStringResource
     let message: String?
     let entries: [LibraryCloudSyncFailedEntry]
     let cloudSyncIsBusy: Bool
     let onDiscard: (LibraryCloudSyncFailedEntry) -> Void
-
-    @State private var discardCandidate: LibraryCloudSyncFailedEntry?
-    @State private var showDiscardConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -256,53 +368,100 @@ fileprivate struct LibraryFailedEntriesPopover: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(entries) { entry in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Link(destination: tmdbURL(for: entry)) {
-                            HStack(spacing: 4) {
-                                Text(entryTypeTitle(for: entry))
-                                Text(verbatim: "· TMDb \(entry.snapshot.tmdbID)")
-                                Image(systemName: "arrow.up.right")
-                                    .font(.caption2.weight(.semibold))
-                            }
-                            .font(.caption.weight(.semibold))
-                        }
-                        Text(entry.reason).font(.caption).foregroundStyle(.secondary)
-                        switch entry.discardState {
-                        case .pending:
-                            Text("Deletion pending. Retry to finish.").font(.caption)
-                        case .available:
-                            Button("Discard from iCloud…", role: .destructive) {
-                                discardCandidate = entry
-                                showDiscardConfirmation = true
-                            }
-                            .font(.caption.weight(.semibold))
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.red)
-                            .disabled(cloudSyncIsBusy)
-                        case .unavailable:
-                            EmptyView()
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
+                // Keep all content changes immediate while the popover resizes.
+                LibraryFailedEntriesList(
+                    entries: entries,
+                    animatesChanges: false,
+                    cloudSyncIsBusy: cloudSyncIsBusy,
+                    onDiscard: onDiscard
+                )
+                .font(.caption)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .alert("Discard Entry from iCloud?", isPresented: $showDiscardConfirmation) {
-                Button("Discard from iCloud", role: .destructive) {
-                    if let discardCandidate { onDiscard(discardCandidate) }
-                    discardCandidate = nil
-                }
-                Button("Cancel", role: .cancel) { discardCandidate = nil }
-            } message: {
-                Text(
-                    "This deletes \(discardCandidate?.id ?? "") and its saved tracking data from your iCloud library. The deletion will sync to your other devices."
-                )
-            }
         }
         .frame(width: 300)
         .frame(maxHeight: 360)
+        .transaction { $0.animation = nil }
+    }
+}
+
+/// Failed entries with TMDb links and discard actions.
+///
+/// Inherits its font from the container. The sheet animates changes; the
+/// popover updates immediately to avoid animating its size.
+fileprivate struct LibraryFailedEntriesList: View {
+    let entries: [LibraryCloudSyncFailedEntry]
+    let animatesChanges: Bool
+    let cloudSyncIsBusy: Bool
+    let onDiscard: (LibraryCloudSyncFailedEntry) -> Void
+
+    @State private var discardCandidate: LibraryCloudSyncFailedEntry?
+    @State private var showDiscardConfirmation = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(entries) { entry in
+                VStack(alignment: .leading, spacing: 10) {
+                    if entry.id != entries.first?.id {
+                        Divider()
+                    }
+                    entryRow(entry)
+                }
+                .transition(animatesChanges ? .opacity : .identity)
+            }
+        }
+        .animation(animatesChanges ? .default : nil, value: entries.map(\.id))
+        .alert("Discard Entry from iCloud?", isPresented: $showDiscardConfirmation) {
+            Button("Discard from iCloud", role: .destructive) {
+                if let discardCandidate { onDiscard(discardCandidate) }
+                discardCandidate = nil
+            }
+            Button("Cancel", role: .cancel) { discardCandidate = nil }
+        } message: {
+            Text(
+                "This deletes \(discardCandidate?.id ?? "") and its saved tracking data from your iCloud library. The deletion will sync to your other devices."
+            )
+        }
+    }
+
+    private func entryRow(_ entry: LibraryCloudSyncFailedEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Link(destination: tmdbURL(for: entry)) {
+                HStack(spacing: 4) {
+                    Text(entryTypeTitle(for: entry))
+                    Text(verbatim: "· TMDb \(entry.snapshot.tmdbID)")
+                    Image(systemName: "arrow.up.right")
+                        .imageScale(.small)
+                }
+                .fontWeight(.semibold)
+            }
+            Text(entry.reason)
+                .foregroundStyle(.secondary)
+            discardControl(for: entry)
+                .transition(animatesChanges ? .opacity : .identity)
+        }
+        .animation(animatesChanges ? .default : nil, value: entry.discardState)
+        .animation(animatesChanges ? .default : nil, value: entry.reason)
+    }
+
+    @ViewBuilder
+    private func discardControl(for entry: LibraryCloudSyncFailedEntry) -> some View {
+        switch entry.discardState {
+        case .pending:
+            Text("Deletion pending. Retry to finish.")
+        case .available:
+            Button("Discard from iCloud…", role: .destructive) {
+                discardCandidate = entry
+                showDiscardConfirmation = true
+            }
+            .fontWeight(.semibold)
+            .buttonStyle(.plain)
+            .foregroundStyle(.red)
+            .disabled(cloudSyncIsBusy)
+        case .unavailable:
+            EmptyView()
+        }
     }
 
     private func tmdbURL(for failure: LibraryCloudSyncFailedEntry) -> URL {

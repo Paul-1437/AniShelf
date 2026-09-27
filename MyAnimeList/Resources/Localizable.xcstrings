@@ -17,6 +17,142 @@
         }
       }
     },
+    "%lld changes not uploaded" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld change not uploaded"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld changes not uploaded"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の変更が未アップロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 项更改未上传"
+          }
+        }
+      }
+    },
+    "%lld entries not loaded" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld entry not loaded"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld entries not loaded"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の項目を読み込めません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个条目未加载"
+          }
+        }
+      }
+    },
+    "%lld sync issues" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sync issue"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sync issues"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期の問題 %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个同步问题"
+          }
+        }
+      }
+    },
+    "%lld unreadable records" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unreadable record"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unreadable records"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取れないレコード %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条记录无法读取"
+          }
+        }
+      }
+    },
     "* For security reasons, your TMDb API Key will not be exported." : {
       "localizations" : {
         "ja" : {
@@ -356,6 +492,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AniShelf 无法读取这些记录，它们可能由更新版本的 App 保存。这些记录会原样保留在 iCloud 中，此设备不会覆盖它们。更新 AniShelf 可能会解决此问题。"
+          }
+        }
+      }
+    },
+    "Sync Issues" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期の問題"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步问题"
           }
         }
       }
@@ -1945,38 +2097,6 @@
         }
       }
     },
-    "Changes Not Uploaded" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アップロードされていない変更"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未上传的更改"
-          }
-        }
-      }
-    },
-    "Changes not uploaded: %lld" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アップロードされていない変更: %lld 件"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未上传的更改：%lld 项"
-          }
-        }
-      }
-    },
     "Changing the metadata language setting will not refresh existing infos.\nRefresh all anime infos now? This may take considerable time." : {
       "localizations" : {
         "ja" : {
@@ -3324,38 +3444,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要重试的条目"
-          }
-        }
-      }
-    },
-    "Entries that couldn't be loaded" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "読み込めなかった項目"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法加载的条目"
-          }
-        }
-      }
-    },
-    "Entries that couldn't be loaded: %lld" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "読み込めなかった項目: %lld 件"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法加载的条目：%lld 个"
           }
         }
       }
@@ -7592,38 +7680,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已恢复 %1$lld / %2$lld 个条目。"
-          }
-        }
-      }
-    },
-    "Unreadable iCloud Records" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "読み取れない iCloud レコード"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法读取的 iCloud 记录"
-          }
-        }
-      }
-    },
-    "Unreadable iCloud records: %lld" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "読み取れない iCloud レコード: %lld 件"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法读取的 iCloud 记录：%lld 条"
           }
         }
       }
