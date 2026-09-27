@@ -441,9 +441,6 @@ class LibraryStore {
         isUserRetry: Bool = false,
         canHandleResult: Bool = false
     ) async -> LibrarySyncCoordinator.SyncOutcome {
-        // Bootstrap fetches the entire active account before exporting. An
-        // unknown settings type seen in a previous scope must not block it.
-        preferences.clearUnknownCloudSyncedSettingsTypes()
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = true
             status.bootstrapState = .running

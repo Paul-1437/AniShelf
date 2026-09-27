@@ -577,6 +577,14 @@ final class LibrarySyncCoordinator {
             guard let head = try await runImportHead(pass: pass, state: state, store: store) else {
                 return .permanentFailure
             }
+            // The full fetch is authoritative for this scope. A bootstrap
+            // request can join an ordinary pass at the gate, so only replace
+            // the old settings block after this fetch actually completes.
+            if let settingsSnapshot = head.importBatch.settingsSnapshot {
+                store.preferences.noteCloudSyncedSettingsTypes(settingsSnapshot)
+            } else {
+                store.preferences.clearUnknownCloudSyncedSettingsTypes()
+            }
             let preImportSnapshots = head.preImportSnapshots
             let fetchedBatch = head.importBatch
 

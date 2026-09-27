@@ -14,6 +14,35 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func coalescedBootstrapDoesNotClearUnknownSettingsBlock() async throws {
+        let store = makeSyncReadyStore()
+        let client = CloudLibrarySyncClient()
+        store.preferences.noteCloudSyncedSettingsTypes(.init(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 2),
+            payload: [.useTMDbRelayServer: .unknown(.number(1))]
+        ))
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            makeEmptyChangeBatch(), makeEmptyChangeBatch()
+        ])
+        database.suspendNextFetch = true
+        store.configureLibrarySyncCoordinator(
+            client: client, database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let ordinary = Task { await store.performLibrarySyncResult(trigger: .manualRetry) }
+        while !database.isFetchSuspended { await Task.yield() }
+        let bootstrap = Task { await store.bootstrapLibraryCloudSyncEnablementOutcome() }
+        while store.libraryCloudSyncStatus.bootstrapState != .running { await Task.yield() }
+        #expect(store.preferences.hasUnknownCloudSyncedSettingsValues)
+
+        database.resumeSuspendedFetch()
+        _ = await ordinary.value
+        _ = await bootstrap.value
+        #expect(store.preferences.hasUnknownCloudSyncedSettingsValues)
+        #expect(!database.savedRecords.contains { $0.recordID == client.librarySettingsRecordID })
+    }
+
     @Test @MainActor func explicitSyncResetsClearUnknownSettingsBlock() {
         let store = makeSyncReadyStore()
         let suiteName = "UnknownSettingsReset.\(UUID().uuidString)"
