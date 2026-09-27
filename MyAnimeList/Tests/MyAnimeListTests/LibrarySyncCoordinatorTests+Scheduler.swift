@@ -14,6 +14,89 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func sharedScheduledFailureCountsAsOneRetryAttempt() async throws {
+        let gate = SyncGate()
+        var syncStarted = false
+        var resumeSync: CheckedContinuation<Void, Never>?
+        let scheduler = LibrarySyncScheduler(
+            localDebounceInterval: 0,
+            failureRetryIntervals: [1],
+            hasPendingLocalWork: { true },
+            syncOutcome: { _ in
+                gate.begin(kind: .ordinary, ownerHandlesResult: true)
+                syncStarted = true
+                await withCheckedContinuation { resumeSync = $0 }
+                gate.finish(.retryableFailure)
+                return .init(.retryableFailure)
+            }
+        )
+
+        scheduler.schedulePendingLocalSync()
+        while !syncStarted { await Task.yield() }
+        let foreground = Task { await gate.waitForRunningPass() }
+        while !gate.consumeRerunRequest() { await Task.yield() }
+        resumeSync?.resume()
+        let shared = try #require(await foreground.value)
+        while scheduler.retryState.failureRetryAttempt == 0 { await Task.yield() }
+        #expect(shared.wasCoalesced)
+        #expect(!shared.shouldHandleResult)
+        if shared.shouldHandleResult {
+            scheduler.recordExternalSyncResult(shared.result)
+        }
+        #expect(scheduler.retryState.failureRetryAttempt == 1)
+        scheduler.resetRetryBackoff()
+    }
+
+    @Test @MainActor func replacedScheduledPassKeepsSharedFailureRetrying() async throws {
+        let gate = SyncGate()
+        var resumeOwner: CheckedContinuation<Void, Never>?
+        var replacementWaiting = false
+        let scheduler = LibrarySyncScheduler(
+            localDebounceInterval: 0,
+            failureRetryIntervals: [5],
+            hasPendingLocalWork: { true },
+            syncOutcome: { _ in
+                guard resumeOwner == nil else {
+                    replacementWaiting = true
+                    return await gate.waitForRunningPass() ?? .init(.skipped(.disabled))
+                }
+                gate.begin(kind: .ordinary, ownerHandlesResult: true)
+                await withCheckedContinuation { resumeOwner = $0 }
+                gate.finish(.retryableFailure)
+                return .init(.retryableFailure)
+            }
+        )
+
+        scheduler.schedulePendingLocalSync()
+        while resumeOwner == nil { await Task.yield() }
+        // A local edit replaces the running pass, and the replacement waits on it.
+        scheduler.schedulePendingLocalSync()
+        while !replacementWaiting { await Task.yield() }
+        resumeOwner?.resume()
+        for _ in 0..<100 { await Task.yield() }
+
+        #expect(scheduler.retryState.failureRetryAttempt == 1)
+        #expect(scheduler.retryState.nextRetryAllowedAt != nil)
+        scheduler.resetRetryBackoff()
+    }
+
+    @Test @MainActor func bootstrapFailureAssignsOneQueuedRetryOwner() async throws {
+        let gate = SyncGate()
+        gate.begin(kind: .bootstrap, ownerHandlesResult: false)
+        let first = Task { await gate.waitForRunningPass() }
+        while !gate.consumeRerunRequest() { await Task.yield() }
+        let second = Task { await gate.waitForRunningPass() }
+        while !gate.consumeRerunRequest() { await Task.yield() }
+
+        gate.finish(.retryableFailure)
+        let firstOutcome = try #require(await first.value)
+        let secondOutcome = try #require(await second.value)
+        #expect(firstOutcome.wasCoalesced)
+        #expect(firstOutcome.shouldHandleResult)
+        #expect(secondOutcome.wasCoalesced)
+        #expect(!secondOutcome.shouldHandleResult)
+    }
+
     @Test @MainActor func skippedForegroundPassPreservesScheduledLocalRetry() async throws {
         var syncCount = 0
         let scheduler = LibrarySyncScheduler(

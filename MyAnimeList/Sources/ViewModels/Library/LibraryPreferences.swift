@@ -172,6 +172,10 @@ struct LibraryPreferences {
         defaults.object(forKey: Self.unknownCloudSyncedSettingsUpdatedAtKey) != nil
     }
 
+    func clearUnknownCloudSyncedSettingsTypes() {
+        defaults.removeObject(forKey: Self.unknownCloudSyncedSettingsUpdatedAtKey)
+    }
+
     private func loadGroupStrategy() -> LibraryStore.LibraryGroupStrategy {
         let strategy =
             defaults

@@ -24,7 +24,7 @@ class LibraryStore {
     @ObservationIgnored let syncChangeRecorder: LibrarySyncChangeRecorder
     @ObservationIgnored private(set) var syncCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored private var syncScheduler: LibrarySyncScheduler?
-    @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncResult, Never>] =
+    @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncOutcome, Never>] =
         [:]
     @ObservationIgnored private var shouldResumeInterruptedCloudSyncBootstrap = false
     @ObservationIgnored let preferences: LibraryPreferences
@@ -409,23 +409,23 @@ class LibraryStore {
 
         let taskID = UUID()
         let syncTask = Task {
-            await syncCoordinator.syncResult(trigger: trigger)
+            await syncCoordinator.syncOutcome(trigger: trigger)
         }
         ordinarySyncTasks[taskID] = syncTask
 
-        let result = await withTaskCancellationHandler {
+        let outcome = await withTaskCancellationHandler {
             await syncTask.value
         } onCancel: {
             syncTask.cancel()
         }
         ordinarySyncTasks[taskID] = nil
         guard libraryCloudSyncStatus.isEnabled else { return .skipped(.disabled) }
-        if let syncScheduler {
-            syncScheduler.recordExternalSyncResult(result)
-        } else if result == .success {
+        if outcome.shouldHandleResult, let syncScheduler {
+            syncScheduler.recordExternalSyncResult(outcome.result)
+        } else if outcome.shouldHandleResult, outcome.result == .success {
             resetOrdinaryLibrarySyncRetryBackoff()
         }
-        return result
+        return outcome.result
     }
 
     @discardableResult
@@ -434,6 +434,16 @@ class LibraryStore {
     }
 
     func bootstrapLibraryCloudSyncEnablement(isUserRetry: Bool = false) async -> LibrarySyncCoordinator.SyncResult {
+        await bootstrapLibraryCloudSyncEnablementOutcome(isUserRetry: isUserRetry).result
+    }
+
+    func bootstrapLibraryCloudSyncEnablementOutcome(
+        isUserRetry: Bool = false,
+        canHandleResult: Bool = false
+    ) async -> LibrarySyncCoordinator.SyncOutcome {
+        // Bootstrap fetches the entire active account before exporting. An
+        // unknown settings type seen in a previous scope must not block it.
+        preferences.clearUnknownCloudSyncedSettingsTypes()
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = true
             status.bootstrapState = .running
@@ -457,7 +467,7 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return .permanentFailure
+            return .init(.permanentFailure, shouldHandleResult: canHandleResult)
         }
         guard let syncCoordinator else {
             recordLibraryCloudSyncFailure(
@@ -470,9 +480,12 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return .permanentFailure
+            return .init(.permanentFailure, shouldHandleResult: canHandleResult)
         }
-        return await syncCoordinator.bootstrapFirstEnablement(preference: nil, isUserRetry: isUserRetry)
+        return await syncCoordinator.bootstrapFirstEnablementOutcome(
+            preference: nil, isUserRetry: isUserRetry,
+            canHandleResult: canHandleResult
+        )
     }
 
     @discardableResult
@@ -500,12 +513,14 @@ class LibraryStore {
     func resetLibraryCloudSyncAfterBackupRestore() {
         cancelAllLibraryCloudSyncWork()
         syncScheduler?.resetRetryBackoff()
+        preferences.clearUnknownCloudSyncedSettingsTypes()
         updateLibraryCloudSyncStatus { status in
             status = .defaultValue
         }
     }
 
     func resetLibraryCloudSyncChangeTokens() {
+        preferences.clearUnknownCloudSyncedSettingsTypes()
         guard let syncCoordinator else {
             CloudLibrarySyncChangeTokenStore().removeAllTokens()
             return
@@ -809,10 +824,10 @@ class LibraryStore {
             minimumRetryDelay: { [weak self] in
                 self?.libraryCloudSyncStatus.lastRetryAfterSeconds
             },
-            sync: { [weak self] trigger in
-                guard let self else { return .permanentFailure }
-                guard let syncCoordinator else { return .permanentFailure }
-                return await syncCoordinator.syncResult(trigger: trigger)
+            syncOutcome: { [weak self] trigger in
+                guard let self else { return .init(.permanentFailure) }
+                guard let syncCoordinator else { return .init(.permanentFailure) }
+                return await syncCoordinator.syncOutcome(trigger: trigger)
             },
             retryStateDidChange: { [weak self] retryState in
                 self?.updateLibraryCloudSyncRetryState(retryState)

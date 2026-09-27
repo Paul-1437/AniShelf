@@ -325,22 +325,33 @@ fileprivate struct LibraryCloudSyncScopeChangedDuringSync: LocalizedError {
 
 @MainActor
 final class SyncGate {
+    enum PassKind { case ordinary, bootstrap }
+
+    private struct Waiter {
+        let continuation: CheckedContinuation<LibrarySyncCoordinator.SyncOutcome, Never>
+        let canHandleResult: Bool
+    }
+
     private var isSyncing = false
+    private var passKind: PassKind = .ordinary
+    private var passOwnerHandlesResult = true
     private var syncRequestedWhileRunning = false
-    private var waiters: [CheckedContinuation<LibrarySyncCoordinator.SyncResult, Never>] = []
+    private var waiters: [Waiter] = []
     private var idleWaiters: [CheckedContinuation<Void, Never>] = []
 
-    func waitForRunningPass() async -> LibrarySyncCoordinator.SyncResult? {
+    func waitForRunningPass(canHandleResult: Bool = true) async -> LibrarySyncCoordinator.SyncOutcome? {
         guard isSyncing else { return nil }
         syncRequestedWhileRunning = true
         return await withCheckedContinuation { continuation in
-            waiters.append(continuation)
+            waiters.append(.init(continuation: continuation, canHandleResult: canHandleResult))
         }
     }
 
-    func begin() {
+    func begin(kind: PassKind, ownerHandlesResult: Bool) {
         precondition(!isSyncing)
         isSyncing = true
+        passKind = kind
+        passOwnerHandlesResult = ownerHandlesResult
     }
 
     func waitUntilIdle() async {
@@ -365,8 +376,14 @@ final class SyncGate {
         guard !parkingWaiters else { return }
         let pendingWaiters = waiters
         waiters.removeAll()
+        var bootstrapRetryOwnerAssigned = passOwnerHandlesResult
         for waiter in pendingWaiters {
-            waiter.resume(returning: result)
+            let shouldHandleResult = passKind == .bootstrap
+                && waiter.canHandleResult && !bootstrapRetryOwnerAssigned
+            if shouldHandleResult { bootstrapRetryOwnerAssigned = true }
+            waiter.continuation.resume(returning: .init(
+                result, wasCoalesced: true, shouldHandleResult: shouldHandleResult
+            ))
         }
     }
 
@@ -375,7 +392,9 @@ final class SyncGate {
         let pendingWaiters = waiters
         waiters.removeAll()
         for waiter in pendingWaiters {
-            waiter.resume(returning: .skipped(.disabled))
+            waiter.continuation.resume(returning: .init(
+                .skipped(.disabled), wasCoalesced: true, shouldHandleResult: false
+            ))
         }
     }
 }

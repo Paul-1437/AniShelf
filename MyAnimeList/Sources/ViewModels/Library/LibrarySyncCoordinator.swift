@@ -61,6 +61,22 @@ final class LibrarySyncCoordinator {
         }
     }
 
+    struct SyncOutcome {
+        let result: SyncResult
+        let wasCoalesced: Bool
+        let shouldHandleResult: Bool
+
+        init(
+            _ result: SyncResult,
+            wasCoalesced: Bool = false,
+            shouldHandleResult: Bool = true
+        ) {
+            self.result = result
+            self.wasCoalesced = wasCoalesced
+            self.shouldHandleResult = shouldHandleResult
+        }
+    }
+
     weak var store: LibraryStore?
     let importer: CloudLibrarySyncImporter
     let exporter: CloudLibrarySyncExporter
@@ -170,15 +186,19 @@ final class LibrarySyncCoordinator {
     /// Runs one coalesced sync pass and preserves failure classification for
     /// local dirty-queue retry scheduling.
     func syncResult(trigger: Trigger) async -> SyncResult {
+        await syncOutcome(trigger: trigger).result
+    }
+
+    func syncOutcome(trigger: Trigger) async -> SyncOutcome {
         activeSyncRequestCount += 1
         defer { activeSyncRequestCount -= 1 }
 
-        guard !Task.isCancelled else { return .skipped(.disabled) }
+        guard !Task.isCancelled else { return .init(.skipped(.disabled)) }
         guard let store else {
             librarySyncCoordinatorLogger.warning(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because the library store was unavailable."
             )
-            return .permanentFailure
+            return .init(.permanentFailure)
         }
         if let queuedResult = await syncGate.waitForRunningPass() {
             librarySyncCoordinatorLogger.info(
@@ -195,7 +215,7 @@ final class LibrarySyncCoordinator {
             librarySyncCoordinatorLogger.info(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because policy blocked ordinary sync: \(blockedReason.rawValue, privacy: .public)."
             )
-            return .skipped(blockedReason)
+            return .init(.skipped(blockedReason))
         }
 
         var scopeRequiringBootstrap: LibraryCloudSyncScope?
@@ -206,7 +226,7 @@ final class LibrarySyncCoordinator {
             // failure reporting path records the namespace-resolution error.
         }
 
-        guard !Task.isCancelled else { return .skipped(.disabled) }
+        guard !Task.isCancelled else { return .init(.skipped(.disabled)) }
         if let queuedResult = await syncGate.waitForRunningPass() {
             librarySyncCoordinatorLogger.info(
                 "Queued iCloud library sync for \(trigger.rawValue, privacy: .public) because another sync started during scope resolution."
@@ -222,7 +242,7 @@ final class LibrarySyncCoordinator {
             librarySyncCoordinatorLogger.info(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because policy changed during scope resolution: \(blockedReason.rawValue, privacy: .public)."
             )
-            return .skipped(blockedReason)
+            return .init(.skipped(blockedReason))
         }
         if let scopeRequiringBootstrap,
             store.libraryCloudSyncStatus.lastCompletedScope != scopeRequiringBootstrap
@@ -230,10 +250,10 @@ final class LibrarySyncCoordinator {
             librarySyncCoordinatorLogger.info(
                 "Starting iCloud library bootstrap because the active sync scope differs from the last completed scope."
             )
-            return await store.bootstrapLibraryCloudSyncEnablement()
+            return await store.bootstrapLibraryCloudSyncEnablementOutcome(canHandleResult: true)
         }
 
-        syncGate.begin()
+        syncGate.begin(kind: .ordinary, ownerHandlesResult: true)
         librarySyncCoordinatorLogger.info(
             "Starting iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
         )
@@ -249,7 +269,7 @@ final class LibrarySyncCoordinator {
         } while syncGate.consumeRerunRequest()
 
         syncGate.finish(result)
-        return result
+        return .init(result)
     }
 
     /// Executes the ordered sync phases once.
@@ -304,18 +324,28 @@ final class LibrarySyncCoordinator {
         preference: LibraryCloudSyncConflictPreference?,
         isUserRetry: Bool = false
     ) async -> SyncResult {
+        await bootstrapFirstEnablementOutcome(
+            preference: preference, isUserRetry: isUserRetry
+        ).result
+    }
+
+    func bootstrapFirstEnablementOutcome(
+        preference: LibraryCloudSyncConflictPreference?,
+        isUserRetry: Bool = false,
+        canHandleResult: Bool = false
+    ) async -> SyncOutcome {
         activeSyncRequestCount += 1
         defer { activeSyncRequestCount -= 1 }
 
         let bootstrapID = UUID()
-        if let queuedResult = await syncGate.waitForRunningPass() {
+        if let queuedResult = await syncGate.waitForRunningPass(canHandleResult: canHandleResult) {
             librarySyncCoordinatorLogger.info(
                 "Queued iCloud library first-enable bootstrap while another sync was already running."
             )
             return queuedResult
         }
 
-        syncGate.begin()
+        syncGate.begin(kind: .bootstrap, ownerHandlesResult: canHandleResult)
         activeFirstEnableBootstrapIDs.insert(bootstrapID)
         var result = await runFirstEnableBootstrap(
             preference: preference,
@@ -337,7 +367,7 @@ final class LibrarySyncCoordinator {
         // A queued ordinary sync must remain parked until the caller resolves
         // the bootstrap conflict and starts the next bootstrap pass.
         syncGate.finish(result, parkingWaiters: result == .conflictChoiceRequired)
-        return result
+        return .init(result, shouldHandleResult: canHandleResult)
     }
 
     func cancelAllSync() {

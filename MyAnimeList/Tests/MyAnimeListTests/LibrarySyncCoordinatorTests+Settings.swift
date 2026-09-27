@@ -14,6 +14,61 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func explicitSyncResetsClearUnknownSettingsBlock() {
+        let store = makeSyncReadyStore()
+        let suiteName = "UnknownSettingsReset.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(),
+            database: FakeCloudLibrarySyncDatabase(changes: []),
+            changeTokenStore: CloudLibrarySyncChangeTokenStore(userDefaults: defaults),
+            namespaceProvider: { makeNamespace() }
+        )
+        let unknown = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 2),
+            payload: [.useTMDbRelayServer: .unknown(.number(1))]
+        )
+
+        store.preferences.noteCloudSyncedSettingsTypes(unknown)
+        store.resetLibraryCloudSyncChangeTokens()
+        #expect(!store.preferences.hasUnknownCloudSyncedSettingsValues)
+
+        store.preferences.noteCloudSyncedSettingsTypes(unknown)
+        store.resetLibraryCloudSyncAfterBackupRestore()
+        #expect(!store.preferences.hasUnknownCloudSyncedSettingsValues)
+    }
+
+    @Test @MainActor func accountSwitchClearsOldUnknownSettingsBlockBeforeExport() async throws {
+        let store = makeSyncReadyStore()
+        let client = CloudLibrarySyncClient()
+        let localSettings = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 1),
+            payload: [.useTMDbRelayServer: .bool(true)]
+        )
+        store.preferences.applyCloudSyncedSettingsSnapshot(localSettings)
+        store.preferences.saveCloudSyncedDefaultsUpdatedAt(localSettings.updatedAt)
+        store.preferences.noteCloudSyncedSettingsTypes(.init(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 2),
+            payload: [.useTMDbRelayServer: .unknown(.number(1))]
+        ))
+        #expect(store.preferences.hasUnknownCloudSyncedSettingsValues)
+
+        let newNamespace = CloudLibrarySyncChangeTokenStore.Namespace(
+            containerIdentifier: CloudLibrarySyncClient.defaultContainerIdentifier,
+            accountIdentifier: "new-settings-account"
+        )
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
+        store.configureLibrarySyncCoordinator(
+            client: client, database: database,
+            namespaceProvider: { newNamespace }
+        )
+
+        #expect(await store.performLibrarySyncResult(trigger: .foreground) == .success)
+        #expect(!store.preferences.hasUnknownCloudSyncedSettingsValues)
+        #expect(database.savedRecords.contains { $0.recordID == client.librarySettingsRecordID })
+    }
+
     @Test @MainActor func unknownRemoteSettingsKeepLocalValueAndBlockLaterExport() async throws {
         let store = makeSyncReadyStore()
         let original = LibrarySettingsSyncSnapshot(
