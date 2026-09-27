@@ -42,6 +42,10 @@ class LibraryStore {
 
     private(set) var library: [AnimeEntry]
     private(set) var duplicateEntryGroups: [LibraryDuplicateEntryGroup] = []
+    /// Store-wide so duplicate repair sheets in every window share one in-flight resolution.
+    ///
+    /// Only `resolveDuplicateEntryGroup` should write this.
+    var isResolvingDuplicateEntryGroup = false
     @ObservationIgnored var infoFetcher: InfoFetcher
     var language: Language = .resolvedAnimeInfoLanguage()
     private(set) var libraryCloudSyncStatus: LibraryCloudSyncStatus
