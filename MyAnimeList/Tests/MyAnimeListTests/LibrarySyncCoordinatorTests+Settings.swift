@@ -17,10 +17,11 @@ extension LibrarySyncCoordinatorTests {
     @Test @MainActor func coalescedBootstrapDoesNotClearUnknownSettingsBlock() async throws {
         let store = makeSyncReadyStore()
         let client = CloudLibrarySyncClient()
-        store.preferences.noteCloudSyncedSettingsTypes(.init(
-            updatedAt: referenceDate(year: 2026, month: 6, day: 2),
-            payload: [.useTMDbRelayServer: .unknown(.number(1))]
-        ))
+        store.preferences.noteCloudSyncedSettingsTypes(
+            .init(
+                updatedAt: referenceDate(year: 2026, month: 6, day: 2),
+                payload: [.useTMDbRelayServer: .unknown(.number(1))]
+            ))
         let database = FakeCloudLibrarySyncDatabase(changes: [
             makeEmptyChangeBatch(), makeEmptyChangeBatch()
         ])
@@ -77,10 +78,11 @@ extension LibrarySyncCoordinatorTests {
         )
         store.preferences.applyCloudSyncedSettingsSnapshot(localSettings)
         store.preferences.saveCloudSyncedDefaultsUpdatedAt(localSettings.updatedAt)
-        store.preferences.noteCloudSyncedSettingsTypes(.init(
-            updatedAt: referenceDate(year: 2026, month: 6, day: 2),
-            payload: [.useTMDbRelayServer: .unknown(.number(1))]
-        ))
+        store.preferences.noteCloudSyncedSettingsTypes(
+            .init(
+                updatedAt: referenceDate(year: 2026, month: 6, day: 2),
+                payload: [.useTMDbRelayServer: .unknown(.number(1))]
+            ))
         #expect(store.preferences.hasUnknownCloudSyncedSettingsValues)
 
         let newNamespace = CloudLibrarySyncChangeTokenStore.Namespace(

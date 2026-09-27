@@ -152,8 +152,9 @@ extension LibrarySyncCoordinator {
     }
 
 
-    /// Keeps a repair upload when the merged user state differs from the
-    /// fetched remote record. Local metadata can cap applied episode progress,
+    /// Keeps a repair upload when merged user state differs from the remote record.
+    ///
+    /// Local metadata can cap applied episode progress,
     /// so the applied row alone is not evidence of a local edit to upload.
     ///
     /// - Returns: Pre/post dirty counts plus diagnostic counts for queue
