@@ -152,13 +152,15 @@ extension LibrarySyncCoordinator {
     }
 
 
-    /// Keeps a repair upload whenever applied local state differs from the
-    /// remote record that was fetched before merging.
+    /// Keeps a repair upload when the merged user state differs from the
+    /// fetched remote record. Local metadata can cap applied episode progress,
+    /// so the applied row alone is not evidence of a local edit to upload.
     ///
     /// - Returns: Pre/post dirty counts plus diagnostic counts for queue
     ///   reconciliation decisions.
     func reconcileDirtyQueue(
         with batch: CloudLibrarySyncImportBatch,
+        localSnapshotsByIdentity: inout [LibraryEntryIdentity: LibraryEntrySyncSnapshot],
         in store: LibraryStore
     ) throws -> (
         dirtyEntriesBefore: Int,
@@ -169,14 +171,13 @@ extension LibrarySyncCoordinator {
     ) {
         let remoteChangesByIdentity = try Self.coalescedRemoteChangesByIdentity(batch.remoteChanges)
         let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
-        let localSnapshots = try localSnapshotsByIdentity(for: store)
         var entriesByIdentity = Self.coalescedDirtyEntriesByIdentity(dirtyEntries)
         var removedRemoteWonCount = 0
         var keptLocalWonCount = 0
         var importUnaffectedCount = 0
         for (identity, remoteChange) in remoteChangesByIdentity {
             let existing = entriesByIdentity[identity]
-            let local = localSnapshots[identity]
+            let local = localSnapshotsByIdentity[identity]
             switch remoteChange {
             case .snapshot(let remote):
                 if case .delete(let pendingDelete) = existing {
@@ -189,19 +190,27 @@ extension LibrarySyncCoordinator {
                     } else {
                         keptLocalWonCount += 1
                     }
-                } else if let local, !local.hasSameWireState(as: remote) {
+                } else if let local {
+                    let merged = try local.merged(with: remote)
+                    if merged.hasSameWireState(as: remote) {
+                        if existing != nil {
+                            entriesByIdentity.removeValue(forKey: identity)
+                            removedRemoteWonCount += 1
+                        }
+                        continue
+                    }
+                    // Export the merged state so a local episode-count cap
+                    // cannot replace a newer cloud progress value.
+                    localSnapshotsByIdentity[identity] = merged
                     let previousDirtyAt: Date? = {
                         guard case .upsert(let pending) = existing else { return nil }
                         return pending.dirtyAt
                     }()
                     let dirtyAt =
-                        [previousDirtyAt, local.latestSyncClock]
+                        [previousDirtyAt, merged.latestSyncClock]
                         .compactMap(\.self).max() ?? dateProvider()
                     entriesByIdentity[identity] = .upsert(.init(identity: identity, dirtyAt: dirtyAt))
                     keptLocalWonCount += 1
-                } else if local != nil, existing != nil {
-                    entriesByIdentity.removeValue(forKey: identity)
-                    removedRemoteWonCount += 1
                 }
             case .tombstone(let remote):
                 if case .delete(let pendingDelete) = existing {

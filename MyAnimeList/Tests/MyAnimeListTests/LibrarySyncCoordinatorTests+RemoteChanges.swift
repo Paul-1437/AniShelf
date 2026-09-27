@@ -14,6 +14,51 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func episodeCountCapDoesNotRepairUploadOrLowerCloudProgress() throws {
+        let store = makeSyncReadyStore()
+        let client = CloudLibrarySyncClient()
+        let identity = LibraryEntryIdentity(entryType: .series, tmdbID: 724)
+        let progressDate = referenceDate(year: 2026, month: 5, day: 5)
+        var remote = makeSnapshot(identity: identity, tmdbID: 724)
+        remote.episodeProgresses = [
+            .init(seasonNumber: 1, watchedThroughEpisode: 12, updatedAt: progressDate)
+        ]
+        var cappedLocal = remote
+        cappedLocal.episodeProgresses = [
+            .init(seasonNumber: 1, watchedThroughEpisode: 10, updatedAt: progressDate)
+        ]
+        let batch = CloudLibrarySyncImportBatch(
+            changes: [.snapshot(remote)], remoteChanges: [.snapshot(remote)],
+            settingsSnapshot: nil, ignoredDeletedRecordIDs: [],
+            changeToken: makeToken(), namespace: makeNamespace(),
+            zoneID: CloudLibrarySyncClient.recordZoneID
+        )
+        let coordinator = LibrarySyncCoordinator(
+            store: store, client: client,
+            database: FakeCloudLibrarySyncDatabase(changes: []),
+            namespaceProvider: { makeNamespace() }
+        )
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
+            .upsert(.init(identity: identity, dirtyAt: progressDate))
+        ])
+        var snapshots = [identity: cappedLocal]
+
+        _ = try coordinator.reconcileDirtyQueue(
+            with: batch, localSnapshotsByIdentity: &snapshots, in: store
+        )
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: identity) == nil)
+
+        cappedLocal.notes = "New local note"
+        cappedLocal.trackingUpdatedAt = progressDate.addingTimeInterval(60)
+        snapshots = [identity: cappedLocal]
+        _ = try coordinator.reconcileDirtyQueue(
+            with: batch, localSnapshotsByIdentity: &snapshots, in: store
+        )
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: identity) != nil)
+        #expect(snapshots[identity]?.notes == "New local note")
+        #expect(snapshots[identity]?.episodeProgresses.first?.watchedThroughEpisode == 12)
+    }
+
     @Test @MainActor func newerRemoteLibraryEditKeepsUnsentLocalTrackingEdit() async throws {
         let store = makeSyncReadyStore()
         let entry = AnimeEntry(

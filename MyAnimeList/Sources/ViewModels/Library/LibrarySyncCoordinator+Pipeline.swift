@@ -207,11 +207,15 @@ extension LibrarySyncCoordinator {
         try await pass.run(.libraryRefresh, state: state, store: store) {
             try refreshLibraryAfterImport(in: store)
         }
+        var postImportSnapshots = try localSnapshotsByIdentity(for: store)
         _ = try await pass.run(.dirtyQueueReconciliation, state: state, store: store) {
-            try reconcileDirtyQueue(with: importBatch, in: store)
+            try reconcileDirtyQueue(
+                with: importBatch,
+                localSnapshotsByIdentity: &postImportSnapshots,
+                in: store
+            )
         }
 
-        let postImportSnapshots = try localSnapshotsByIdentity(for: store)
         let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
         let localSettingsState = localSettingsSnapshotState(for: store)
         let exportSettingsSnapshot = settingsSnapshotForExport(
