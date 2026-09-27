@@ -36,18 +36,14 @@ extension LibrarySyncCoordinator {
             let incomingIDs = Set(batch.changes.map(\.identity))
             // Discarded failures wait for their deletion, and permanent ones only
             // retry when the user asks, so neither calls TMDb on every pass.
-            let replayChanges = try pending.failures
+            let replayChanges = pending.failures
                 .filter { failure in
                     !incomingIDs.contains(failure.snapshot.identity)
                         && failure.discardDate == nil
                         && (failure.isPermanent != true || replaysPermanentFailures)
                 }
                 .map { failure -> LibraryEntrySyncRemoteChange in
-                    let snapshot = failure.snapshot
-                    guard let entry = store.repository.existingEntry(identity: snapshot.identity) else {
-                        return .snapshot(snapshot)
-                    }
-                    return .snapshot(try LibraryEntrySyncSnapshot(entry: entry).merged(with: snapshot))
+                    .snapshot(failure.snapshot)
                 }
             applicableBatch.changes = replayChanges + batch.changes
         }

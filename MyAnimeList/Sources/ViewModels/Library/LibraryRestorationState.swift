@@ -238,15 +238,17 @@ extension LibrarySyncCoordinator {
         for tombstone in tombstones {
             try checkCancellation()
             try Task.checkCancellation()
-            if blockedRecordIDs.contains(CloudLibrarySyncClient().recordID(for: tombstone.identity)) {
-                continue
-            }
             let result = try await exporter.export(
                 entries: [.delete(.init(tombstone: tombstone))],
                 localSnapshotsByIdentity: [:],
                 blockedRecordIDs: blockedRecordIDs
             )
             guard result.exportedIdentities.contains(tombstone.identity) else {
+                // The exporter skips quarantined records; keep their discard
+                // intent until a newer build can read and confirm the save.
+                if !result.rejectedIdentities.contains(tombstone.identity) {
+                    continue
+                }
                 throw LibraryRestorationDiscardError.notConfirmed
             }
             onConfirmed(tombstone)
