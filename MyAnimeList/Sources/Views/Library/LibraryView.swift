@@ -105,7 +105,11 @@ struct LibraryView: View {
         .onChange(of: windowSceneIdentifier) {
             handleAiringReminderRoute()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)) {
+            notification in
+            // The disconnecting window still receives this before it is purged; only survivors retry.
+            let disconnectedSceneIdentifier = (notification.object as? UIScene)?.session.persistentIdentifier
+            guard disconnectedSceneIdentifier != windowSceneIdentifier else { return }
             // A route targeting the closed window falls back to the remaining windows. Retry on the
             // next turn so the disconnected scene has left `connectedScenes`.
             Task { @MainActor in handleAiringReminderRoute() }
@@ -409,14 +413,14 @@ struct LibraryView: View {
     }
 
     private func handleAiringReminderRoute() {
+        // A window whose scene is already disconnected is being torn down and must not consume the route.
+        if let windowSceneIdentifier, !Self.isSceneConnected(windowSceneIdentifier) {
+            return
+        }
         guard
             let entryIdentityRawID = airingReminders.claimPendingRoute(
                 forSceneIdentifier: windowSceneIdentifier,
-                isSceneConnected: { identifier in
-                    UIApplication.shared.connectedScenes.contains {
-                        $0.session.persistentIdentifier == identifier
-                    }
-                }
+                isSceneConnected: Self.isSceneConnected
             )
         else { return }
         guard let entry = store.repository.existingEntry(identityRawID: entryIdentityRawID) else {
@@ -425,6 +429,12 @@ struct LibraryView: View {
         isSearching = false
         showProfileSettings = false
         openDetails(entry)
+    }
+
+    private static func isSceneConnected(_ identifier: String) -> Bool {
+        UIApplication.shared.connectedScenes.contains {
+            $0.session.persistentIdentifier == identifier
+        }
     }
 
     private var airingReminderWarningMessage: LocalizedStringResource {
