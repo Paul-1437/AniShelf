@@ -24,7 +24,7 @@ class LibraryStore {
     @ObservationIgnored let syncChangeRecorder: LibrarySyncChangeRecorder
     @ObservationIgnored private(set) var syncCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored private var syncScheduler: LibrarySyncScheduler?
-    @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncResult, Never>] =
+    @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncOutcome, Never>] =
         [:]
     @ObservationIgnored private var shouldResumeInterruptedCloudSyncBootstrap = false
     @ObservationIgnored let preferences: LibraryPreferences
@@ -409,21 +409,23 @@ class LibraryStore {
 
         let taskID = UUID()
         let syncTask = Task {
-            await syncCoordinator.syncResult(trigger: trigger)
+            await syncCoordinator.syncOutcome(trigger: trigger)
         }
         ordinarySyncTasks[taskID] = syncTask
 
-        let result = await withTaskCancellationHandler {
+        let outcome = await withTaskCancellationHandler {
             await syncTask.value
         } onCancel: {
             syncTask.cancel()
         }
         ordinarySyncTasks[taskID] = nil
         guard libraryCloudSyncStatus.isEnabled else { return .skipped(.disabled) }
-        if result == .success {
+        if outcome.shouldHandleResult, let syncScheduler {
+            syncScheduler.recordExternalSyncResult(outcome.result)
+        } else if outcome.shouldHandleResult, outcome.result == .success {
             resetOrdinaryLibrarySyncRetryBackoff()
         }
-        return result
+        return outcome.result
     }
 
     @discardableResult
@@ -432,6 +434,13 @@ class LibraryStore {
     }
 
     func bootstrapLibraryCloudSyncEnablement(isUserRetry: Bool = false) async -> LibrarySyncCoordinator.SyncResult {
+        await bootstrapLibraryCloudSyncEnablementOutcome(isUserRetry: isUserRetry).result
+    }
+
+    func bootstrapLibraryCloudSyncEnablementOutcome(
+        isUserRetry: Bool = false,
+        canHandleResult: Bool = false
+    ) async -> LibrarySyncCoordinator.SyncOutcome {
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = true
             status.bootstrapState = .running
@@ -440,6 +449,7 @@ class LibraryStore {
             status.currentPhase = nil
             status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.lastResult = nil
         }
@@ -454,7 +464,7 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return .permanentFailure
+            return .init(.permanentFailure, shouldHandleResult: canHandleResult)
         }
         guard let syncCoordinator else {
             recordLibraryCloudSyncFailure(
@@ -467,9 +477,12 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return .permanentFailure
+            return .init(.permanentFailure, shouldHandleResult: canHandleResult)
         }
-        return await syncCoordinator.bootstrapFirstEnablement(preference: nil, isUserRetry: isUserRetry)
+        return await syncCoordinator.bootstrapFirstEnablementOutcome(
+            preference: nil, isUserRetry: isUserRetry,
+            canHandleResult: canHandleResult
+        )
     }
 
     @discardableResult
@@ -497,12 +510,14 @@ class LibraryStore {
     func resetLibraryCloudSyncAfterBackupRestore() {
         cancelAllLibraryCloudSyncWork()
         syncScheduler?.resetRetryBackoff()
+        preferences.clearUnknownCloudSyncedSettingsTypes()
         updateLibraryCloudSyncStatus { status in
             status = .defaultValue
         }
     }
 
     func resetLibraryCloudSyncChangeTokens() {
+        preferences.clearUnknownCloudSyncedSettingsTypes()
         guard let syncCoordinator else {
             CloudLibrarySyncChangeTokenStore().removeAllTokens()
             return
@@ -531,6 +546,7 @@ class LibraryStore {
             status.lastReconciledCloudSyncedSettingsUpdatedAt = nil
             status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.lastCompletedScope = nil
         }
@@ -703,6 +719,7 @@ class LibraryStore {
                 reconciledCloudSyncedSettingsUpdatedAt
             status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.pendingConflictSummary = nil
         }
@@ -714,6 +731,7 @@ class LibraryStore {
         result: LibraryCloudSyncResultClass,
         reason: String,
         degradedReason: String? = nil,
+        retryAfterSeconds: TimeInterval? = nil,
         at date: Date = .now
     ) {
         updateLibraryCloudSyncStatus { status in
@@ -723,6 +741,7 @@ class LibraryStore {
             status.lastAttemptDate = date
             status.lastFailurePhase = phase
             status.lastFailureReason = reason
+            status.lastRetryAfterSeconds = retryAfterSeconds
             if let degradedReason {
                 status.degradedReason = degradedReason
             }
@@ -799,10 +818,16 @@ class LibraryStore {
             hasPendingLocalWork: { [weak self] in
                 self?.hasPendingLocalLibrarySyncWork() ?? false
             },
-            sync: { [weak self] trigger in
-                guard let self else { return .permanentFailure }
-                guard let syncCoordinator else { return .permanentFailure }
-                return await syncCoordinator.syncResult(trigger: trigger)
+            hasPendingItemRetryWork: { [weak self] in
+                self?.hasPendingLibrarySyncItemRetryWork() ?? false
+            },
+            minimumRetryDelay: { [weak self] in
+                self?.libraryCloudSyncStatus.lastRetryAfterSeconds
+            },
+            syncOutcome: { [weak self] trigger in
+                guard let self else { return .init(.permanentFailure) }
+                guard let syncCoordinator else { return .init(.permanentFailure) }
+                return await syncCoordinator.syncOutcome(trigger: trigger)
             },
             retryStateDidChange: { [weak self] retryState in
                 self?.updateLibraryCloudSyncRetryState(retryState)
@@ -819,6 +844,17 @@ class LibraryStore {
 
     func hasPendingLocalLibrarySyncWork() -> Bool {
         hasPendingLibraryEntrySyncWork() || hasPendingCloudSyncedSettingsSyncWork()
+    }
+
+    /// Whether a successful sync left entries that an automatic retry may fix:
+    /// uploads CloudKit rejected, or reconstructions that failed for a
+    /// retryable reason.
+    func hasPendingLibrarySyncItemRetryWork() -> Bool {
+        guard libraryCloudSyncStatus.isEnabled else { return false }
+        return libraryCloudSyncStatus.rejectedUploadCount > 0
+            || libraryCloudSyncStatus.currentPendingReconstructionFailures.contains {
+                $0.isPermanent != true && $0.discardDate == nil
+            }
     }
 
     private func hasPendingLibraryEntrySyncWork() -> Bool {
