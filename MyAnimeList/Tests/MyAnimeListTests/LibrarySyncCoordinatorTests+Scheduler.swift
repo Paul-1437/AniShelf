@@ -14,6 +14,25 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func skippedForegroundPassPreservesScheduledLocalRetry() async throws {
+        var syncCount = 0
+        let scheduler = LibrarySyncScheduler(
+            failureRetryIntervals: [0.12],
+            hasPendingLocalWork: { true },
+            sync: { _ in
+                syncCount += 1
+                return .success
+            }
+        )
+
+        scheduler.recordExternalSyncResult(.retryableFailure)
+        scheduler.recordExternalSyncResult(.skipped(.disabled))
+        #expect(scheduler.retryState.failureRetryAttempt == 1)
+        try await Task.sleep(nanoseconds: 160_000_000)
+        #expect(syncCount == 1)
+        #expect(scheduler.retryState == .idle)
+    }
+
     @Test @MainActor func remoteOnlyFailureRetriesAfterCloudKitMinimumDelay() async throws {
         var syncCount = 0
         let scheduler = LibrarySyncScheduler(

@@ -132,6 +132,18 @@ extension LibrarySyncCoordinator {
         {
             throw LibraryCloudSyncScopeChangedDuringSync()
         }
+        if !pass.completedBootstrap,
+            store.libraryCloudSyncStatus.currentPendingReconstructionFailures.contains(where: { $0.discardDate != nil })
+        {
+            // The scope check above confirms the active account supplied these failures.
+            try await pass.run(.export, state: state, store: store) {
+                try await exportPendingReconstructionDiscards(
+                    in: LibraryCloudSyncScope(namespace: namespace),
+                    store: store,
+                    checkCancellation: pass.checkCancellation
+                )
+            }
+        }
 
         if pass.completedBootstrap {
             let scope = LibraryCloudSyncScope(namespace: namespace)
@@ -182,6 +194,7 @@ extension LibrarySyncCoordinator {
                 forcedDomainsByIdentity: forcedDomainsByIdentity,
                 isBootstrap: pass.completedBootstrap,
                 isUserRetry: isUserRetry,
+                replaysPermanentFailures: pass.trigger == .manualRetry,
                 checkCancellation: pass.checkCancellation
             )
         }
@@ -189,7 +202,7 @@ extension LibrarySyncCoordinator {
         try pass.checkCancellation()
 
         try await pass.run(.tokenCommit, state: state, store: store) {
-            importer.commit(importBatch)
+            try importer.commit(importBatch)
         }
         try await pass.run(.libraryRefresh, state: state, store: store) {
             try refreshLibraryAfterImport(in: store)
@@ -246,7 +259,7 @@ extension LibrarySyncCoordinator {
         if !pass.completedBootstrap,
             let pending = store.libraryCloudSyncStatus.pendingReconstructions
                 .first(where: { $0.scope == scope }),
-            let failure = pending.failures.first
+            let failure = pending.failures.first(where: { $0.isPermanent != true })
         {
             store.updateLibraryCloudSyncStatus { status in
                 status.lastReconciledCloudSyncedSettingsUpdatedAt = reconciledCloudSyncedSettingsUpdatedAt

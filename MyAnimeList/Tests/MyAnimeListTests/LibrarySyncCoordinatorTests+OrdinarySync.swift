@@ -8,6 +8,7 @@
 import CloudKit
 import Foundation
 import Testing
+import TMDb
 
 @testable import DataProvider
 @testable import LibrarySync
@@ -48,6 +49,55 @@ fileprivate final class SuspendedFirstNamespaceResolution {
 }
 
 extension LibrarySyncCoordinatorTests {
+    @Test(arguments: [false, true])
+    @MainActor func permanentReconstructionFailureCanBeDiscardedWithoutRetries(accountChanged: Bool) async throws {
+        let store = makeSyncReadyStore()
+        let client = CloudLibrarySyncClient()
+        let identity = LibraryEntryIdentity(entryType: .series, tmdbID: 2399)
+        let snapshot = makeSnapshot(identity: identity, tmdbID: 2399)
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [try makeChangeBatch(client: client, snapshots: [snapshot])]
+                + Array(repeating: makeEmptyChangeBatch(), count: 4)
+        )
+        var namespace = makeNamespace()
+        var hydrationCount = 0
+        store.configureLibrarySyncCoordinator(
+            client: client, database: database, namespaceProvider: { namespace },
+            hydrateMissingEntry: { _, _ in
+                hydrationCount += 1
+                throw TMDbError.notFound(TMDbErrorContext(statusMessage: "Not found"))
+            }
+        )
+
+        // A permanent failure neither degrades sync nor retries on automatic passes.
+        #expect(await store.performLibrarySync(trigger: .localChange))
+        #expect(await store.performLibrarySync(trigger: .foreground))
+        #expect(hydrationCount == 1)
+        #expect(store.libraryCloudSyncStatus.lastSuccessfulSyncDate != nil)
+        let failure = try #require(store.libraryCloudSyncStatus.currentPendingReconstructionFailures.first)
+        #expect(failure.canDiscard)
+
+        if accountChanged {
+            namespace = .init(
+                containerIdentifier: namespace.containerIdentifier, accountIdentifier: "different-account")
+        }
+        _ = await store.discardFailedPendingReconstruction(failure)
+        #expect(hydrationCount == 1)
+        if accountChanged {
+            #expect(database.savedRecords.isEmpty)
+        } else {
+            #expect(database.savedRecords.count == 1)
+            guard case .tombstone(let deletion) = try client.remoteChange(from: #require(database.savedRecords.first))
+            else {
+                Issue.record("Expected only the discarded entry's deletion")
+                return
+            }
+            #expect(deletion.identity == identity)
+            #expect(deletion.deletedAt > (snapshot.latestUserStateClock ?? .distantPast))
+            #expect(store.libraryCloudSyncStatus.pendingReconstructions.isEmpty)
+        }
+    }
+
     @Test @MainActor func unreadableRecordDoesNotBlockOtherUploadsOrLosePendingWork() async throws {
         let store = makeSyncReadyStore()
         let client = CloudLibrarySyncClient()

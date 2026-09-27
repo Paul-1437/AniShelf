@@ -3293,6 +3293,54 @@
         }
       }
     },
+    "Entries that couldn't be loaded" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めなかった項目"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法加载的条目"
+          }
+        }
+      }
+    },
+    "Entries that couldn't be loaded: %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めなかった項目: %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法加载的条目：%lld 个"
+          }
+        }
+      }
+    },
+    "Entries TMDb no longer lists can be discarded from iCloud. Others retry automatically." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb に掲載されなくなった項目は iCloud から削除できます。その他の項目は自動的に再試行されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb 上已不存在的条目可以从 iCloud 删除。其他条目会自动重试。"
+          }
+        }
+      }
+    },
     "Entry Type" : {
       "localizations" : {
         "ja" : {

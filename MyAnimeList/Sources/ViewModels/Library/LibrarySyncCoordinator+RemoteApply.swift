@@ -9,6 +9,7 @@ import DataProvider
 import Foundation
 import LibrarySync
 import SwiftUI
+import TMDb
 import os
 
 extension LibrarySyncCoordinator {
@@ -24,6 +25,7 @@ extension LibrarySyncCoordinator {
         forcedDomainsByIdentity: [LibraryEntryIdentity: Set<LibraryCloudSyncConflictDomain>] = [:],
         isBootstrap: Bool = false,
         isUserRetry: Bool = false,
+        replaysPermanentFailures: Bool = false,
         checkCancellation: () throws -> Void = {}
     ) async throws -> (appliedChangesCount: Int, hydratedEntriesCount: Int) {
         let scope = LibraryCloudSyncScope(namespace: batch.namespace, zoneID: batch.zoneID)
@@ -32,8 +34,14 @@ extension LibrarySyncCoordinator {
             let pending = store.libraryCloudSyncStatus.pendingReconstructions.first(where: { $0.scope == scope })
         {
             let incomingIDs = Set(batch.changes.map(\.identity))
+            // Discarded failures wait for their deletion, and permanent ones only
+            // retry when the user asks, so neither calls TMDb on every pass.
             let replayChanges = try pending.failures
-                .filter { !incomingIDs.contains($0.snapshot.identity) }
+                .filter { failure in
+                    !incomingIDs.contains(failure.snapshot.identity)
+                        && failure.discardDate == nil
+                        && (failure.isPermanent != true || replaysPermanentFailures)
+                }
                 .map { failure -> LibraryEntrySyncRemoteChange in
                     let snapshot = failure.snapshot
                     guard let entry = store.repository.existingEntry(identity: snapshot.identity) else {
@@ -359,6 +367,13 @@ extension LibrarySyncCoordinator {
 struct LibrarySyncHydrationError: LocalizedError {
     let identity: LibraryEntryIdentity
     let underlyingError: Error
+
+    var isPermanentReconstructionFailure: Bool {
+        if let tmdbError = underlyingError as? TMDbError, case .notFound = tmdbError {
+            return true
+        }
+        return underlyingError.isPermanentLibrarySyncFailure
+    }
 
     var errorDescription: String? {
         let error = underlyingError as NSError

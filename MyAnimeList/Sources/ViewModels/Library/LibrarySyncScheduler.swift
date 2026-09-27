@@ -111,8 +111,10 @@ final class LibrarySyncScheduler {
         case .retryableFailure:
             needsRemoteRetry = true
             scheduleFailureRetryIfNeeded()
-        case .success, .skipped, .conflictChoiceRequired, .permanentFailure:
+        case .success:
             resetRetryBackoff()
+        case .skipped, .conflictChoiceRequired, .permanentFailure:
+            break
         }
     }
 

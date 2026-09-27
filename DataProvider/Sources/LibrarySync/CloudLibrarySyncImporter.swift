@@ -25,6 +25,9 @@ public struct CloudLibrarySyncImportBatch {
     public var changeToken: CKServerChangeToken
     public var namespace: CloudLibrarySyncChangeTokenStore.Namespace
     public var zoneID: CKRecordZone.ID
+    var quarantineDecodedRecordIDs: Set<CKRecord.ID> = []
+    var quarantineDeletedRecordIDs: Set<CKRecord.ID> = []
+    var quarantineFailures: [CloudLibrarySyncQuarantineStore.Entry] = []
 
     /// Creates an import batch ready for application to the local store.
     ///
@@ -166,7 +169,14 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
     }
 
     /// Persists the server change token for a successfully applied batch.
-    public func commit(_ batch: CloudLibrarySyncImportBatch) {
+    public func commit(_ batch: CloudLibrarySyncImportBatch) throws {
+        _ = try quarantineStore.reconcile(
+            namespace: batch.namespace,
+            zoneID: batch.zoneID,
+            decodedRecordIDs: batch.quarantineDecodedRecordIDs,
+            deletedRecordIDs: batch.quarantineDeletedRecordIDs,
+            failures: batch.quarantineFailures
+        )
         changeTokenStore.setToken(batch.changeToken, for: batch.zoneID, namespace: batch.namespace)
     }
 
@@ -181,7 +191,8 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
         localSnapshotsByIdentity: [LibraryEntryIdentity: LibraryEntrySyncSnapshot],
         startingToken: CKServerChangeToken?
     ) async throws -> CloudLibrarySyncImportBatch {
-        let retryRecordIDs = try quarantineStore.entries(namespace: namespace, zoneID: Self.zoneID)
+        let existingQuarantined = try quarantineStore.entries(namespace: namespace, zoneID: Self.zoneID)
+        let retryRecordIDs = existingQuarantined
             .filter { $0.attemptedAppVersion != appVersion }
             .map(\.recordID)
         let retriedRecords: [CKRecord.ID: CKRecord] =
@@ -264,24 +275,25 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
             throw CloudLibrarySyncImportError.missingChangeToken
         }
 
-        let quarantined = try quarantineStore.reconcile(
-            namespace: namespace,
-            zoneID: Self.zoneID,
-            decodedRecordIDs: decodedRecordIDs,
-            deletedRecordIDs: Set(ignoredDeletedRecordIDs).union(missingRetriedRecordIDs),
-            failures: Array(failedRecords.values)
-        )
-
-        return .init(
+        let deletedRecordIDs = Set(ignoredDeletedRecordIDs).union(missingRetriedRecordIDs)
+        let resolvedRecordIDs = decodedRecordIDs.union(deletedRecordIDs)
+        let quarantinedRecordIDs = Set(existingQuarantined.map(\.recordID))
+            .subtracting(resolvedRecordIDs)
+            .union(failedRecords.keys)
+        var result = CloudLibrarySyncImportBatch(
             changes: resolvedChanges,
             remoteChanges: remoteChanges,
             settingsSnapshot: settingsSnapshot,
             ignoredDeletedRecordIDs: ignoredDeletedRecordIDs,
-            quarantinedRecordIDs: Set(quarantined.map(\.recordID)),
+            quarantinedRecordIDs: quarantinedRecordIDs,
             changeToken: finalToken,
             namespace: namespace,
             zoneID: Self.zoneID
         )
+        result.quarantineDecodedRecordIDs = decodedRecordIDs
+        result.quarantineDeletedRecordIDs = deletedRecordIDs
+        result.quarantineFailures = Array(failedRecords.values)
+        return result
     }
 
     private static var zoneID: CKRecordZone.ID {

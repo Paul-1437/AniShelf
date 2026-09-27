@@ -34,7 +34,48 @@ import SwiftUI
                 cloudSyncStatusTitleColor: .secondary,
                 cloudSyncManualRetryDisabled: false,
                 onRetryLibraryCloudSync: {},
-                onDiscardFailedRestorationEntry: { _ in }
+                onDiscardFailedEntry: { _ in }
+            )
+            .padding()
+        }
+        .navigationTitle("iCloud Sync Preview")
+    }
+}
+
+#Preview("Entries That Couldn't Be Loaded") {
+    let scope = LibraryCloudSyncScope(
+        namespace: .init(containerIdentifier: "iCloud.preview", accountIdentifier: "preview")
+    )
+    var status = LibraryCloudSyncStatus.defaultValue
+    status.isEnabled = true
+    status.bootstrapState = .completed
+    status.cloudKitAvailability = .available
+    status.lastResult = .success
+    status.lastCompletedScope = scope
+    var pending = LibraryPendingReconstructionState(scope: scope)
+    pending.failures = PreviewSyntheticLibrary().cloudEntries.prefix(2).enumerated().map { index, snapshot in
+        .init(
+            snapshot: snapshot,
+            metadataIdentity: snapshot.identity,
+            reason: index == 0 ? "The resource you requested could not be found." : "The network connection was lost.",
+            lastAttempt: .now,
+            isPermanent: index == 0
+        )
+    }
+    status.pendingReconstructions = [pending]
+
+    return NavigationStack {
+        ScrollView {
+            LibraryProfileICloudSyncSection(
+                libraryCloudSyncStatus: status,
+                cloudSyncToggleBinding: .constant(true),
+                cloudSyncToggleDisabled: false,
+                cloudSyncToggleSubtitle: "Existing iCloud data stays untouched.",
+                cloudSyncIsBusy: false,
+                cloudSyncStatusTitleColor: .secondary,
+                cloudSyncManualRetryDisabled: false,
+                onRetryLibraryCloudSync: {},
+                onDiscardFailedEntry: { _ in }
             )
             .padding()
         }
@@ -64,7 +105,7 @@ fileprivate struct LibraryProfileICloudSyncSectionPreviewHost: View {
                         cloudSyncStatusTitleColor: cloudSyncStatusTitleColor,
                         cloudSyncManualRetryDisabled: cloudSyncManager.isSyncing,
                         onRetryLibraryCloudSync: cloudSyncManager.retry,
-                        onDiscardFailedRestorationEntry: cloudSyncManager.discard
+                        onDiscardFailedEntry: cloudSyncManager.discard
                     )
                 }
                 .padding()
@@ -162,8 +203,8 @@ fileprivate final class PreviewCloudSyncManager {
         library.setFailureInjectionEnabled(isEnabled)
     }
 
-    func discard(_ failure: LibraryRestorationFailure) {
-        guard failure.canDiscard(at: .now) else { return }
+    func discard(_ entry: LibraryCloudSyncFailedEntry) {
+        guard case .restoration(let failure) = entry.source, failure.canDiscard(at: .now) else { return }
         library.discardFromCloud(failure.snapshot.identity)
         status.restoration?.failures.removeAll { $0.snapshot.identity == failure.snapshot.identity }
         Task { await synchronize(isUserRetry: false) }

@@ -70,7 +70,7 @@ struct CloudLibrarySyncImporterExporterTests {
         #expect(database.requestedTokens.count == 2)
         #expect(tokenStore.token(for: CloudLibrarySyncClient.recordZoneID, namespace: namespace) == nil)
 
-        importer.commit(batch)
+        try importer.commit(batch)
 
         #expect(tokenStore.token(for: CloudLibrarySyncClient.recordZoneID, namespace: namespace) != nil)
     }
@@ -471,8 +471,10 @@ struct CloudLibrarySyncImporterExporterTests {
         #expect(batch.quarantinedRecordIDs == [client.recordID(for: badIdentity), client.librarySettingsRecordID])
         #expect(tokenStore.token(for: CloudLibrarySyncClient.recordZoneID, namespace: namespace) == nil)
         #expect(
+            try quarantineStore.entries(namespace: namespace, zoneID: CloudLibrarySyncClient.recordZoneID).isEmpty)
+        try importer.commit(batch)
+        #expect(
             try quarantineStore.entries(namespace: namespace, zoneID: CloudLibrarySyncClient.recordZoneID).count == 2)
-        importer.commit(batch)
         #expect(tokenStore.token(for: CloudLibrarySyncClient.recordZoneID, namespace: namespace) != nil)
 
         let exporter = CloudLibrarySyncExporter(client: client, database: database)
@@ -526,7 +528,7 @@ struct CloudLibrarySyncImporterExporterTests {
         )
         let namespace = makeNamespace()
         let first = try await firstImporter.fetchChanges(namespace: namespace, localSnapshotsByIdentity: [:])
-        firstImporter.commit(first)
+        try firstImporter.commit(first)
         #expect(first.quarantinedRecordIDs == [recordID])
 
         let recoveredRecord = try client.record(from: snapshot)
@@ -550,6 +552,27 @@ struct CloudLibrarySyncImporterExporterTests {
         #expect(secondDatabase.requestedRecordIDs == [[recordID]])
         #expect(recovered.changes == [.snapshot(snapshot)])
         #expect(recovered.quarantinedRecordIDs.isEmpty)
+        #expect(try quarantineStore.entries(namespace: namespace, zoneID: CloudLibrarySyncClient.recordZoneID).count == 1)
+
+        // Local application can fail before commit. The next pass must fetch
+        // the recovered record by ID again even though zone changes are empty.
+        let retryDatabase = FakeCloudLibrarySyncDatabase(
+            changes: [
+                .init(modifiedRecordsByID: [:], deletedRecordIDs: [],
+                      changeToken: try makeToken(), moreComing: false)
+            ],
+            fetchedRecordsByID: [recordID: recoveredRecord]
+        )
+        let retryImporter = CloudLibrarySyncImporter(
+            client: client, database: retryDatabase,
+            changeTokenStore: tokenStore, quarantineStore: quarantineStore,
+            appVersion: "2"
+        )
+        let retried = try await retryImporter.fetchChanges(namespace: namespace, localSnapshotsByIdentity: [:])
+        #expect(retryDatabase.requestedRecordIDs == [[recordID]])
+        #expect(retried.changes == [.snapshot(snapshot)])
+        try retryImporter.commit(retried)
+        #expect(try quarantineStore.entries(namespace: namespace, zoneID: CloudLibrarySyncClient.recordZoneID).isEmpty)
     }
 }
 

@@ -78,7 +78,7 @@ public final class CloudLibrarySyncQuarantineStore: @unchecked Sendable {
         return try load().filter { $0.belongs(to: namespace, zoneID: zoneID) }
     }
 
-    /// Applies the complete fetched change set before its change token is committed.
+    /// Applies the fetched change set when its change token is committed.
     ///
     /// A failure leaves the token uncommitted and stops export, preserving the blocked IDs.
     public func reconcile(
