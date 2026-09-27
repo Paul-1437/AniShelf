@@ -4396,6 +4396,22 @@
     "iCloud Sync Preview" : {
 
     },
+    "iCloud storage is full. Free up space or upgrade your iCloud storage, then retry sync." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudのストレージがいっぱいです。空き容量を増やすかストレージプランをアップグレードしてから、同期を再試行してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 储存空间已满。请释放空间或升级储存空间方案，然后重试同步。"
+          }
+        }
+      }
+    },
     "If you use a VPN or another network proxy, turning off Use TMDb Proxy in Settings may help." : {
       "localizations" : {
         "ja" : {
@@ -7452,6 +7468,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已恢复 %1$lld / %2$lld 个条目。"
+          }
+        }
+      }
+    },
+    "Unreadable iCloud records: %lld. Uploads for them are paused." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取れない iCloud レコード: %lld 件。これらのアップロードは一時停止しています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取的 iCloud 记录：%lld 条。这些记录的上传已暂停。"
           }
         }
       }

@@ -162,6 +162,10 @@ final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked S
         return changes.removeFirst()
     }
 
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
+        [:]
+    }
+
     func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
         saveCallCount += 1
         saveBatchSizes.append(records.count)

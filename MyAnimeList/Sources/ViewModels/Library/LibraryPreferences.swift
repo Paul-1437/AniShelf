@@ -4,6 +4,9 @@ import LibrarySync
 
 @MainActor
 struct LibraryPreferences {
+    private static let unknownCloudSyncedSettingsUpdatedAtKey =
+        "LibraryCloudSyncedSettingsUnknownValuesUpdatedAt"
+
     struct Snapshot {
         let resolvedAnimeInfoLanguage: Language
         let groupStrategy: LibraryStore.LibraryGroupStrategy
@@ -94,6 +97,8 @@ struct LibraryPreferences {
             forKey: .libraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt
         )
         saveCodable(status.restoration, forKey: .libraryCloudSyncRestoration)
+        saveCodable(status.pendingReconstructions, forKey: .libraryCloudSyncPendingReconstruction)
+        defaults.set(status.quarantinedRecordCount, forKey: .libraryCloudSyncQuarantinedRecordCount)
         saveOptional(status.lastFailurePhase?.rawValue, forKey: .libraryCloudSyncLastFailurePhase)
         saveOptional(status.lastFailureReason, forKey: .libraryCloudSyncLastFailureReason)
         saveOptional(status.degradedReason, forKey: .libraryCloudSyncDegradedReason)
@@ -140,8 +145,31 @@ struct LibraryPreferences {
                 defaults.set(stringValue, forKey: key)
             case .stringArray(let stringArrayValue):
                 defaults.set(stringArrayValue, forKey: key)
+            case .unknown:
+                // Keep this build's existing value when a newer build changes its type.
+                break
             }
         }
+    }
+
+    /// Incremental imports may omit the settings record on later passes, so
+    /// remember when this build last saw a payload it cannot safely replace.
+    func noteCloudSyncedSettingsTypes(_ snapshot: LibrarySettingsSyncSnapshot) {
+        let key = Self.unknownCloudSyncedSettingsUpdatedAtKey
+        let blockedAt = defaults.object(forKey: key) as? Date
+        if let blockedAt, snapshot.updatedAt < blockedAt { return }
+        if snapshot.payload.values.contains(where: {
+            if case .unknown = $0 { return true }
+            return false
+        }) {
+            defaults.set(snapshot.updatedAt, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    var hasUnknownCloudSyncedSettingsValues: Bool {
+        defaults.object(forKey: Self.unknownCloudSyncedSettingsUpdatedAtKey) != nil
     }
 
     private func loadGroupStrategy() -> LibraryStore.LibraryGroupStrategy {
@@ -216,6 +244,12 @@ struct LibraryPreferences {
             defaults.object(forKey: .libraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt)
             as? Date
         status.restoration = loadCodable(LibraryRestorationState.self, forKey: .libraryCloudSyncRestoration)
+        status.pendingReconstructions =
+            loadCodable(
+                [LibraryPendingReconstructionState].self,
+                forKey: .libraryCloudSyncPendingReconstruction
+            ) ?? []
+        status.quarantinedRecordCount = defaults.integer(forKey: .libraryCloudSyncQuarantinedRecordCount)
         status.lastFailurePhase = defaults.string(forKey: .libraryCloudSyncLastFailurePhase)
             .flatMap(LibraryCloudSyncOperation.init(rawValue:))
         status.lastFailureReason = defaults.string(forKey: .libraryCloudSyncLastFailureReason)

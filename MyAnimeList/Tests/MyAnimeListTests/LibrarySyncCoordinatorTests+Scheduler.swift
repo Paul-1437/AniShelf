@@ -14,6 +14,43 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func remoteOnlyFailureRetriesAfterCloudKitMinimumDelay() async throws {
+        var syncCount = 0
+        let scheduler = LibrarySyncScheduler(
+            failureRetryIntervals: [0.01],
+            hasPendingLocalWork: { false },
+            minimumRetryDelay: { 0.15 },
+            sync: { _ in
+                syncCount += 1
+                return .success
+            }
+        )
+
+        scheduler.recordExternalSyncResult(.retryableFailure)
+        #expect(scheduler.retryState.failureRetryAttempt == 1)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        #expect(syncCount == 0)
+        try await Task.sleep(nanoseconds: 150_000_000)
+        #expect(syncCount == 1)
+        #expect(scheduler.retryState == .idle)
+    }
+
+    @Test @MainActor func cloudKitQuotaNeedsUserActionAndRateLimitCarriesRetryHint() {
+        let quota = CKError(.quotaExceeded)
+        let rateLimited = CKError(.requestRateLimited, userInfo: [CKErrorRetryAfterKey: 30.0])
+
+        #expect(quota.isPermanentLibrarySyncFailure)
+        #expect(quota.librarySyncDegradedReason != nil)
+        #expect(!rateLimited.isPermanentLibrarySyncFailure)
+        #expect(rateLimited.librarySyncRetryAfterSeconds == 30)
+        let recordID = CKRecord.ID(recordName: "partial", zoneID: CloudLibrarySyncClient.recordZoneID)
+        let partial = CloudLibrarySyncPartialSaveFailure(
+            savedRecordIDs: [], failedErrorsByID: [recordID: rateLimited]
+        )
+        #expect(partial.librarySyncRetryAfterSeconds == 30)
+        #expect(!partial.isPermanentLibrarySyncFailure)
+    }
+
     @Test @MainActor func localSyncSchedulerDebouncesLocalChanges() async throws {
         var syncCount = 0
         var hasPendingLocalWork = true

@@ -59,6 +59,8 @@ extension String {
     static let libraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt =
         "LibraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt"
     static let libraryCloudSyncRestoration = "LibraryCloudSyncRestoration"
+    static let libraryCloudSyncPendingReconstruction = "LibraryCloudSyncPendingReconstruction"
+    static let libraryCloudSyncQuarantinedRecordCount = "LibraryCloudSyncQuarantinedRecordCount"
     static let libraryCloudSyncLastFailurePhase = "LibraryCloudSyncLastFailurePhase"
     static let libraryCloudSyncLastFailureReason = "LibraryCloudSyncLastFailureReason"
     static let libraryCloudSyncDegradedReason = "LibraryCloudSyncDegradedReason"

@@ -95,6 +95,14 @@ struct LibraryProfileICloudSyncSection: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if libraryCloudSyncStatus.quarantinedRecordCount > 0 {
+                    Text(
+                        "Unreadable iCloud records: \(libraryCloudSyncStatus.quarantinedRecordCount). Uploads for them are paused."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
+
                 if libraryCloudSyncStatus.restoration?.failures.isEmpty != false,
                     let failureReason = libraryCloudSyncStatus.failureReasonDisplay
                 {

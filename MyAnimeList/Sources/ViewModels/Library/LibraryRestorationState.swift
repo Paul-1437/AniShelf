@@ -5,6 +5,7 @@
 //  Created by OpenAI Codex on behalf of samuelhe52 on 2026/9/12.
 //
 
+import CloudKit
 import DataProvider
 import Foundation
 import LibrarySync
@@ -68,6 +69,37 @@ struct LibraryRestorationState: Codable, Equatable {
     }
 }
 
+/// Snapshots whose CloudKit token was committed before TMDb hydration succeeded.
+///
+/// These are retried on every later pass, even when CloudKit has no new changes.
+struct LibraryPendingReconstructionState: Codable, Equatable {
+    struct Failure: Codable, Equatable {
+        var snapshot: LibraryEntrySyncSnapshot
+        var metadataIdentity: LibraryEntryIdentity
+        var reason: String
+        var lastAttempt: Date
+    }
+
+    var scope: LibraryCloudSyncScope
+    var failures: [Failure] = []
+
+    mutating func recordFailure(
+        snapshot: LibraryEntrySyncSnapshot,
+        error: LibrarySyncHydrationError,
+        at date: Date
+    ) {
+        failures.removeAll { $0.snapshot.identity == snapshot.identity }
+        failures.append(
+            .init(
+                snapshot: snapshot,
+                metadataIdentity: error.identity,
+                reason: error.localizedDescription,
+                lastAttempt: date
+            )
+        )
+    }
+}
+
 extension LibraryStore {
     func discardFailedRestorationEntry(_ failure: LibraryRestorationFailure) async -> Bool {
         guard !requiresDuplicateRepair,
@@ -81,9 +113,10 @@ extension LibraryStore {
 
         updateLibraryCloudSyncStatus { status in
             guard let index = status.restoration?.failures.firstIndex(of: failure) else { return }
-            status.restoration?.failures[index].discardDate = max(
-                .now, (failure.snapshot.latestUserStateClock ?? .distantPast).addingTimeInterval(0.001)
-            )
+            status.restoration?.failures[index].discardDate = LibrarySyncTimestamp.normalized(
+                max(
+                    .now, (failure.snapshot.latestUserStateClock ?? .distantPast).addingTimeInterval(0.001)
+                ))
         }
         // The bootstrap gate and account check also protect this narrowly scoped
         // export. A failed request retains the exact same deletion intent for retry.
@@ -94,19 +127,36 @@ extension LibraryStore {
 extension LibrarySyncCoordinator {
     func exportRestorationDiscards(in store: LibraryStore, checkCancellation: () throws -> Void) async throws {
         let pending = store.libraryCloudSyncStatus.restoration?.failures.compactMap(\.tombstone) ?? []
+        let blockedRecordIDs: Set<CKRecord.ID>
+        if let scope = store.libraryCloudSyncStatus.restoration?.scope {
+            blockedRecordIDs = try importer.quarantinedRecordIDs(
+                namespace: .init(
+                    containerIdentifier: scope.containerIdentifier,
+                    accountIdentifier: scope.accountIdentifier
+                )
+            )
+        } else {
+            blockedRecordIDs = []
+        }
         for tombstone in pending {
             try checkCancellation()
             try Task.checkCancellation()
+            if blockedRecordIDs.contains(CloudLibrarySyncClient().recordID(for: tombstone.identity)) {
+                continue
+            }
             let result = try await exporter.export(
                 entries: [.delete(.init(tombstone: tombstone))],
-                localSnapshotsByIdentity: [:]
+                localSnapshotsByIdentity: [:],
+                blockedRecordIDs: blockedRecordIDs
             )
             guard result.exportedIdentities.contains(tombstone.identity) else {
                 throw LibraryRestorationDiscardError.notConfirmed
             }
             store.updateLibraryCloudSyncStatus { status in
                 status.restoration?.failures.removeAll {
-                    $0.snapshot.identity == tombstone.identity && $0.discardDate == tombstone.deletedAt
+                    $0.snapshot.identity == tombstone.identity
+                        && $0.discardDate.map(LibrarySyncTimestamp.milliseconds)
+                            == LibrarySyncTimestamp.milliseconds(tombstone.deletedAt)
                 }
             }
             try checkCancellation()

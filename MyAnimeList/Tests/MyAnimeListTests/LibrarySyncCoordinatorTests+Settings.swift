@@ -14,6 +14,51 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func unknownRemoteSettingsKeepLocalValueAndBlockLaterExport() async throws {
+        let store = makeSyncReadyStore()
+        let original = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 1),
+            payload: [.useTMDbRelayServer: .bool(true)]
+        )
+        store.preferences.applyCloudSyncedSettingsSnapshot(original)
+        store.preferences.saveCloudSyncedDefaultsUpdatedAt(original.updatedAt)
+        store.reloadPersistedPreferences()
+
+        let client = CloudLibrarySyncClient()
+        let remote = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 5),
+            payload: [
+                .useTMDbRelayServer: .unknown(.number(1)),
+                .preferredAnimeInfoLanguage: .string("ja")
+            ]
+        )
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            .init(
+                modifiedRecordsByID: [client.librarySettingsRecordID: try client.record(from: remote)],
+                deletedRecordIDs: [],
+                changeToken: makeToken(),
+                moreComing: false
+            ),
+            makeEmptyChangeBatch()
+        ])
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
+        #expect(store.preferences.loadCloudSyncedSettingsSnapshot().payload[.useTMDbRelayServer] == .bool(true))
+        #expect(store.language == .japanese)
+        #expect(store.preferences.hasUnknownCloudSyncedSettingsValues)
+
+        store.preferences.saveCloudSyncedDefaultsUpdatedAt(referenceDate(year: 2026, month: 6, day: 6))
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
+        #expect(database.savedRecords.allSatisfy { $0.recordID != client.librarySettingsRecordID })
+        #expect(store.hasPendingCloudSyncedSettingsSyncWork())
+    }
+
     @Test @MainActor func newerRemoteSettingsApplyLocally() async throws {
         let store = makeSyncReadyStore()
         store.preferences.saveCloudSyncedDefaultsUpdatedAt(referenceDate(year: 2026, month: 6, day: 1))
@@ -222,7 +267,7 @@ extension LibrarySyncCoordinatorTests {
 
         let result = await coordinator.syncResult(trigger: .manualRetry)
 
-        #expect(result == .success)
+        #expect(result == .retryableFailure)
         #expect(database.savedRecords.count == 1)
         #expect(
             store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt

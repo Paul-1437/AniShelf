@@ -157,6 +157,9 @@ extension LibrarySyncCoordinator {
                 )
             }
         }
+        store.updateLibraryCloudSyncStatus {
+            $0.quarantinedRecordCount = importBatch.quarantinedRecordIDs.count
+        }
         return .init(
             namespace: namespace,
             preImportSnapshots: preImportSnapshots,
@@ -213,6 +216,7 @@ extension LibrarySyncCoordinator {
                 entries: dirtyEntries,
                 localSnapshotsByIdentity: postImportSnapshots,
                 settingsSnapshot: exportSettingsSnapshot,
+                blockedRecordIDs: importBatch.quarantinedRecordIDs,
                 observedDirtyEntries: dirtyEntries,
                 store: store
             )
@@ -235,6 +239,27 @@ extension LibrarySyncCoordinator {
                 exportedSnapshot: exportSettingsSnapshot,
                 settingsExported: exportResult.settingsExported
             )
+        let scope = LibraryCloudSyncScope(
+            namespace: importBatch.namespace,
+            zoneID: importBatch.zoneID
+        )
+        if !pass.completedBootstrap,
+            let pending = store.libraryCloudSyncStatus.pendingReconstructions
+                .first(where: { $0.scope == scope }),
+            let failure = pending.failures.first
+        {
+            store.updateLibraryCloudSyncStatus { status in
+                status.lastReconciledCloudSyncedSettingsUpdatedAt = reconciledCloudSyncedSettingsUpdatedAt
+            }
+            store.recordLibraryCloudSyncFailure(
+                trigger: pass.trigger,
+                phase: .hydrationApply,
+                result: .retryableFailure,
+                reason: failure.reason,
+                at: dateProvider()
+            )
+            return .retryableFailure
+        }
         store.recordLibraryCloudSyncSuccess(
             trigger: pass.trigger,
             completedBootstrap: pass.completedBootstrap,
@@ -261,10 +286,11 @@ extension LibrarySyncCoordinator {
             trigger: pass.trigger,
             phase: state.currentPhase,
             result: result.resultClass,
-            reason: error.localizedDescription,
+            reason: error.librarySyncFailureReason,
             degradedReason: result == .permanentFailure
-                ? pass.permanentFailureDegradedReason
+                ? (error.librarySyncDegradedReason ?? pass.permanentFailureDegradedReason)
                 : nil,
+            retryAfterSeconds: error.librarySyncRetryAfterSeconds,
             at: dateProvider()
         )
         pass.markBootstrapFailed()

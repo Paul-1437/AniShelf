@@ -90,6 +90,7 @@ final class LibrarySyncCoordinator {
     ///   - database: Optional CloudKit database adapter. When omitted, the
     ///     coordinator uses the client's private database if available.
     ///   - changeTokenStore: Storage for zone change tokens.
+    ///   - quarantineStore: Durable records that this build cannot decode.
     ///   - namespaceProvider: Async namespace resolver. This is injected for
     ///     tests and otherwise resolves the current iCloud account through the
     ///     client.
@@ -103,6 +104,7 @@ final class LibrarySyncCoordinator {
         client: CloudLibrarySyncClient? = nil,
         database: CloudLibrarySyncDatabase? = nil,
         changeTokenStore: CloudLibrarySyncChangeTokenStore = .init(),
+        quarantineStore: CloudLibrarySyncQuarantineStore = .init(),
         namespaceProvider: (@MainActor () async throws -> CloudLibrarySyncChangeTokenStore.Namespace?)? = nil,
         hydrateMissingEntry: @escaping @MainActor (LibraryEntrySyncSnapshot, LibraryStore) async throws -> AnimeEntry =
             LibrarySyncCoordinator.hydrateMissingEntry,
@@ -130,7 +132,8 @@ final class LibrarySyncCoordinator {
             self.importer = CloudLibrarySyncImporter(
                 client: resolvedClient,
                 database: resolvedDatabase,
-                changeTokenStore: changeTokenStore
+                changeTokenStore: changeTokenStore,
+                quarantineStore: quarantineStore
             )
             self.exporter = CloudLibrarySyncExporter(
                 client: resolvedClient,
@@ -141,7 +144,8 @@ final class LibrarySyncCoordinator {
             self.importer = CloudLibrarySyncImporter(
                 client: resolvedClient,
                 database: disabledDatabase,
-                changeTokenStore: changeTokenStore
+                changeTokenStore: changeTokenStore,
+                quarantineStore: quarantineStore
             )
             self.exporter = CloudLibrarySyncExporter(
                 client: resolvedClient,
@@ -424,6 +428,7 @@ final class LibrarySyncCoordinator {
         to store: LibraryStore
     ) {
         guard let remoteSnapshot else { return }
+        store.preferences.noteCloudSyncedSettingsTypes(remoteSnapshot)
         let localUpdatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() ?? .distantPast
         guard remoteSnapshot.updatedAt > localUpdatedAt else {
             librarySyncCoordinatorLogger.debug(
@@ -449,6 +454,14 @@ final class LibrarySyncCoordinator {
         remoteSnapshot: LibrarySettingsSyncSnapshot?,
         store: LibraryStore
     ) -> LibrarySettingsSyncSnapshot? {
+        // Export constructs a new payload from this build's known defaults. Until
+        // unknown values can be retained across passes, uploading would erase them.
+        guard !store.preferences.hasUnknownCloudSyncedSettingsValues else {
+            librarySyncCoordinatorLogger.warning(
+                "Skipped iCloud settings export because an imported snapshot has unknown value types."
+            )
+            return nil
+        }
         guard let localUpdatedAt = localState.updatedAt else {
             guard remoteSnapshot == nil, !localState.snapshot.payload.isEmpty else { return nil }
             let updatedAt = dateProvider()
@@ -487,6 +500,9 @@ final class LibrarySyncCoordinator {
         exportedSnapshot: LibrarySettingsSyncSnapshot?,
         settingsExported: Bool
     ) -> Date? {
+        if store.preferences.hasUnknownCloudSyncedSettingsValues {
+            return store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
+        }
         if let exportedSnapshot, settingsExported {
             return exportedSnapshot.updatedAt
         }
@@ -635,6 +651,12 @@ struct LocalSettingsSnapshotState {
 
 extension Error {
     var isPermanentLibrarySyncFailure: Bool {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.isPermanentLibrarySyncFailure
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure {
+            return partialFailure.isQuotaExceeded
+        }
         if let hydrationError = self as? LibrarySyncHydrationError {
             return hydrationError.underlyingError.isPermanentLibrarySyncFailure
         }
@@ -643,11 +665,63 @@ extension Error {
         }
         guard let ckError = self as? CKError else { return false }
         switch ckError.code {
-        case .notAuthenticated, .permissionFailure:
+        case .notAuthenticated, .permissionFailure, .quotaExceeded:
             return true
         default:
             return false
         }
+    }
+
+    var librarySyncRetryAfterSeconds: TimeInterval? {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.librarySyncRetryAfterSeconds
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure {
+            return partialFailure.retryAfterSeconds
+        }
+        if let hydrationError = self as? LibrarySyncHydrationError {
+            return hydrationError.underlyingError.librarySyncRetryAfterSeconds
+        }
+        guard let ckError = self as? CKError else { return nil }
+        return ckError.retryAfterSeconds
+    }
+
+    var librarySyncFailureReason: String {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.librarySyncFailureReason
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure,
+            partialFailure.isQuotaExceeded
+        {
+            return String(
+                localized: "iCloud storage is full. Free up space or upgrade your iCloud storage, then retry sync."
+            )
+        }
+        if let hydrationError = self as? LibrarySyncHydrationError {
+            return hydrationError.localizedDescription
+        }
+        guard let ckError = self as? CKError, ckError.code == .quotaExceeded else {
+            return localizedDescription
+        }
+        return String(
+            localized: "iCloud storage is full. Free up space or upgrade your iCloud storage, then retry sync."
+        )
+    }
+
+    var librarySyncDegradedReason: String? {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.librarySyncDegradedReason
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure,
+            partialFailure.isQuotaExceeded
+        {
+            return librarySyncFailureReason
+        }
+        if let hydrationError = self as? LibrarySyncHydrationError {
+            return hydrationError.underlyingError.librarySyncDegradedReason
+        }
+        guard let ckError = self as? CKError, ckError.code == .quotaExceeded else { return nil }
+        return librarySyncFailureReason
     }
 
     fileprivate var libraryCloudKitAvailability: LibraryCloudKitAvailability {
@@ -681,6 +755,10 @@ fileprivate struct DisabledCloudLibrarySyncDatabase: CloudLibrarySyncDatabase {
         in zoneID: CKRecordZone.ID,
         since changeToken: CKServerChangeToken?
     ) async throws -> CloudLibrarySyncZoneChangeBatch {
+        throw DisabledError.unavailable
+    }
+
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
         throw DisabledError.unavailable
     }
 

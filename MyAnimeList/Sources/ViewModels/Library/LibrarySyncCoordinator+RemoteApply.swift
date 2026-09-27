@@ -26,8 +26,25 @@ extension LibrarySyncCoordinator {
         isUserRetry: Bool = false,
         checkCancellation: () throws -> Void = {}
     ) async throws -> (appliedChangesCount: Int, hydratedEntriesCount: Int) {
+        let scope = LibraryCloudSyncScope(namespace: batch.namespace, zoneID: batch.zoneID)
+        var applicableBatch = batch
+        if !isBootstrap,
+            let pending = store.libraryCloudSyncStatus.pendingReconstructions.first(where: { $0.scope == scope })
+        {
+            let incomingIDs = Set(batch.changes.map(\.identity))
+            let replayChanges = try pending.failures
+                .filter { !incomingIDs.contains($0.snapshot.identity) }
+                .map { failure -> LibraryEntrySyncRemoteChange in
+                    let snapshot = failure.snapshot
+                    guard let entry = store.repository.existingEntry(identity: snapshot.identity) else {
+                        return .snapshot(snapshot)
+                    }
+                    return .snapshot(try LibraryEntrySyncSnapshot(entry: entry).merged(with: snapshot))
+                }
+            applicableBatch.changes = replayChanges + batch.changes
+        }
         let remoteSnapshots = Dictionary(
-            uniqueKeysWithValues: batch.changes.compactMap { change in
+            uniqueKeysWithValues: applicableBatch.changes.compactMap { change in
                 if case .snapshot(let snapshot) = change { return (snapshot.identity, snapshot) }
                 return nil
             })
@@ -41,16 +58,31 @@ extension LibrarySyncCoordinator {
         var firstFailure: LibrarySyncHydrationError?
         var applied = 0
         var hydrated = 0
-        let batchSize = isBootstrap ? 16 : max(1, batch.changes.count)
-        for start in stride(from: 0, to: batch.changes.count, by: batchSize) {
-            var chunk = batch
-            chunk.changes = Array(batch.changes[start..<min(start + batchSize, batch.changes.count)])
+        let batchSize = isBootstrap ? 16 : max(1, applicableBatch.changes.count)
+        for start in stride(from: 0, to: applicableBatch.changes.count, by: batchSize) {
+            var chunk = applicableBatch
+            chunk.changes = Array(
+                applicableBatch.changes[start..<min(start + batchSize, applicableBatch.changes.count)])
             var failedCount = 0
             let result = try await applyImportChunk(
                 chunk, to: store, forcedDomainsByIdentity: forcedDomainsByIdentity,
                 remoteSnapshots: remoteSnapshots, checkCancellation: checkCancellation
             ) { snapshot, error in
-                guard isBootstrap else { throw error }
+                if !isBootstrap {
+                    store.updateLibraryCloudSyncStatus { status in
+                        if let index = status.pendingReconstructions.firstIndex(where: { $0.scope == scope }) {
+                            status.pendingReconstructions[index].recordFailure(
+                                snapshot: snapshot, error: error, at: dateProvider()
+                            )
+                        } else {
+                            var pending = LibraryPendingReconstructionState(scope: scope)
+                            pending.recordFailure(snapshot: snapshot, error: error, at: dateProvider())
+                            status.pendingReconstructions.append(pending)
+                        }
+                    }
+                    failedCount += 1
+                    return
+                }
                 failedCount += 1
                 firstFailure = firstFailure ?? error
                 store.updateLibraryCloudSyncStatus { status in
@@ -204,6 +236,15 @@ extension LibrarySyncCoordinator {
         try store.refreshLibrary()
         store.updateLibraryCloudSyncStatus { status in
             status.restoration?.failures.removeAll { completedIdentities.contains($0.snapshot.identity) }
+            let scope = LibraryCloudSyncScope(namespace: batch.namespace, zoneID: batch.zoneID)
+            if let index = status.pendingReconstructions.firstIndex(where: { $0.scope == scope }) {
+                status.pendingReconstructions[index].failures.removeAll {
+                    completedIdentities.contains($0.snapshot.identity)
+                }
+                if status.pendingReconstructions[index].failures.isEmpty {
+                    status.pendingReconstructions.remove(at: index)
+                }
+            }
         }
         return (appliedChangesCount, hydratedEntriesCount)
     }

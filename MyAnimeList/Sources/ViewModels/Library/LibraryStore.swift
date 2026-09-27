@@ -420,7 +420,9 @@ class LibraryStore {
         }
         ordinarySyncTasks[taskID] = nil
         guard libraryCloudSyncStatus.isEnabled else { return .skipped(.disabled) }
-        if result == .success {
+        if let syncScheduler {
+            syncScheduler.recordExternalSyncResult(result)
+        } else if result == .success {
             resetOrdinaryLibrarySyncRetryBackoff()
         }
         return result
@@ -440,6 +442,7 @@ class LibraryStore {
             status.currentPhase = nil
             status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.lastResult = nil
         }
@@ -531,6 +534,7 @@ class LibraryStore {
             status.lastReconciledCloudSyncedSettingsUpdatedAt = nil
             status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.lastCompletedScope = nil
         }
@@ -703,6 +707,7 @@ class LibraryStore {
                 reconciledCloudSyncedSettingsUpdatedAt
             status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.pendingConflictSummary = nil
         }
@@ -714,6 +719,7 @@ class LibraryStore {
         result: LibraryCloudSyncResultClass,
         reason: String,
         degradedReason: String? = nil,
+        retryAfterSeconds: TimeInterval? = nil,
         at date: Date = .now
     ) {
         updateLibraryCloudSyncStatus { status in
@@ -723,6 +729,7 @@ class LibraryStore {
             status.lastAttemptDate = date
             status.lastFailurePhase = phase
             status.lastFailureReason = reason
+            status.lastRetryAfterSeconds = retryAfterSeconds
             if let degradedReason {
                 status.degradedReason = degradedReason
             }
@@ -798,6 +805,9 @@ class LibraryStore {
         let scheduler = LibrarySyncScheduler(
             hasPendingLocalWork: { [weak self] in
                 self?.hasPendingLocalLibrarySyncWork() ?? false
+            },
+            minimumRetryDelay: { [weak self] in
+                self?.libraryCloudSyncStatus.lastRetryAfterSeconds
             },
             sync: { [weak self] trigger in
                 guard let self else { return .permanentFailure }

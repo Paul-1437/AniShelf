@@ -14,9 +14,171 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func newerRemoteLibraryEditKeepsUnsentLocalTrackingEdit() async throws {
+        let store = makeSyncReadyStore()
+        let entry = AnimeEntry(
+            name: "Independent edits",
+            type: .series,
+            tmdbID: 715,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 1)
+        )
+        entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
+        try store.repository.newEntry(entry)
+        entry.updateNotes("Unsent local notes", at: referenceDate(year: 2026, month: 5, day: 10))
+        try store.repository.save()
+
+        let client = CloudLibrarySyncClient()
+        var remote = LibraryEntrySyncSnapshot(entry: entry)
+        remote.notes = ""
+        remote.trackingUpdatedAt = referenceDate(year: 2026, month: 5, day: 1)
+        remote.onDisplay = false
+        remote.libraryUpdatedAt = referenceDate(year: 2026, month: 5, day: 20)
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            .init(
+                modifiedRecordsByID: [client.recordID(for: entry.libraryIdentity): try client.record(from: remote)],
+                deletedRecordIDs: [],
+                changeToken: makeToken(),
+                moreComing: false
+            )
+        ])
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
+        let saved = try #require(
+            database.savedRecords.first { $0.recordID == client.recordID(for: entry.libraryIdentity) })
+        let uploaded = try savedSnapshot(from: saved, client: client)
+        #expect(uploaded.notes == "Unsent local notes")
+        #expect(!uploaded.onDisplay)
+        #expect(store.repository.existingEntry(identity: entry.libraryIdentity)?.notes == "Unsent local notes")
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: entry.libraryIdentity) == nil)
+
+        let echoDatabase = FakeCloudLibrarySyncDatabase(changes: [
+            .init(
+                modifiedRecordsByID: [client.recordID(for: entry.libraryIdentity): saved],
+                deletedRecordIDs: [],
+                changeToken: makeToken(),
+                moreComing: false
+            )
+        ])
+        let echoCoordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: echoDatabase,
+            namespaceProvider: { makeNamespace() }
+        )
+        #expect(await echoCoordinator.syncResult(trigger: .manualRetry) == .success)
+        #expect(echoDatabase.savedRecords.isEmpty)
+    }
+
+    @Test @MainActor func equalClockPeersConvergeAfterImportAndEcho() async throws {
+        let clock = referenceDate(year: 2026, month: 5, day: 5)
+        let savedAt = referenceDate(year: 2026, month: 5, day: 1)
+        let client = CloudLibrarySyncClient()
+
+        func makePeer(notes: String) throws -> (LibraryStore, AnimeEntry) {
+            let store = makeSyncReadyStore()
+            let entry = AnimeEntry(name: "Tie", type: .series, tmdbID: 718, dateSaved: savedAt)
+            entry.libraryUpdatedAt = savedAt
+            entry.notes = notes
+            entry.trackingUpdatedAt = clock
+            try store.repository.newEntry(entry)
+            try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
+            store.rebuildSyncChangeTracking()
+            return (store, entry)
+        }
+
+        let (firstStore, firstEntry) = try makePeer(notes: "Alpha")
+        let (secondStore, secondEntry) = try makePeer(notes: "Zulu")
+        let firstRecord = try client.record(from: LibraryEntrySyncSnapshot(entry: firstEntry))
+        let secondRecord = try client.record(from: LibraryEntrySyncSnapshot(entry: secondEntry))
+
+        func database(with record: CKRecord) -> FakeCloudLibrarySyncDatabase {
+            FakeCloudLibrarySyncDatabase(changes: [
+                .init(
+                    modifiedRecordsByID: [record.recordID: record],
+                    deletedRecordIDs: [], changeToken: makeToken(), moreComing: false
+                )
+            ])
+        }
+
+        let firstDatabase = database(with: secondRecord)
+        let secondDatabase = database(with: firstRecord)
+        let firstCoordinator = LibrarySyncCoordinator(
+            store: firstStore, client: client, database: firstDatabase,
+            namespaceProvider: { makeNamespace() }
+        )
+        let secondCoordinator = LibrarySyncCoordinator(
+            store: secondStore, client: client, database: secondDatabase,
+            namespaceProvider: { makeNamespace() }
+        )
+        #expect(await firstCoordinator.syncResult(trigger: .manualRetry) == .success)
+        #expect(await secondCoordinator.syncResult(trigger: .manualRetry) == .success)
+
+        let firstSnapshot = LibraryEntrySyncSnapshot(entry: firstEntry)
+        let secondSnapshot = LibraryEntrySyncSnapshot(entry: secondEntry)
+        #expect(firstSnapshot.hasSameWireState(as: secondSnapshot))
+        let winningRecord = try client.record(from: firstSnapshot)
+
+        let firstEcho = database(with: winningRecord)
+        let secondEcho = database(with: winningRecord)
+        #expect(
+            await LibrarySyncCoordinator(
+                store: firstStore, client: client, database: firstEcho,
+                namespaceProvider: { makeNamespace() }
+            ).syncResult(trigger: .manualRetry) == .success)
+        #expect(
+            await LibrarySyncCoordinator(
+                store: secondStore, client: client, database: secondEcho,
+                namespaceProvider: { makeNamespace() }
+            ).syncResult(trigger: .manualRetry) == .success)
+        #expect(firstEcho.savedRecords.isEmpty)
+        #expect(secondEcho.savedRecords.isEmpty)
+    }
+
+    @Test @MainActor func fixedPeerRepairsRecordOverwrittenAfterItsUpload() async throws {
+        let savedAt = referenceDate(year: 2026, month: 5, day: 1)
+        let client = CloudLibrarySyncClient()
+        let store = makeSyncReadyStore()
+        let entry = AnimeEntry(name: "Repair", type: .series, tmdbID: 722, dateSaved: savedAt)
+        entry.libraryUpdatedAt = savedAt
+        entry.updateNotes("Newer notes", at: referenceDate(year: 2026, month: 5, day: 20))
+        try store.repository.newEntry(entry)
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
+        store.rebuildSyncChangeTracking()
+
+        var overwritten = LibraryEntrySyncSnapshot(entry: entry)
+        overwritten.notes = "Older notes"
+        overwritten.trackingUpdatedAt = referenceDate(year: 2026, month: 5, day: 10)
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            try makeChangeBatch(client: client, snapshots: [overwritten])
+        ])
+        let coordinator = LibrarySyncCoordinator(
+            store: store, client: client, database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        #expect(await coordinator.syncResult(trigger: .cloudNotification) == .success)
+        let repaired = try #require(database.savedRecords.first)
+        let repairedSnapshot = try savedSnapshot(from: repaired, client: client)
+        #expect(repairedSnapshot.notes == "Newer notes")
+        #expect(repairedSnapshot.trackingUpdatedAt == entry.trackingUpdatedAt)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: entry.libraryIdentity) == nil)
+    }
+
+
     @Test @MainActor func remoteUpdateDoesNotEnqueueDirtyUpsert() async throws {
         let store = makeSyncReadyStore()
-        let entry = AnimeEntry(name: "Remote Update", type: .series, tmdbID: 701)
+        let entry = AnimeEntry(
+            name: "Remote Update",
+            type: .series,
+            tmdbID: 701,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 1)
+        )
         entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
         try store.repository.newEntry(entry)
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
@@ -219,6 +381,50 @@ extension LibrarySyncCoordinatorTests {
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 
+    @Test @MainActor func sameIdentityEditDuringHydrationWinsOverPreimportMerge() async throws {
+        let store = makeSyncReadyStore()
+        let local = AnimeEntry(
+            name: "Locally edited during import", type: .series, tmdbID: 720,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 1)
+        )
+        local.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
+        try store.repository.newEntry(local)
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
+        store.rebuildSyncChangeTracking()
+
+        let client = CloudLibrarySyncClient()
+        let missingIdentity = LibraryEntryIdentity(entryType: .movie, tmdbID: 719)
+        let remoteLocal = makeSnapshot(
+            identity: local.libraryIdentity, tmdbID: local.tmdbID,
+            notes: "Remote notes", trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 5)
+        )
+        let missing = makeSnapshot(identity: missingIdentity, tmdbID: 719, entryType: .movie)
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            try makeChangeBatch(client: client, snapshots: [missing, remoteLocal])
+        ])
+        var continuation: CheckedContinuation<Void, Never>?
+        var suspended = false
+        let coordinator = LibrarySyncCoordinator(
+            store: store, client: client, database: database,
+            namespaceProvider: { makeNamespace() },
+            hydrateMissingEntry: { snapshot, _ in
+                suspended = true
+                await withCheckedContinuation { continuation = $0 }
+                return AnimeEntry(name: "Hydrated", type: snapshot.entryType, tmdbID: snapshot.tmdbID)
+            }
+        )
+        let task = Task { await coordinator.syncResult(trigger: .manualRetry) }
+        while !suspended { await Task.yield() }
+
+        local.updateNotes("Later local notes", at: referenceDate(year: 2026, month: 5, day: 10))
+        try store.repository.save()
+        continuation?.resume()
+        #expect(await task.value == .success)
+        #expect(local.notes == "Later local notes")
+        let exported = try database.savedRecords.map { try savedSnapshot(from: $0, client: client) }
+        #expect(exported.contains { $0.identity == local.libraryIdentity && $0.notes == "Later local notes" })
+    }
+
     @Test @MainActor func cancellationDoesNotLeaveHydratedPendingInserts() async throws {
         let store = makeSyncReadyStore()
         let client = CloudLibrarySyncClient()
@@ -330,6 +536,39 @@ extension LibrarySyncCoordinatorTests {
             return
         }
         #expect(savedTombstone.identity == identity)
+    }
+
+    @Test @MainActor func equalClockRemoteSnapshotBeatsPendingDelete() async throws {
+        let store = makeSyncReadyStore()
+        let identity = LibraryEntryIdentity(entryType: .movie, tmdbID: 721)
+        let snapshot = makeSnapshot(
+            identity: identity, tmdbID: 721, entryType: .movie,
+            trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 10)
+        )
+        let deletedAt = try #require(snapshot.latestUserStateClock)
+        let tombstone = LibraryEntrySyncTombstone(
+            identity: identity, tmdbID: 721, parentSeriesID: nil,
+            seasonNumber: nil, entryType: .movie, deletedAt: deletedAt
+        )
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
+            .delete(.init(tombstone: tombstone))
+        ])
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(changes: [
+            try makeChangeBatch(client: client, snapshots: [snapshot])
+        ])
+        let coordinator = LibrarySyncCoordinator(
+            store: store, client: client, database: database,
+            namespaceProvider: { makeNamespace() },
+            hydrateMissingEntry: { snapshot, _ in
+                AnimeEntry(name: "Restored equal-clock entry", type: snapshot.entryType, tmdbID: snapshot.tmdbID)
+            }
+        )
+
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
+        #expect(store.repository.existingEntry(identity: identity)?.onDisplay == true)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: identity) == nil)
+        #expect(database.savedRecords.isEmpty)
     }
 
     @Test @MainActor func staleTombstonePreservesNewerLocalState() async throws {

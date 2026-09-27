@@ -5,6 +5,7 @@
 //  Created by OpenAI Codex on behalf of Samuel He on 2026/6/12.
 //
 
+import CloudKit
 import DataProvider
 import Foundation
 import LibrarySync
@@ -99,6 +100,7 @@ extension LibrarySyncCoordinator {
         entries: [LibraryEntrySyncDirtyQueueEntry],
         localSnapshotsByIdentity: [LibraryEntryIdentity: LibraryEntrySyncSnapshot],
         settingsSnapshot: LibrarySettingsSyncSnapshot?,
+        blockedRecordIDs: Set<CKRecord.ID> = [],
         observedDirtyEntries: [LibraryEntrySyncDirtyQueueEntry],
         store: LibraryStore
     ) async throws -> CloudLibrarySyncExportResult {
@@ -106,7 +108,8 @@ extension LibrarySyncCoordinator {
             return try await exporter.export(
                 entries: entries,
                 localSnapshotsByIdentity: localSnapshotsByIdentity,
-                settingsSnapshot: settingsSnapshot
+                settingsSnapshot: settingsSnapshot,
+                blockedRecordIDs: blockedRecordIDs
             )
         } catch let failure as CloudLibrarySyncExportFailure {
             try reconcilePartialExportFailure(
@@ -149,7 +152,8 @@ extension LibrarySyncCoordinator {
     }
 
 
-    /// Drops queued local edits that were superseded by newer remote changes.
+    /// Keeps a repair upload whenever applied local state differs from the
+    /// remote record that was fetched before merging.
     ///
     /// - Returns: Pre/post dirty counts plus diagnostic counts for queue
     ///   reconciliation decisions.
@@ -163,27 +167,70 @@ extension LibrarySyncCoordinator {
         keptLocalWonCount: Int,
         importUnaffectedCount: Int
     ) {
-        let remoteChangesByIdentity = try Self.coalescedRemoteChangesByIdentity(batch.changes)
+        let remoteChangesByIdentity = try Self.coalescedRemoteChangesByIdentity(batch.remoteChanges)
         let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
+        let localSnapshots = try localSnapshotsByIdentity(for: store)
+        var entriesByIdentity = Self.coalescedDirtyEntriesByIdentity(dirtyEntries)
         var removedRemoteWonCount = 0
         var keptLocalWonCount = 0
         var importUnaffectedCount = 0
-        let entries = dirtyEntries.filter { dirtyEntry in
-            guard let remoteChange = remoteChangesByIdentity[dirtyEntry.identity] else {
-                importUnaffectedCount += 1
-                return true
+        for (identity, remoteChange) in remoteChangesByIdentity {
+            let existing = entriesByIdentity[identity]
+            let local = localSnapshots[identity]
+            switch remoteChange {
+            case .snapshot(let remote):
+                if case .delete(let pendingDelete) = existing {
+                    let remoteClock = remote.latestUserStateClock ?? .distantPast
+                    if LibrarySyncTimestamp.milliseconds(remoteClock)
+                        >= LibrarySyncTimestamp.milliseconds(pendingDelete.tombstone.deletedAt)
+                    {
+                        entriesByIdentity.removeValue(forKey: identity)
+                        removedRemoteWonCount += 1
+                    } else {
+                        keptLocalWonCount += 1
+                    }
+                } else if let local, !local.hasSameWireState(as: remote) {
+                    let previousDirtyAt: Date? = {
+                        guard case .upsert(let pending) = existing else { return nil }
+                        return pending.dirtyAt
+                    }()
+                    let dirtyAt =
+                        [previousDirtyAt, local.latestSyncClock]
+                        .compactMap(\.self).max() ?? dateProvider()
+                    entriesByIdentity[identity] = .upsert(.init(identity: identity, dirtyAt: dirtyAt))
+                    keptLocalWonCount += 1
+                } else if local != nil, existing != nil {
+                    entriesByIdentity.removeValue(forKey: identity)
+                    removedRemoteWonCount += 1
+                }
+            case .tombstone(let remote):
+                if case .delete(let pendingDelete) = existing {
+                    if LibrarySyncTimestamp.milliseconds(remote.deletedAt)
+                        >= LibrarySyncTimestamp.milliseconds(pendingDelete.tombstone.deletedAt)
+                    {
+                        entriesByIdentity.removeValue(forKey: identity)
+                        removedRemoteWonCount += 1
+                    } else {
+                        keptLocalWonCount += 1
+                    }
+                } else if let local,
+                    LibrarySyncTimestamp.milliseconds(local.latestUserStateClock ?? .distantPast)
+                        >= LibrarySyncTimestamp.milliseconds(remote.deletedAt)
+                {
+                    let dirtyAt = local.latestSyncClock ?? dateProvider()
+                    entriesByIdentity[identity] = .upsert(.init(identity: identity, dirtyAt: dirtyAt))
+                    keptLocalWonCount += 1
+                } else if existing != nil {
+                    entriesByIdentity.removeValue(forKey: identity)
+                    removedRemoteWonCount += 1
+                }
             }
-            if remoteChange.isNewer(than: dirtyEntry) {
-                removedRemoteWonCount += 1
-                return false
-            }
-            keptLocalWonCount += 1
-            return true
         }
-        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(entries)
+        importUnaffectedCount = dirtyEntries.filter { remoteChangesByIdentity[$0.identity] == nil }.count
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries(Array(entriesByIdentity.values))
         return (
             dirtyEntriesBefore: dirtyEntries.count,
-            dirtyEntriesAfter: entries.count,
+            dirtyEntriesAfter: entriesByIdentity.count,
             removedRemoteWonCount: removedRemoteWonCount,
             keptLocalWonCount: keptLocalWonCount,
             importUnaffectedCount: importUnaffectedCount
@@ -292,29 +339,13 @@ fileprivate func isNewer(_ candidate: Date?, than existing: Date?) -> Bool {
     return candidate > existing
 }
 
-extension LibraryEntrySyncRemoteChange {
-    /// Returns true when this remote snapshot is newer than the queued local work.
-    ///
-    /// Upserts compare against the local dirty timestamp, while deletes compare
-    /// against the tombstone's delete clock.
-    fileprivate func isNewer(than dirtyEntry: LibraryEntrySyncDirtyQueueEntry) -> Bool {
-        switch dirtyEntry {
-        case .upsert(let pendingUpsert):
-            guard let latestSyncClock else { return false }
-            return latestSyncClock > pendingUpsert.dirtyAt
-        case .delete(let pendingDelete):
-            guard let latestSyncClock else { return false }
-            return latestSyncClock > pendingDelete.tombstone.deletedAt
-        }
-    }
-}
-
 extension LibraryEntrySyncSnapshot {
     func isNotNewerThanPendingDelete(
         _ dirtyEntry: LibraryEntrySyncDirtyQueueEntry?
     ) -> Bool {
         guard case .delete(let pendingDelete) = dirtyEntry else { return false }
         let snapshotClock = latestUserStateClock ?? .distantPast
-        return snapshotClock <= pendingDelete.tombstone.deletedAt
+        return LibrarySyncTimestamp.milliseconds(snapshotClock)
+            < LibrarySyncTimestamp.milliseconds(pendingDelete.tombstone.deletedAt)
     }
 }

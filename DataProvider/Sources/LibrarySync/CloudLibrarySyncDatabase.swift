@@ -57,6 +57,10 @@ public protocol CloudLibrarySyncDatabase: Sendable {
         since changeToken: CKServerChangeToken?
     ) async throws -> CloudLibrarySyncZoneChangeBatch
 
+    /// Fetches quarantined records directly for a later app version to retry decoding.
+    /// Missing records are omitted from the result.
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord]
+
     /// Saves records and returns only the record IDs CloudKit accepted.
     func save(records: [CKRecord]) async throws -> [CKRecord.ID]
 }
@@ -120,12 +124,28 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
         )
     }
 
-    /// Saves records non-atomically and reports the subset that succeeded.
-    ///
-    /// Partial CloudKit failures are converted into a successful return value
-    /// containing only accepted record IDs. Non-partial failures are rethrown.
-    ///
-    /// - Throws: Non-partial CloudKit errors from the modify-records request.
+    public func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
+        guard !ids.isEmpty else { return [:] }
+        var records: [CKRecord.ID: CKRecord] = [:]
+        for start in stride(from: 0, to: ids.count, by: Self.recordZoneChangeResultsLimit) {
+            let end = min(start + Self.recordZoneChangeResultsLimit, ids.count)
+            let results = try await database.records(for: Array(ids[start..<end]))
+            for (recordID, result) in results {
+                switch result {
+                case .success(let record):
+                    records[recordID] = record
+                case .failure(let error) where error.isCloudLibrarySyncMissingItem:
+                    continue
+                case .failure(let error):
+                    throw error
+                }
+            }
+        }
+        return records
+    }
+
+    /// Saves records non-atomically and preserves both accepted IDs and
+    /// per-record failures so the caller can retry the remaining work.
     public func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
         guard !records.isEmpty else { return [] }
         do {
@@ -136,13 +156,27 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
                 atomically: false
             )
             var savedRecordIDs: [CKRecord.ID] = []
+            var failedErrorsByID: [CKRecord.ID: any Error] = [:]
             for (recordID, saveResult) in result.saveResults {
-                if case .success = saveResult {
+                switch saveResult {
+                case .success:
                     savedRecordIDs.append(recordID)
+                case .failure(let error):
+                    failedErrorsByID[recordID] = error
                 }
+            }
+            for record in records where result.saveResults[record.recordID] == nil {
+                failedErrorsByID[record.recordID] = CloudLibrarySyncSaveResultError.missingResult
+            }
+            if !failedErrorsByID.isEmpty {
+                throw CloudLibrarySyncPartialSaveFailure(
+                    savedRecordIDs: savedRecordIDs,
+                    failedErrorsByID: failedErrorsByID
+                )
             }
             return savedRecordIDs
         } catch {
+            if error is CloudLibrarySyncPartialSaveFailure { throw error }
             guard
                 let ckError = error as? CKError,
                 ckError.code == .partialFailure,
@@ -151,8 +185,20 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
                 throw error
             }
 
-            let failedIDs = Set(partialErrors.keys.compactMap { $0 as? CKRecord.ID })
-            return records.map(\.recordID).filter { !failedIDs.contains($0) }
+            let failures = partialErrors.reduce(into: [CKRecord.ID: any Error]()) { result, item in
+                if let recordID = item.key as? CKRecord.ID {
+                    result[recordID] = item.value
+                }
+            }
+            guard !failures.isEmpty else { throw ckError }
+            throw CloudLibrarySyncPartialSaveFailure(
+                // An aggregate error supplies failures but no per-record success
+                // confirmations. Retrying an accepted record is safer than
+                // dropping an unconfirmed record from the local queue.
+                savedRecordIDs: [],
+                failedErrorsByID: failures,
+                aggregateError: ckError
+            )
         }
     }
 
@@ -223,6 +269,47 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
         {
             throw error
         }
+    }
+}
+
+fileprivate enum CloudLibrarySyncSaveResultError: LocalizedError {
+    case missingResult
+
+    var errorDescription: String? {
+        "CloudKit did not confirm whether a library sync record was saved."
+    }
+}
+
+/// Accepted records from a non-atomic save remain confirmed while failed
+/// records retain CloudKit's retry and quota information.
+public struct CloudLibrarySyncPartialSaveFailure: Error, LocalizedError {
+    public let savedRecordIDs: [CKRecord.ID]
+    public let failedErrorsByID: [CKRecord.ID: any Error]
+    public let aggregateError: CKError?
+
+    public init(
+        savedRecordIDs: [CKRecord.ID],
+        failedErrorsByID: [CKRecord.ID: any Error],
+        aggregateError: CKError? = nil
+    ) {
+        self.savedRecordIDs = savedRecordIDs
+        self.failedErrorsByID = failedErrorsByID
+        self.aggregateError = aggregateError
+    }
+
+    public var retryAfterSeconds: TimeInterval? {
+        (failedErrorsByID.values.compactMap { ($0 as? CKError)?.retryAfterSeconds }
+            + [aggregateError?.retryAfterSeconds].compactMap(\.self)).max()
+    }
+
+    public var isQuotaExceeded: Bool {
+        !failedErrorsByID.isEmpty
+            && failedErrorsByID.values.allSatisfy { ($0 as? CKError)?.code == .quotaExceeded }
+    }
+
+    public var errorDescription: String? {
+        failedErrorsByID.values.first?.localizedDescription
+            ?? aggregateError?.localizedDescription
     }
 }
 

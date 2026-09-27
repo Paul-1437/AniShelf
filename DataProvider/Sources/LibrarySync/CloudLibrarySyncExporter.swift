@@ -72,17 +72,20 @@ public struct CloudLibrarySyncExporter: @unchecked Sendable {
     ///     upsert records. Delete entries use lean tombstone records.
     ///   - settingsSnapshot: Optional settings snapshot to export alongside the
     ///     library entry records.
+    ///   - blockedRecordIDs: Quarantined records that this build must not overwrite.
     /// - Returns: The subset of identities CloudKit reported as saved.
     /// - Throws: Encoding or CloudKit errors that prevent the export attempt.
     public func export(
         entries: [LibraryEntrySyncDirtyQueueEntry],
         localSnapshotsByIdentity: [LibraryEntryIdentity: LibraryEntrySyncSnapshot],
-        settingsSnapshot: LibrarySettingsSyncSnapshot? = nil
+        settingsSnapshot: LibrarySettingsSyncSnapshot? = nil,
+        blockedRecordIDs: Set<CKRecord.ID> = []
     ) async throws -> CloudLibrarySyncExportResult {
         let preparedRecords = try prepareRecords(
             for: entries,
             localSnapshotsByIdentity: localSnapshotsByIdentity,
-            settingsSnapshot: settingsSnapshot
+            settingsSnapshot: settingsSnapshot,
+            blockedRecordIDs: blockedRecordIDs
         )
         let recordsToSave =
             Array(preparedRecords.recordsByIdentity.values)
@@ -176,7 +179,21 @@ public struct CloudLibrarySyncExporter: @unchecked Sendable {
 
     private func saveRecordBatch(_ records: [CKRecord]) async throws -> [CKRecord.ID] {
         do {
-            return try await database.save(records: records)
+            let savedRecordIDs = try await database.save(records: records)
+            let requestedRecordIDs = Set(records.map(\.recordID))
+            let acceptedRecordIDs = Set(savedRecordIDs).intersection(requestedRecordIDs)
+            guard acceptedRecordIDs.count == requestedRecordIDs.count else {
+                throw CloudLibrarySyncSaveProgressFailure(
+                    savedRecordIDs: Array(acceptedRecordIDs),
+                    underlyingError: CloudLibrarySyncUnconfirmedSaveError()
+                )
+            }
+            return Array(acceptedRecordIDs)
+        } catch let partialFailure as CloudLibrarySyncPartialSaveFailure {
+            throw CloudLibrarySyncSaveProgressFailure(
+                savedRecordIDs: partialFailure.savedRecordIDs,
+                underlyingError: partialFailure
+            )
         } catch {
             guard error.isCloudLibrarySyncLimitExceeded, records.count > 1 else {
                 throw error
@@ -210,11 +227,12 @@ public struct CloudLibrarySyncExporter: @unchecked Sendable {
     private func prepareRecords(
         for entries: [LibraryEntrySyncDirtyQueueEntry],
         localSnapshotsByIdentity: [LibraryEntryIdentity: LibraryEntrySyncSnapshot],
-        settingsSnapshot: LibrarySettingsSyncSnapshot?
+        settingsSnapshot: LibrarySettingsSyncSnapshot?,
+        blockedRecordIDs: Set<CKRecord.ID>
     ) throws -> PreparedRecords {
         var recordsByIdentity: [LibraryEntryIdentity: CKRecord] = [:]
 
-        for entry in entries {
+        for entry in entries where !blockedRecordIDs.contains(client.recordID(for: entry.identity)) {
             switch entry {
             case .upsert(let pendingUpsert):
                 guard let snapshot = localSnapshotsByIdentity[pendingUpsert.identity] else {
@@ -228,8 +246,15 @@ public struct CloudLibrarySyncExporter: @unchecked Sendable {
 
         return .init(
             recordsByIdentity: recordsByIdentity,
-            settingsRecord: try settingsSnapshot.map(client.record(from:))
+            settingsRecord: blockedRecordIDs.contains(client.librarySettingsRecordID)
+                ? nil : try settingsSnapshot.map(client.record(from:))
         )
+    }
+}
+
+fileprivate struct CloudLibrarySyncUnconfirmedSaveError: LocalizedError {
+    var errorDescription: String? {
+        "CloudKit did not confirm every library sync record save."
     }
 }
 
