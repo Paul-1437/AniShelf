@@ -154,11 +154,15 @@ struct LibraryPreferences {
     }
 
     /// Incremental imports may omit the settings record on later passes, so
-    /// remember when this build last saw a payload it cannot safely replace.
+    /// remember whether the current cloud record has a payload this build
+    /// cannot safely replace.
+    ///
+    /// Settings live in a single record, so each imported snapshot is the
+    /// current server copy. Its `updatedAt` comes from the writing device's
+    /// clock and must not decide whether it replaces the marker: a device
+    /// whose clock is behind can still overwrite unknown values.
     func noteCloudSyncedSettingsTypes(_ snapshot: LibrarySettingsSyncSnapshot) {
         let key = Self.unknownCloudSyncedSettingsUpdatedAtKey
-        let blockedAt = defaults.object(forKey: key) as? Date
-        if let blockedAt, snapshot.updatedAt < blockedAt { return }
         if snapshot.payload.values.contains(where: {
             if case .unknown = $0 { return true }
             return false

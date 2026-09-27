@@ -229,7 +229,21 @@ struct CloudLibrarySyncImporterExporterTests {
             updatedAt: referenceDate(year: 2026, month: 6, day: 5),
             payload: ["UseTMDbRelayServer": .bool(true)]
         )
+        // A later page carries the newer server version even when the writing
+        // device's clock was behind.
+        let replacedSettingsSnapshot = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 7),
+            payload: ["UseTMDbRelayServer": .bool(false)]
+        )
         let database = FakeCloudLibrarySyncDatabase(changes: [
+            .init(
+                modifiedRecordsByID: [
+                    client.librarySettingsRecordID: try client.record(from: replacedSettingsSnapshot)
+                ],
+                deletedRecordIDs: [],
+                changeToken: try makeToken(),
+                moreComing: true
+            ),
             .init(
                 modifiedRecordsByID: [
                     client.recordID(for: entryIdentity): try client.record(from: entrySnapshot),

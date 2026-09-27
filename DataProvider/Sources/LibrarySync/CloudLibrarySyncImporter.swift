@@ -225,11 +225,9 @@ public struct CloudLibrarySyncImporter: @unchecked Sendable {
                             remoteChangesByID[change.identity] = change
                         }
                     case .settings(let snapshot):
-                        if let existing = settingsSnapshot {
-                            settingsSnapshot = existing.updatedAt >= snapshot.updatedAt ? existing : snapshot
-                        } else {
-                            settingsSnapshot = snapshot
-                        }
+                        // Later pages carry later server versions of the single
+                        // settings record, whatever the writing device's clock said.
+                        settingsSnapshot = snapshot
                     }
                 } catch let error as CloudLibrarySyncDecodeError {
                     decodedRecordIDs.remove(record.recordID)

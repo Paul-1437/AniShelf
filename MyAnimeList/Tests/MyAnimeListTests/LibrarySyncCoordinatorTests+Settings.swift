@@ -87,6 +87,10 @@ extension LibrarySyncCoordinatorTests {
                 .preferredAnimeInfoLanguage: .string("ja")
             ]
         )
+        let supported = LibrarySettingsSyncSnapshot(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 3),
+            payload: [.useTMDbRelayServer: .bool(false)]
+        )
         let database = FakeCloudLibrarySyncDatabase(changes: [
             .init(
                 modifiedRecordsByID: [client.librarySettingsRecordID: try client.record(from: remote)],
@@ -94,7 +98,13 @@ extension LibrarySyncCoordinatorTests {
                 changeToken: makeToken(),
                 moreComing: false
             ),
-            makeEmptyChangeBatch()
+            makeEmptyChangeBatch(),
+            .init(
+                modifiedRecordsByID: [client.librarySettingsRecordID: try client.record(from: supported)],
+                deletedRecordIDs: [],
+                changeToken: makeToken(),
+                moreComing: false
+            )
         ])
         let coordinator = LibrarySyncCoordinator(
             store: store,
@@ -112,6 +122,13 @@ extension LibrarySyncCoordinatorTests {
         #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
         #expect(database.savedRecords.allSatisfy { $0.recordID != client.librarySettingsRecordID })
         #expect(store.hasPendingCloudSyncedSettingsSyncWork())
+
+        // A device whose clock is behind replaces the unknown values. The
+        // current record is safe, so local settings export again.
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
+        #expect(!store.preferences.hasUnknownCloudSyncedSettingsValues)
+        #expect(database.savedRecords.contains { $0.recordID == client.librarySettingsRecordID })
+        #expect(!store.hasPendingCloudSyncedSettingsSyncWork())
     }
 
     @Test @MainActor func newerRemoteSettingsApplyLocally() async throws {
