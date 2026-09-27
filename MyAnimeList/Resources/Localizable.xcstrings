@@ -1354,6 +1354,22 @@
         }
       }
     },
+    "Another duplicate repair is still in progress. Try again when it finishes." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の重複修復がまだ進行中です。完了してからもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一项重复修复仍在进行中。请在其完成后重试。"
+          }
+        }
+      }
+    },
     "Another season entry for this series is already in your library. Converting this season to a series can leave both the series and the sibling season entries in the library." : {
       "localizations" : {
         "ja" : {
