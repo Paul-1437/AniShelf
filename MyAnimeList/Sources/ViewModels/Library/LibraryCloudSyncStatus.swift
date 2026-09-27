@@ -206,6 +206,8 @@ struct LibraryCloudSyncStatus: Equatable {
     var restoration: LibraryRestorationState?
     var pendingReconstructions: [LibraryPendingReconstructionState]
     var quarantinedRecordCount: Int
+    /// Queued changes CloudKit rejected during the last completed export.
+    var rejectedUploadCount: Int
     var lastFailurePhase: LibraryCloudSyncOperation?
     var lastFailureReason: String?
     var lastRetryAfterSeconds: TimeInterval?
@@ -227,6 +229,7 @@ struct LibraryCloudSyncStatus: Equatable {
         restoration: nil,
         pendingReconstructions: [],
         quarantinedRecordCount: 0,
+        rejectedUploadCount: 0,
         lastFailurePhase: nil,
         lastFailureReason: nil,
         lastRetryAfterSeconds: nil,

@@ -15,13 +15,14 @@ import SwiftUI
     LibraryProfileICloudSyncSectionPreviewHost()
 }
 
-#Preview("Unreadable iCloud Records") {
+#Preview("Unreadable Records and Rejected Uploads") {
     var status = LibraryCloudSyncStatus.defaultValue
     status.isEnabled = true
     status.bootstrapState = .completed
     status.cloudKitAvailability = .available
     status.lastResult = .success
     status.quarantinedRecordCount = 1
+    status.rejectedUploadCount = 2
 
     return NavigationStack {
         ScrollView {

@@ -252,26 +252,11 @@ extension LibrarySyncCoordinator {
                 exportedSnapshot: exportSettingsSnapshot,
                 settingsExported: exportResult.settingsExported
             )
-        let scope = LibraryCloudSyncScope(
-            namespace: importBatch.namespace,
-            zoneID: importBatch.zoneID
-        )
-        if !pass.completedBootstrap,
-            let pending = store.libraryCloudSyncStatus.pendingReconstructions
-                .first(where: { $0.scope == scope }),
-            let failure = pending.failures.first(where: { $0.isPermanent != true })
-        {
-            store.updateLibraryCloudSyncStatus { status in
-                status.lastReconciledCloudSyncedSettingsUpdatedAt = reconciledCloudSyncedSettingsUpdatedAt
-            }
-            store.recordLibraryCloudSyncFailure(
-                trigger: pass.trigger,
-                phase: .hydrationApply,
-                result: .retryableFailure,
-                reason: failure.reason,
-                at: dateProvider()
-            )
-            return .retryableFailure
+        // Rejected uploads and failed reconstructions affect only their own
+        // entries. They stay pending for later passes and the scheduler's item
+        // retries, so they do not turn this pass into a failure.
+        store.updateLibraryCloudSyncStatus { status in
+            status.rejectedUploadCount = exportResult.rejectedChangeCount
         }
         store.recordLibraryCloudSyncSuccess(
             trigger: pass.trigger,

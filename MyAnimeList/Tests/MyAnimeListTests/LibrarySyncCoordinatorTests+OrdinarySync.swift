@@ -55,15 +55,19 @@ extension LibrarySyncCoordinatorTests {
         let client = CloudLibrarySyncClient()
         let identity = LibraryEntryIdentity(entryType: .series, tmdbID: 2399)
         let snapshot = makeSnapshot(identity: identity, tmdbID: 2399)
+        // A retryable failure alongside must not block the discard.
+        let retryableIdentity = LibraryEntryIdentity(entryType: .series, tmdbID: 2398)
+        let retryableSnapshot = makeSnapshot(identity: retryableIdentity, tmdbID: 2398)
         let database = FakeCloudLibrarySyncDatabase(
-            changes: [try makeChangeBatch(client: client, snapshots: [snapshot])]
+            changes: [try makeChangeBatch(client: client, snapshots: [snapshot, retryableSnapshot])]
                 + Array(repeating: makeEmptyChangeBatch(), count: 4)
         )
         var namespace = makeNamespace()
         var hydrationCount = 0
         store.configureLibrarySyncCoordinator(
             client: client, database: database, namespaceProvider: { namespace },
-            hydrateMissingEntry: { _, _ in
+            hydrateMissingEntry: { snapshot, _ in
+                guard snapshot.identity == identity else { throw HydrationFailure.unavailable }
                 hydrationCount += 1
                 throw TMDbError.notFound(TMDbErrorContext(statusMessage: "Not found"))
             }
@@ -74,18 +78,21 @@ extension LibrarySyncCoordinatorTests {
         #expect(await store.performLibrarySync(trigger: .foreground))
         #expect(hydrationCount == 1)
         #expect(store.libraryCloudSyncStatus.lastSuccessfulSyncDate != nil)
-        let failure = try #require(store.libraryCloudSyncStatus.currentPendingReconstructionFailures.first)
+        let failure = try #require(
+            store.libraryCloudSyncStatus.currentPendingReconstructionFailures.first { $0.snapshot.identity == identity }
+        )
         #expect(failure.canDiscard)
 
         if accountChanged {
             namespace = .init(
                 containerIdentifier: namespace.containerIdentifier, accountIdentifier: "different-account")
         }
-        _ = await store.discardFailedPendingReconstruction(failure)
+        let discarded = await store.discardFailedPendingReconstruction(failure)
         #expect(hydrationCount == 1)
         if accountChanged {
             #expect(database.savedRecords.isEmpty)
         } else {
+            #expect(discarded)
             #expect(database.savedRecords.count == 1)
             guard case .tombstone(let deletion) = try client.remoteChange(from: #require(database.savedRecords.first))
             else {
@@ -94,7 +101,9 @@ extension LibrarySyncCoordinatorTests {
             }
             #expect(deletion.identity == identity)
             #expect(deletion.deletedAt > (snapshot.latestUserStateClock ?? .distantPast))
-            #expect(store.libraryCloudSyncStatus.pendingReconstructions.isEmpty)
+            #expect(
+                store.libraryCloudSyncStatus.currentPendingReconstructionFailures.map(\.snapshot.identity)
+                    == [retryableIdentity])
         }
     }
 
@@ -171,7 +180,9 @@ extension LibrarySyncCoordinatorTests {
             hydrateMissingEntry: { _, _ in throw HydrationFailure.unavailable }
         )
 
-        #expect(await initial.syncResult(trigger: .manualRetry) == .retryableFailure)
+        // Failed reconstructions stay pending without failing the pass.
+        #expect(await initial.syncResult(trigger: .manualRetry) == .success)
+        #expect(store.hasPendingLibrarySyncItemRetryWork())
         #expect(database.savedRecords.contains { $0.recordID == client.recordID(for: independent.libraryIdentity) })
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: independent.libraryIdentity) == nil)
         #expect(tokens.token(for: CloudLibrarySyncClient.recordZoneID, namespace: makeNamespace()) != nil)

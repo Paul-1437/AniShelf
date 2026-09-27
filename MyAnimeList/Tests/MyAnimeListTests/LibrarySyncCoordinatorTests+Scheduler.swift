@@ -249,6 +249,34 @@ extension LibrarySyncCoordinatorTests {
         #expect(syncCount == 5)
     }
 
+    @Test @MainActor func successfulPassWithPendingEntriesRetriesQuietlyWithinLimit() async throws {
+        var syncCount = 0
+        var retryStates: [LibraryCloudSyncRetryState] = []
+        var degradedReason: String?
+        let scheduler = LibrarySyncScheduler(
+            failureRetryIntervals: [0.01, 0.02],
+            maximumRetryAttemptsAtFinalInterval: 1,
+            hasPendingLocalWork: { false },
+            hasPendingItemRetryWork: { true },
+            sync: { _ in
+                syncCount += 1
+                return .success
+            },
+            retryStateDidChange: { retryStates.append($0) },
+            degradedStateDidChange: { degradedReason = $0 }
+        )
+
+        scheduler.recordExternalSyncResult(.success)
+        for _ in 0..<100 where syncCount < 2 {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(syncCount == 2)
+        #expect(retryStates.allSatisfy { $0 == .idle })
+        #expect(degradedReason == nil)
+    }
+
     @Test @MainActor func localSyncSchedulerResetRestartsFailureRetryPolicy() async throws {
         var syncCount = 0
         var retryStates: [LibraryCloudSyncRetryState] = []

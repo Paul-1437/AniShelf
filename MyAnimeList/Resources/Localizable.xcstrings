@@ -1945,6 +1945,38 @@
         }
       }
     },
+    "Changes Not Uploaded" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロードされていない変更"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未上传的更改"
+          }
+        }
+      }
+    },
+    "Changes not uploaded: %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロードされていない変更: %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未上传的更改：%lld 项"
+          }
+        }
+      }
+    },
     "Changing the metadata language setting will not refresh existing infos.\nRefresh all anime infos now? This may take considerable time." : {
       "localizations" : {
         "ja" : {
@@ -4404,6 +4436,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "小时"
+          }
+        }
+      }
+    },
+    "iCloud didn't accept these changes. They stay saved on this device, and AniShelf tries uploading them again on later syncs." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud がこれらの変更を受け付けませんでした。変更はこのデバイスに保存されたままで、AniShelf は以降の同期で再度アップロードを試みます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 未接受这些更改。它们仍保存在此设备上，AniShelf 会在之后的同步中再次尝试上传。"
           }
         }
       }

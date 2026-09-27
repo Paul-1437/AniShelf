@@ -307,6 +307,16 @@ public struct CloudLibrarySyncPartialSaveFailure: Error, LocalizedError {
             && failedErrorsByID.values.allSatisfy { ($0 as? CKError)?.code == .quotaExceeded }
     }
 
+    /// Whether every failure concerns only its own record.
+    ///
+    /// Those records can stay queued for a later attempt while the rest of the
+    /// export finishes. Account, network, quota, and throttling errors affect
+    /// every record, so they leave this `false` and fail the pass instead.
+    public var isRecordScoped: Bool {
+        !failedErrorsByID.isEmpty
+            && failedErrorsByID.values.allSatisfy(\.isCloudLibrarySyncRecordScopedSaveError)
+    }
+
     public var errorDescription: String? {
         failedErrorsByID.values.first?.localizedDescription
             ?? aggregateError?.localizedDescription
@@ -314,6 +324,20 @@ public struct CloudLibrarySyncPartialSaveFailure: Error, LocalizedError {
 }
 
 extension Error {
+    /// Whether CloudKit rejected one record for a reason that leaves the rest
+    /// of the save unaffected, such as invalid or oversized record contents.
+    var isCloudLibrarySyncRecordScopedSaveError: Bool {
+        if self is CloudLibrarySyncSaveResultError { return true }
+        guard let ckError = self as? CKError else { return false }
+        switch ckError.code {
+        case .invalidArguments, .constraintViolation, .limitExceeded, .serverRecordChanged,
+            .batchRequestFailed, .referenceViolation, .assetFileNotFound, .assetFileModified:
+            return true
+        default:
+            return false
+        }
+    }
+
     fileprivate var isCloudLibrarySyncMissingItem: Bool {
         guard let ckError = self as? CKError else { return false }
         return ckError.code == .unknownItem || ckError.code == .zoneNotFound

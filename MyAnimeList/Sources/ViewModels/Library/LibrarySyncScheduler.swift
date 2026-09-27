@@ -27,6 +27,7 @@ final class LibrarySyncScheduler {
     private let failureRetryIntervals: [TimeInterval]
     private let maximumRetryAttemptsAtFinalInterval: Int
     private let hasPendingLocalWork: @MainActor () -> Bool
+    private let hasPendingItemRetryWork: @MainActor () -> Bool
     private let minimumRetryDelay: @MainActor () -> TimeInterval?
     private let sync: @MainActor (LibrarySyncCoordinator.Trigger) async -> LibrarySyncCoordinator.SyncOutcome
     private let retryStateDidChange: @MainActor (LibraryCloudSyncRetryState) -> Void
@@ -38,6 +39,7 @@ final class LibrarySyncScheduler {
     private var failureRetryAttempt = 0
     private var automaticRetriesExhausted = false
     private var needsRemoteRetry = false
+    private var itemRetryAttempt = 0
 
     var retryState: LibraryCloudSyncRetryState {
         .init(
@@ -52,6 +54,7 @@ final class LibrarySyncScheduler {
         failureRetryIntervals: [TimeInterval] = [30, 60, 120, 300],
         maximumRetryAttemptsAtFinalInterval: Int = 3,
         hasPendingLocalWork: @escaping @MainActor () -> Bool,
+        hasPendingItemRetryWork: @escaping @MainActor () -> Bool = { false },
         minimumRetryDelay: @escaping @MainActor () -> TimeInterval? = { nil },
         sync: @escaping @MainActor (LibrarySyncCoordinator.Trigger) async -> LibrarySyncCoordinator.SyncResult,
         retryStateDidChange: @escaping @MainActor (LibraryCloudSyncRetryState) -> Void = { _ in },
@@ -62,6 +65,7 @@ final class LibrarySyncScheduler {
             failureRetryIntervals: failureRetryIntervals,
             maximumRetryAttemptsAtFinalInterval: maximumRetryAttemptsAtFinalInterval,
             hasPendingLocalWork: hasPendingLocalWork,
+            hasPendingItemRetryWork: hasPendingItemRetryWork,
             minimumRetryDelay: minimumRetryDelay,
             syncOutcome: { trigger in .init(await sync(trigger)) },
             retryStateDidChange: retryStateDidChange,
@@ -74,6 +78,7 @@ final class LibrarySyncScheduler {
         failureRetryIntervals: [TimeInterval] = [30, 60, 120, 300],
         maximumRetryAttemptsAtFinalInterval: Int = 3,
         hasPendingLocalWork: @escaping @MainActor () -> Bool,
+        hasPendingItemRetryWork: @escaping @MainActor () -> Bool = { false },
         minimumRetryDelay: @escaping @MainActor () -> TimeInterval? = { nil },
         syncOutcome: @escaping @MainActor (LibrarySyncCoordinator.Trigger) async -> LibrarySyncCoordinator.SyncOutcome,
         retryStateDidChange: @escaping @MainActor (LibraryCloudSyncRetryState) -> Void = { _ in },
@@ -83,6 +88,7 @@ final class LibrarySyncScheduler {
         self.failureRetryIntervals = failureRetryIntervals
         self.maximumRetryAttemptsAtFinalInterval = maximumRetryAttemptsAtFinalInterval
         self.hasPendingLocalWork = hasPendingLocalWork
+        self.hasPendingItemRetryWork = hasPendingItemRetryWork
         self.minimumRetryDelay = minimumRetryDelay
         self.sync = syncOutcome
         self.retryStateDidChange = retryStateDidChange
@@ -119,10 +125,9 @@ final class LibrarySyncScheduler {
     }
 
     func resetRetryBackoff() {
-        scheduledTask?.cancel()
-        scheduledTask = nil
-        scheduledTaskID = nil
+        cancelScheduledSync()
         resetFailureBackoff()
+        itemRetryAttempt = 0
     }
 
     /// A foreground or notification pass can fail before any local edits are queued.
@@ -134,7 +139,9 @@ final class LibrarySyncScheduler {
             needsRemoteRetry = true
             scheduleFailureRetryIfNeeded()
         case .success:
-            resetRetryBackoff()
+            cancelScheduledSync()
+            resetFailureBackoff()
+            scheduleItemRetryIfNeeded()
         case .skipped, .conflictChoiceRequired, .permanentFailure:
             break
         }
@@ -148,7 +155,7 @@ final class LibrarySyncScheduler {
                 scheduledTaskID = nil
             }
         }
-        guard hasPendingLocalWork() || needsRemoteRetry else {
+        guard hasPendingLocalWork() || needsRemoteRetry || hasPendingItemRetryWork() else {
             resetFailureBackoff()
             return nil
         }
@@ -170,6 +177,7 @@ final class LibrarySyncScheduler {
         switch result {
         case .success:
             resetFailureBackoff()
+            scheduleItemRetryIfNeeded()
         case .skipped(_):
             resetFailureBackoff()
         case .conflictChoiceRequired:
@@ -189,12 +197,12 @@ final class LibrarySyncScheduler {
         return result
     }
 
+    private var maximumRetryAttempts: Int {
+        max(0, failureRetryIntervals.count - 1 + maximumRetryAttemptsAtFinalInterval)
+    }
+
     private func scheduleFailureRetryIfNeeded() {
         guard hasPendingLocalWork() || needsRemoteRetry, !failureRetryIntervals.isEmpty else { return }
-        let maximumRetryAttempts = max(
-            0,
-            failureRetryIntervals.count - 1 + maximumRetryAttemptsAtFinalInterval
-        )
         guard failureRetryAttempt < maximumRetryAttempts else {
             nextRetryAllowedAt = nil
             automaticRetriesExhausted = true
@@ -218,6 +226,38 @@ final class LibrarySyncScheduler {
             "Scheduled iCloud library sync retry in \(retryDelay, privacy: .public) seconds after a local-change sync failure."
         )
         schedule(after: retryDelay)
+    }
+
+    /// Retries entries a successful pass left behind, such as a rejected upload
+    /// or a failed reconstruction.
+    ///
+    /// These retries follow the failure intervals but stay out of the failure
+    /// state: they neither delay local edits nor report sync as degraded, and
+    /// they stop silently at the limit because the entries are already shown.
+    /// Later passes still retry the entries.
+    private func scheduleItemRetryIfNeeded() {
+        guard hasPendingItemRetryWork() else {
+            itemRetryAttempt = 0
+            return
+        }
+        guard !failureRetryIntervals.isEmpty, itemRetryAttempt < maximumRetryAttempts else {
+            librarySyncSchedulerLogger.info(
+                "Left pending iCloud library sync entries for later passes after exhausting automatic entry retries."
+            )
+            return
+        }
+        let retryDelay = failureRetryIntervals[min(itemRetryAttempt, failureRetryIntervals.count - 1)]
+        itemRetryAttempt += 1
+        librarySyncSchedulerLogger.info(
+            "Scheduled iCloud library sync retry in \(retryDelay, privacy: .public) seconds for entries a successful pass left pending."
+        )
+        schedule(after: retryDelay)
+    }
+
+    private func cancelScheduledSync() {
+        scheduledTask?.cancel()
+        scheduledTask = nil
+        scheduledTaskID = nil
     }
 
     private func resetFailureBackoff() {

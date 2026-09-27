@@ -99,6 +99,7 @@ struct LibraryPreferences {
         saveCodable(status.restoration, forKey: .libraryCloudSyncRestoration)
         saveCodable(status.pendingReconstructions, forKey: .libraryCloudSyncPendingReconstruction)
         defaults.set(status.quarantinedRecordCount, forKey: .libraryCloudSyncQuarantinedRecordCount)
+        defaults.set(status.rejectedUploadCount, forKey: .libraryCloudSyncRejectedUploadCount)
         saveOptional(status.lastFailurePhase?.rawValue, forKey: .libraryCloudSyncLastFailurePhase)
         saveOptional(status.lastFailureReason, forKey: .libraryCloudSyncLastFailureReason)
         saveOptional(status.degradedReason, forKey: .libraryCloudSyncDegradedReason)
@@ -254,6 +255,7 @@ struct LibraryPreferences {
                 forKey: .libraryCloudSyncPendingReconstruction
             ) ?? []
         status.quarantinedRecordCount = defaults.integer(forKey: .libraryCloudSyncQuarantinedRecordCount)
+        status.rejectedUploadCount = defaults.integer(forKey: .libraryCloudSyncRejectedUploadCount)
         status.lastFailurePhase = defaults.string(forKey: .libraryCloudSyncLastFailurePhase)
             .flatMap(LibraryCloudSyncOperation.init(rawValue:))
         status.lastFailureReason = defaults.string(forKey: .libraryCloudSyncLastFailureReason)

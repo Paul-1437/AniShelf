@@ -126,6 +126,23 @@ struct LibraryProfileICloudSyncSection: View {
                     .font(.caption)
                 }
 
+                if libraryCloudSyncStatus.rejectedUploadCount > 0 {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("Changes not uploaded: \(libraryCloudSyncStatus.rejectedUploadCount)")
+                            .foregroundStyle(.orange)
+
+                        InfoTip(
+                            title: "Changes Not Uploaded",
+                            message:
+                                "iCloud didn't accept these changes. They stay saved on this device, and AniShelf tries uploading them again on later syncs.",
+                            width: 280,
+                            iconFont: .caption
+                        )
+                        .foregroundStyle(.secondary)
+                    }
+                    .font(.caption)
+                }
+
                 if libraryCloudSyncStatus.quarantinedRecordCount > 0 {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("Unreadable iCloud records: \(libraryCloudSyncStatus.quarantinedRecordCount)")

@@ -269,19 +269,17 @@ struct CloudLibrarySyncImporterExporterTests {
         )
         let exporter = CloudLibrarySyncExporter(client: client, database: database)
 
-        do {
-            _ = try await exporter.export(
-                entries: [
-                    .upsert(
-                        .init(identity: first.libraryIdentity, dirtyAt: referenceDate(year: 2026, month: 5, day: 8))),
-                    .delete(.init(tombstone: tombstone))
-                ],
-                localSnapshotsByIdentity: [first.libraryIdentity: firstSnapshot]
-            )
-            Issue.record("Expected an unconfirmed save to remain retryable")
-        } catch let failure as CloudLibrarySyncExportFailure {
-            #expect(failure.partialResult.exportedIdentities == [first.libraryIdentity])
-        }
+        // An unconfirmed save stays queued for retry without failing the export.
+        let result = try await exporter.export(
+            entries: [
+                .upsert(
+                    .init(identity: first.libraryIdentity, dirtyAt: referenceDate(year: 2026, month: 5, day: 8))),
+                .delete(.init(tombstone: tombstone))
+            ],
+            localSnapshotsByIdentity: [first.libraryIdentity: firstSnapshot]
+        )
+        #expect(result.exportedIdentities == [first.libraryIdentity])
+        #expect(result.rejectedIdentities == [second.libraryIdentity])
         #expect(database.savedRecords.count == 2)
         let savedTombstoneRecord = try #require(
             database.savedRecords.first { $0.recordID == client.recordID(for: second.libraryIdentity) }
@@ -357,6 +355,25 @@ struct CloudLibrarySyncImporterExporterTests {
             #expect(!failure.partialResult.settingsExported)
             #expect((failure.underlyingError as? CKError)?.code == .networkFailure)
         }
+    }
+
+    @Test func exporterContinuesPastRecordRejectedByCloudKit() async throws {
+        let payload = makeExportPayload(count: 360, startingTMDbID: 42_000)
+        let rejected = try #require(payload.identities.first)
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [],
+            rejectedSaveRecordIDs: [client.recordID(for: rejected)]
+        )
+        let exporter = CloudLibrarySyncExporter(client: client, database: database)
+
+        let result = try await exporter.export(
+            entries: payload.entries,
+            localSnapshotsByIdentity: payload.snapshots
+        )
+
+        #expect(database.saveBatchSizes == [350, 10])
+        #expect(result.exportedIdentities == Set(payload.identities).subtracting([rejected]))
+        #expect(result.rejectedIdentities == [rejected])
     }
 
     @Test func exporterKeepsAcceptedIDsAndRetryHintFromPartialSave() async throws {
@@ -582,6 +599,7 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
     private let successfulSaveRecordIDs: [CKRecord.ID]?
     private let maxSaveBatchSizeBeforeLimitExceeded: Int?
     private let saveErrorsByCallIndex: [Int: any Error]
+    private let rejectedSaveRecordIDs: Set<CKRecord.ID>
     private let fetchedRecordsByID: [CKRecord.ID: CKRecord]
     private var didThrowFirstFetchError = false
     private var saveCallCount = 0
@@ -598,6 +616,7 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
         successfulSaveRecordIDs: [CKRecord.ID]? = nil,
         maxSaveBatchSizeBeforeLimitExceeded: Int? = nil,
         saveErrorsByCallIndex: [Int: any Error] = [:],
+        rejectedSaveRecordIDs: Set<CKRecord.ID> = [],
         fetchedRecordsByID: [CKRecord.ID: CKRecord] = [:]
     ) {
         self.changes = changes
@@ -605,6 +624,7 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
         self.successfulSaveRecordIDs = successfulSaveRecordIDs
         self.maxSaveBatchSizeBeforeLimitExceeded = maxSaveBatchSizeBeforeLimitExceeded
         self.saveErrorsByCallIndex = saveErrorsByCallIndex
+        self.rejectedSaveRecordIDs = rejectedSaveRecordIDs
         self.fetchedRecordsByID = fetchedRecordsByID
     }
 
@@ -637,6 +657,17 @@ fileprivate final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, 
             records.count > maxSaveBatchSizeBeforeLimitExceeded
         {
             throw CKError(.limitExceeded)
+        }
+        let rejectedRecords = records.filter { rejectedSaveRecordIDs.contains($0.recordID) }
+        if !rejectedRecords.isEmpty {
+            let acceptedRecords = records.filter { !rejectedSaveRecordIDs.contains($0.recordID) }
+            savedRecords.append(contentsOf: acceptedRecords)
+            throw CloudLibrarySyncPartialSaveFailure(
+                savedRecordIDs: acceptedRecords.map(\.recordID),
+                failedErrorsByID: Dictionary(
+                    uniqueKeysWithValues: rejectedRecords.map { ($0.recordID, CKError(.invalidArguments)) }
+                )
+            )
         }
         savedRecords.append(contentsOf: records)
         guard let successfulSaveRecordIDs else {

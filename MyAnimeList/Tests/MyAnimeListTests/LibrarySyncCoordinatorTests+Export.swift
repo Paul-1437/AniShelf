@@ -101,13 +101,16 @@ extension LibrarySyncCoordinatorTests {
             namespaceProvider: { makeNamespace() }
         )
 
-        await coordinator.sync(trigger: .manualRetry)
+        // A record CloudKit rejects stays queued without failing the pass.
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
 
         let remainingEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
         #expect(database.savedRecords.count == 2)
         #expect(remainingEntries.count == 1)
         #expect(remainingEntries.first?.identity == second.libraryIdentity)
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: first.libraryIdentity) == nil)
+        #expect(store.libraryCloudSyncStatus.rejectedUploadCount == 1)
+        #expect(store.hasPendingLibrarySyncItemRetryWork())
     }
 
     @Test @MainActor func partialExportFailureDequeuesAcceptedBatchesBeforeRetry() async throws {

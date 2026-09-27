@@ -821,6 +821,9 @@ class LibraryStore {
             hasPendingLocalWork: { [weak self] in
                 self?.hasPendingLocalLibrarySyncWork() ?? false
             },
+            hasPendingItemRetryWork: { [weak self] in
+                self?.hasPendingLibrarySyncItemRetryWork() ?? false
+            },
             minimumRetryDelay: { [weak self] in
                 self?.libraryCloudSyncStatus.lastRetryAfterSeconds
             },
@@ -844,6 +847,17 @@ class LibraryStore {
 
     func hasPendingLocalLibrarySyncWork() -> Bool {
         hasPendingLibraryEntrySyncWork() || hasPendingCloudSyncedSettingsSyncWork()
+    }
+
+    /// Whether a successful sync left entries that an automatic retry may fix:
+    /// uploads CloudKit rejected, or reconstructions that failed for a
+    /// retryable reason.
+    func hasPendingLibrarySyncItemRetryWork() -> Bool {
+        guard libraryCloudSyncStatus.isEnabled else { return false }
+        return libraryCloudSyncStatus.rejectedUploadCount > 0
+            || libraryCloudSyncStatus.currentPendingReconstructionFailures.contains {
+                $0.isPermanent != true && $0.discardDate == nil
+            }
     }
 
     private func hasPendingLibraryEntrySyncWork() -> Bool {

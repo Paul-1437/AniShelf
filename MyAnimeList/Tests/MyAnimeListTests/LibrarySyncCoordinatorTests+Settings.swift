@@ -322,7 +322,8 @@ extension LibrarySyncCoordinatorTests {
 
         let result = await coordinator.syncResult(trigger: .manualRetry)
 
-        #expect(result == .retryableFailure)
+        #expect(result == .success)
+        #expect(store.libraryCloudSyncStatus.rejectedUploadCount == 1)
         #expect(database.savedRecords.count == 1)
         #expect(
             store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
