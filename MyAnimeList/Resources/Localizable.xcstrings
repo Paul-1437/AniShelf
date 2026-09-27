@@ -10544,6 +10544,86 @@
         }
       }
     },
+    "This release adds multiple windows on iPad and Mac, fixes a macOS 27 search crash, and improves iCloud Sync and episode tracking." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアップデートでは、iPad と Mac での複数ウインドウに対応し、macOS 27 で検索時にクラッシュする問題を修正するとともに、iCloud 同期と視聴進捗を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次更新支持在 iPad 和 Mac 上使用多窗口，修复 macOS 27 搜索崩溃问题，并改进 iCloud 同步与追番进度。"
+          }
+        }
+      }
+    },
+    "Open multiple AniShelf windows on iPad and Mac, and search and browse your library independently in each window." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPad と Mac で複数の AniShelf ウインドウを開き、各ウインドウで個別に検索したりライブラリを閲覧したりできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持在 iPad 和 Mac 上打开多个 AniShelf 窗口，在各窗口中分别搜索和浏览资料库。"
+          }
+        }
+      }
+    },
+    "Fixed a crash when tapping the search field on macOS 27." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 27 で検索欄をタップするとアプリがクラッシュする問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了 MacOS 27 上点击搜索框 App 即崩溃的问题"
+          }
+        }
+      }
+    },
+    "Improved iCloud Sync stability." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 同期の安定性を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改进了 iCloud 同步的稳定性"
+          }
+        }
+      }
+    },
+    "Fixed automatic episode count updates for airing anime and improved some watch progress displays." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送中の作品の話数が自動更新されない問題を修正し、視聴進捗の表示を一部改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了新番集数自动同步，优化部分观看进度显示问题。"
+          }
+        }
+      }
+    },
     "Your original files were preserved" : {
       "localizations" : {
         "ja" : {
