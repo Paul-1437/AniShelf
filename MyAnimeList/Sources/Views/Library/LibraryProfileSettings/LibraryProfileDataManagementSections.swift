@@ -96,11 +96,20 @@ struct LibraryProfileICloudSyncSection: View {
                 }
 
                 if libraryCloudSyncStatus.quarantinedRecordCount > 0 {
-                    Text(
-                        "Unreadable iCloud records: \(libraryCloudSyncStatus.quarantinedRecordCount). Uploads for them are paused."
-                    )
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("Unreadable iCloud records: \(libraryCloudSyncStatus.quarantinedRecordCount)")
+                            .foregroundStyle(.orange)
+
+                        InfoTip(
+                            title: "Unreadable iCloud Records",
+                            message:
+                                "AniShelf couldn't read these records. They may have been saved by a newer version of the app. They stay untouched in iCloud, and this device won't overwrite them. Updating AniShelf may resolve this.",
+                            width: 280,
+                            iconFont: .caption
+                        )
+                        .foregroundStyle(.secondary)
+                    }
                     .font(.caption)
-                    .foregroundStyle(.orange)
                 }
 
                 if libraryCloudSyncStatus.restoration?.failures.isEmpty != false,

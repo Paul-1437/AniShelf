@@ -344,6 +344,22 @@
         }
       }
     },
+    "AniShelf couldn't read these records. They may have been saved by a newer version of the app. They stay untouched in iCloud, and this device won't overwrite them. Updating AniShelf may resolve this." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf はこれらのレコードを読み取れませんでした。新しいバージョンのアプリで保存された可能性があります。iCloud 上のデータはそのまま残り、このデバイスが上書きすることはありません。AniShelf をアップデートすると解決する場合があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 无法读取这些记录，它们可能由更新版本的 App 保存。这些记录会原样保留在 iCloud 中，此设备不会覆盖它们。更新 AniShelf 可能会解决此问题。"
+          }
+        }
+      }
+    },
     "•" : {
       "localizations" : {
         "ja" : {
@@ -7472,18 +7488,34 @@
         }
       }
     },
-    "Unreadable iCloud records: %lld. Uploads for them are paused." : {
+    "Unreadable iCloud Records" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "読み取れない iCloud レコード: %lld 件。これらのアップロードは一時停止しています。"
+            "value" : "読み取れない iCloud レコード"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法读取的 iCloud 记录：%lld 条。这些记录的上传已暂停。"
+            "value" : "无法读取的 iCloud 记录"
+          }
+        }
+      }
+    },
+    "Unreadable iCloud records: %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取れない iCloud レコード: %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取的 iCloud 记录：%lld 条"
           }
         }
       }

@@ -15,6 +15,33 @@ import SwiftUI
     LibraryProfileICloudSyncSectionPreviewHost()
 }
 
+#Preview("Unreadable iCloud Records") {
+    var status = LibraryCloudSyncStatus.defaultValue
+    status.isEnabled = true
+    status.bootstrapState = .completed
+    status.cloudKitAvailability = .available
+    status.lastResult = .success
+    status.quarantinedRecordCount = 1
+
+    return NavigationStack {
+        ScrollView {
+            LibraryProfileICloudSyncSection(
+                libraryCloudSyncStatus: status,
+                cloudSyncToggleBinding: .constant(true),
+                cloudSyncToggleDisabled: false,
+                cloudSyncToggleSubtitle: "Existing iCloud data stays untouched.",
+                cloudSyncIsBusy: false,
+                cloudSyncStatusTitleColor: .secondary,
+                cloudSyncManualRetryDisabled: false,
+                onRetryLibraryCloudSync: {},
+                onDiscardFailedRestorationEntry: { _ in }
+            )
+            .padding()
+        }
+        .navigationTitle("iCloud Sync Preview")
+    }
+}
+
 @MainActor
 fileprivate struct LibraryProfileICloudSyncSectionPreviewHost: View {
     @State private var cloudSyncManager = PreviewCloudSyncManager()
