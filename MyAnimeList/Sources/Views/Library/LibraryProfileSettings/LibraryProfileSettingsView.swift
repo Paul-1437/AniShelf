@@ -426,7 +426,7 @@ struct LibraryProfileSettingsView: View {
     }
 
     private func presentWhatsNewSheet() {
-        whatsNew.presentCurrentEntry()
+        whatsNew.presentCurrentEntry(inSceneIdentifier: windowSceneIdentifier)
     }
 
     private func createBackupItems() -> [Any]? {
