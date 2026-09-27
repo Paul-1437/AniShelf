@@ -2332,6 +2332,9 @@
         }
       }
     },
+    "Completed Sync" : {
+
+    },
     "Confirm" : {
       "localizations" : {
         "ja" : {
@@ -4424,6 +4427,9 @@
         }
       }
     },
+    "Hold deletions until Retry" : {
+
+    },
     "Hours" : {
       "localizations" : {
         "ja" : {
@@ -4636,7 +4642,10 @@
         }
       }
     },
-    "Inject restoration failures" : {
+    "Inject failures" : {
+
+    },
+    "Injected failures are off. The next Retry will load the pending entries and clear the other notices." : {
 
     },
     "Injected failures are off. The next Retry will restore the two pending entries and complete bootstrap." : {
@@ -7504,6 +7513,9 @@
         }
       }
     },
+    "Restoration" : {
+
+    },
     "Restore" : {
       "localizations" : {
         "ja" : {
@@ -7823,6 +7835,9 @@
           }
         }
       }
+    },
+    "Scenario" : {
+
     },
     "Schedule" : {
       "localizations" : {
@@ -8723,6 +8738,9 @@
           }
         }
       }
+    },
+    "Sync succeeded, but two entries couldn't be loaded, two changes weren't uploaded, and one record is unreadable. The entry TMDb no longer lists can be discarded right away." : {
+
     },
     "Synced" : {
       "localizations" : {
