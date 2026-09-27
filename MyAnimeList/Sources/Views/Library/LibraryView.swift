@@ -8,6 +8,7 @@
 import DataProvider
 import LibrarySync
 import SwiftUI
+import UIKit
 
 struct LibraryScrollRequest: Equatable {
     // Keep repeated explicit requests to the same entry observable.
@@ -20,6 +21,7 @@ struct LibraryView: View {
 
     @Environment(LibraryStore.self) var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.windowSceneIdentifier) private var windowSceneIdentifier
     @Environment(AppReviewPromptController.self) var appReview
     private let airingReminders = AiringReminderCoordinator.shared
 
@@ -97,11 +99,11 @@ struct LibraryView: View {
         .onChange(of: store.hideDroppedByDefault) {
             refreshSelectionDisplayItemsIfNeeded()
         }
-        .onChange(
-            of: airingReminders.pendingRouteEntryIdentityRawID,
-            initial: true
-        ) { _, entryIdentityRawID in
-            handleAiringReminderRoute(entryIdentityRawID)
+        .onChange(of: airingReminders.pendingRoute, initial: true) {
+            handleAiringReminderRoute()
+        }
+        .onChange(of: windowSceneIdentifier) {
+            handleAiringReminderRoute()
         }
         .alert(
             airingReminderWarningTitle,
@@ -401,9 +403,17 @@ struct LibraryView: View {
         interaction.openDetails(for: entry)
     }
 
-    private func handleAiringReminderRoute(_ entryIdentityRawID: String?) {
-        guard let entryIdentityRawID else { return }
-        defer { airingReminders.consumePendingRoute() }
+    private func handleAiringReminderRoute() {
+        guard
+            let entryIdentityRawID = airingReminders.claimPendingRoute(
+                forSceneIdentifier: windowSceneIdentifier,
+                isSceneConnected: { identifier in
+                    UIApplication.shared.connectedScenes.contains {
+                        $0.session.persistentIdentifier == identifier
+                    }
+                }
+            )
+        else { return }
         guard let entry = store.repository.existingEntry(identityRawID: entryIdentityRawID) else {
             return
         }

@@ -158,6 +158,7 @@ struct MyAnimeListApp: App {
                 requestReview()
             }
             .globalToasts()
+            .providesWindowSceneIdentifier()
         }
     }
 
