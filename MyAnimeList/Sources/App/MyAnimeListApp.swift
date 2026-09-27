@@ -22,6 +22,7 @@ struct MyAnimeListApp: App {
     @State private var startupRecovery: PersistentStoreRecovery?
     @State private var backgroundSyncExecution: LibrarySyncBackgroundExecutionController
     private let recoveryActivityGate: StartupRecoveryActivityGate
+    private let lifecycleEventGate = AppLifecycleEventGate()
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(.preferredAnimeInfoLanguage) var preferredLanguage: Language = .english
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) var followsSystemLanguage: Bool =
@@ -109,6 +110,7 @@ struct MyAnimeListApp: App {
             .environment(supportStore)
             .environment(appReview)
             .onAppear {
+                guard lifecycleEventGate.shouldHandleLaunch() else { return }
                 keyStorage.retryInitialLookupIfNeeded()
                 if startupRecovery == nil {
                     requestSync(trigger: .appLaunch)
@@ -117,6 +119,8 @@ struct MyAnimeListApp: App {
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
+                // scenePhase here is the app-level phase; every window delivers each transition.
+                guard lifecycleEventGate.shouldHandlePhaseChange(to: newPhase) else { return }
                 if newPhase == .active {
                     keyStorage.retryInitialLookupIfNeeded()
                     requestSync(trigger: .foreground)
@@ -128,7 +132,8 @@ struct MyAnimeListApp: App {
             }
             .modifier(WhatsNewPresenter(whatsNew: whatsNew, libraryStore: libraryStore))
             .onAppear(perform: updateWhatsNewPresentation)
-            .onChange(of: keyStorage.key) { _, _ in
+            .onChange(of: keyStorage.key) { _, newKey in
+                guard lifecycleEventGate.shouldHandleKeyChange(to: newKey) else { return }
                 updateWhatsNewPresentation()
                 recordActiveLibraryDayIfUsable()
                 if hasTMDbAPIKey {

@@ -55,6 +55,7 @@
 				Resources/Info.plist,
 				Tests/MyAnimeListTests/AiringReminderManagerTests.swift,
 				Tests/MyAnimeListTests/AnimeSharingTests.swift,
+				Tests/MyAnimeListTests/AppLifecycleEventGateTests.swift,
 				Tests/MyAnimeListTests/AppReviewPromptControllerTests.swift,
 				Tests/MyAnimeListTests/EntryDetailBroadcastModelTests.swift,
 				Tests/MyAnimeListTests/EntryDetailSessionTests.swift,
@@ -120,6 +121,7 @@
 			membershipExceptions = (
 				Tests/MyAnimeListTests/AiringReminderManagerTests.swift,
 				Tests/MyAnimeListTests/AnimeSharingTests.swift,
+				Tests/MyAnimeListTests/AppLifecycleEventGateTests.swift,
 				Tests/MyAnimeListTests/AppReviewPromptControllerTests.swift,
 				Tests/MyAnimeListTests/EntryDetailBroadcastModelTests.swift,
 				Tests/MyAnimeListTests/EntryDetailSessionTests.swift,
