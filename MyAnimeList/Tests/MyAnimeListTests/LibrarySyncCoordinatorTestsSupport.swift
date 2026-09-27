@@ -195,6 +195,49 @@ final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked S
     }
 }
 
+/// Lets one peer upload after another peer's fetch and before its save.
+final class InterleavingCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked Sendable {
+    var cloudRecord: CKRecord
+    var savedRecords: [CKRecord] = []
+    var beforeNextSave: (@MainActor () async throws -> Void)?
+
+    init(cloudRecord: CKRecord) {
+        self.cloudRecord = cloudRecord
+    }
+
+    func ensureZoneAndSubscription(
+        zoneID: CKRecordZone.ID,
+        subscriptionID: CKSubscription.ID
+    ) async throws {}
+
+    func fetchRecordZoneChanges(
+        in zoneID: CKRecordZone.ID,
+        since changeToken: CKServerChangeToken?
+    ) async throws -> CloudLibrarySyncZoneChangeBatch {
+        .init(
+            modifiedRecordsByID: [cloudRecord.recordID: cloudRecord],
+            deletedRecordIDs: [],
+            changeToken: makeToken(),
+            moreComing: false
+        )
+    }
+
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
+        ids.contains(cloudRecord.recordID) ? [cloudRecord.recordID: cloudRecord] : [:]
+    }
+
+    func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
+        let interleavedSave = beforeNextSave
+        beforeNextSave = nil
+        try await interleavedSave?()
+        for record in records {
+            cloudRecord = record
+            savedRecords.append(record)
+        }
+        return records.map(\.recordID)
+    }
+}
+
 func makeNamespace() -> CloudLibrarySyncChangeTokenStore.Namespace {
     .init(
         containerIdentifier: CloudLibrarySyncClient.defaultContainerIdentifier,

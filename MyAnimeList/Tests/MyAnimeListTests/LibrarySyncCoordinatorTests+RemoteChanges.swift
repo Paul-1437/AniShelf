@@ -143,31 +143,47 @@ extension LibrarySyncCoordinatorTests {
     @Test @MainActor func fixedPeerRepairsRecordOverwrittenAfterItsUpload() async throws {
         let savedAt = referenceDate(year: 2026, month: 5, day: 1)
         let client = CloudLibrarySyncClient()
-        let store = makeSyncReadyStore()
-        let entry = AnimeEntry(name: "Repair", type: .series, tmdbID: 722, dateSaved: savedAt)
-        entry.libraryUpdatedAt = savedAt
-        entry.updateNotes("Newer notes", at: referenceDate(year: 2026, month: 5, day: 20))
-        try store.repository.newEntry(entry)
-        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([])
-        store.rebuildSyncChangeTracking()
+        let firstStore = makeSyncReadyStore()
+        let secondStore = makeSyncReadyStore()
+        let firstEntry = AnimeEntry(name: "First", type: .series, tmdbID: 722, dateSaved: savedAt)
+        let secondEntry = AnimeEntry(name: "Second", type: .series, tmdbID: 722, dateSaved: savedAt)
+        for entry in [firstEntry, secondEntry] { entry.libraryUpdatedAt = savedAt }
+        firstEntry.updateNotes("Middle notes", at: referenceDate(year: 2026, month: 5, day: 10))
+        secondEntry.updateNotes("Newest notes", at: referenceDate(year: 2026, month: 5, day: 20))
+        try firstStore.repository.newEntry(firstEntry)
+        try secondStore.repository.newEntry(secondEntry)
+        for (store, entry) in [(firstStore, firstEntry), (secondStore, secondEntry)] {
+            try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
+                .upsert(.init(identity: entry.libraryIdentity, dirtyAt: entry.trackingUpdatedAt ?? savedAt))
+            ])
+            store.rebuildSyncChangeTracking()
+        }
 
-        var overwritten = LibraryEntrySyncSnapshot(entry: entry)
-        overwritten.notes = "Older notes"
-        overwritten.trackingUpdatedAt = referenceDate(year: 2026, month: 5, day: 10)
-        let database = FakeCloudLibrarySyncDatabase(changes: [
-            try makeChangeBatch(client: client, snapshots: [overwritten])
-        ])
-        let coordinator = LibrarySyncCoordinator(
-            store: store, client: client, database: database,
+        var initial = LibraryEntrySyncSnapshot(entry: firstEntry)
+        initial.notes = "Old notes"
+        initial.trackingUpdatedAt = referenceDate(year: 2026, month: 5, day: 5)
+        let database = InterleavingCloudLibrarySyncDatabase(cloudRecord: try client.record(from: initial))
+        let first = LibrarySyncCoordinator(
+            store: firstStore, client: client, database: database,
             namespaceProvider: { makeNamespace() }
         )
+        let second = LibrarySyncCoordinator(
+            store: secondStore, client: client, database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+        database.beforeNextSave = {
+            #expect(await second.syncResult(trigger: .manualRetry) == .success)
+            let concurrentSnapshot = try savedSnapshot(from: database.cloudRecord, client: client)
+            #expect(concurrentSnapshot.notes == "Newest notes")
+        }
 
-        #expect(await coordinator.syncResult(trigger: .cloudNotification) == .success)
-        let repaired = try #require(database.savedRecords.first)
-        let repairedSnapshot = try savedSnapshot(from: repaired, client: client)
-        #expect(repairedSnapshot.notes == "Newer notes")
-        #expect(repairedSnapshot.trackingUpdatedAt == entry.trackingUpdatedAt)
-        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: entry.libraryIdentity) == nil)
+        #expect(await first.syncResult(trigger: .manualRetry) == .success)
+        #expect(database.savedRecords.count == 2)
+        #expect(try savedSnapshot(from: database.cloudRecord, client: client).notes == "Middle notes")
+
+        #expect(await second.syncResult(trigger: .cloudNotification) == .success)
+        #expect(try savedSnapshot(from: database.cloudRecord, client: client).notes == "Newest notes")
+        #expect(secondStore.syncChangeRecorder.dirtyQueueStore.load().entry(for: secondEntry.libraryIdentity) == nil)
     }
 
 
