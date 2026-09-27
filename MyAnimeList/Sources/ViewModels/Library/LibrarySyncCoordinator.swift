@@ -693,7 +693,7 @@ extension Error {
             return exportFailure.underlyingError.isPermanentLibrarySyncFailure
         }
         if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure {
-            return partialFailure.isQuotaExceeded
+            return partialFailure.accountError != nil || partialFailure.isQuotaExceeded
         }
         if let hydrationError = self as? LibrarySyncHydrationError {
             return hydrationError.underlyingError.isPermanentLibrarySyncFailure
@@ -762,7 +762,15 @@ extension Error {
         return librarySyncFailureReason
     }
 
-    fileprivate var libraryCloudKitAvailability: LibraryCloudKitAvailability {
+    var libraryCloudKitAvailability: LibraryCloudKitAvailability {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.libraryCloudKitAvailability
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure,
+            let accountError = partialFailure.accountError
+        {
+            return accountError.libraryCloudKitAvailability
+        }
         guard let ckError = self as? CKError else {
             return .couldNotDetermine
         }

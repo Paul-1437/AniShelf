@@ -284,6 +284,10 @@ extension LibrarySyncCoordinator {
         store: LibraryStore
     ) -> SyncResult {
         let result: SyncResult = error.isPermanentLibrarySyncFailure ? .permanentFailure : .retryableFailure
+        let availability = error.libraryCloudKitAvailability
+        if availability == .noAccount || availability == .restricted {
+            store.updateLibraryCloudKitAvailability(availability)
+        }
         store.recordLibraryCloudSyncFailure(
             trigger: pass.trigger,
             phase: state.currentPhase,
