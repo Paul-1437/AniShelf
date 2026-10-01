@@ -21,14 +21,14 @@
 <div style="overflow-x: auto; padding: 0.25rem 0 1rem;">
   <table cellpadding="0" cellspacing="12">
     <tr>
-      <td><img src=".app-store-assets/screenshots/ios/featured-library-card.jpeg" alt="AniShelf featured library card" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/library-list-view.jpeg" alt="AniShelf library list view" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/poster-grid-view.jpeg" alt="AniShelf poster grid view" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/01-poster-grid-view.jpeg" alt="AniShelf poster grid view" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/02-featured-library-card.jpeg" alt="AniShelf featured library card" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/03-library-list-view.jpeg" alt="AniShelf library list view" width="240" /></td>
     </tr>
     <tr>
-      <td><img src=".app-store-assets/screenshots/ios/anime-detail-overview.jpeg" alt="AniShelf anime detail overview" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/watch-management-sheet.jpeg" alt="AniShelf watch management sheet" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/library-stats-overview.jpeg" alt="AniShelf library stats overview" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/04-anime-detail-overview.jpeg" alt="AniShelf anime detail overview" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/05-watch-management-sheet.jpeg" alt="AniShelf watch management sheet" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/06-library-stats-overview.jpeg" alt="AniShelf library stats overview" width="240" /></td>
     </tr>
   </table>
 </div>
