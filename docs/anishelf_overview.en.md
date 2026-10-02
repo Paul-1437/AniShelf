@@ -1,6 +1,6 @@
 # AniShelf Overview
 
-**AniShelf is available on the App Store: [App Store link](https://apps.apple.com/us/app/anishelf/id6759359144). New features ship to TestFlight first and reach the App Store later. TestFlight link: [AniShelf TestFlight](https://testflight.apple.com/join/ns3sR38X).**
+**AniShelf is available on the App Store: [App Store link](https://apps.apple.com/app/id6759359144). New features ship to TestFlight first and reach the App Store later. TestFlight link: [AniShelf TestFlight](https://testflight.apple.com/join/ns3sR38X).**
 
 AniShelf helps you track, record, and manage the anime series and films you've watched. Core features:
 
@@ -53,7 +53,7 @@ AniShelf requires a TMDb API key, which is free for personal use. To get one:
 ### Using the App
 
 1. Download and install AniShelf.
-   1. Search for "AniShelf" on the App Store, or use this link: [App Store link](https://apps.apple.com/us/app/anishelf/id6759359144).
+   1. Search for "AniShelf" on the App Store, or use this link: [App Store link](https://apps.apple.com/app/id6759359144).
    2. You can also join the TestFlight beta to try new features early: [AniShelf TestFlight](https://testflight.apple.com/join/ns3sR38X). If you don't have TestFlight installed, install the TestFlight app first, then open the link again and tap "View in TestFlight".
 2. On first launch, enter your TMDb API key when prompted.
 3. Tap the search button at the bottom right, enter the name of a series or film, and add the matching entry to your library.
@@ -81,7 +81,7 @@ AniShelf requires a TMDb API key, which is free for personal use. To get one:
 - My API key won't validate, loading is slow, or search returns nothing? **Try turning your VPN on or off, since some network proxy rules can interfere with access. The app connects to TMDb directly by default; if that's unreliable, turn on "Use TMDb Proxy" in Settings. If you already use a VPN or another network proxy, it's usually best to leave that option off.**
 - How do I sync my library across devices? **Turn on iCloud Sync in Settings and make sure every device is signed in to the same Apple Account. It syncs your library, related settings, and watch progress. Syncing watch data with TMDb, AniList, Bangumi, and similar platforms isn't supported yet.**
 - How do I report a bug or request a feature? **Please open a GitHub Issue for bug reports and feature requests.**
-- Is it on the App Store? **Yes: [App Store link](https://apps.apple.com/us/app/anishelf/id6759359144). In most cases, new features will still ship to TestFlight first and reach the App Store later.**
+- Is it on the App Store? **Yes: [App Store link](https://apps.apple.com/app/id6759359144). In most cases, new features will still ship to TestFlight first and reach the App Store later.**
 - Does it support OS versions earlier than 26? **Not at the moment. The app makes heavy use of Liquid Glass, which isn't available before iOS/iPadOS 26, and I don't have a test device running an earlier version. If you'd like to help with internal testing, open a GitHub Issue and I can try adding support, though the UI probably won't look as good.**
 - Is there an Android version? **There are no plans for one at the moment.**
 
