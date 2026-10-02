@@ -26,11 +26,24 @@ struct LibraryWatchStatusIndicator: View {
 
 struct LibraryWatchStatusBadge: View {
     let status: AnimeEntry.WatchStatus
+    var isRewatching = false
+
+    private static let rewatchingTitle: LocalizedStringResource = "Rewatching"
+
+    private var showsRewatching: Bool {
+        isRewatching && status == .watching
+    }
 
     var body: some View {
         HStack(spacing: 6) {
-            LibraryWatchStatusIndicator(status: status, diameter: 5)
-            Text(status.localizedStringResource)
+            if showsRewatching {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(Self.iconFont)
+                    .foregroundStyle(status.libraryTintColor.opacity(0.92))
+            } else {
+                LibraryWatchStatusIndicator(status: status, diameter: 5)
+            }
+            Text(showsRewatching ? Self.rewatchingTitle : status.localizedStringResource)
                 .font(Self.textFont)
                 .foregroundStyle(status.libraryTintColor.opacity(0.92))
                 .lineLimit(1)

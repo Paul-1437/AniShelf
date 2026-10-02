@@ -496,6 +496,54 @@
         }
       }
     },
+    "Are You Rewatching?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是在重看吗？"
+          }
+        }
+      }
+    },
+    "Marking it watched again adds one to the rewatch count." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度視聴済みにすると、再視聴回数が1回増えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再次标为已看时，重看次数会加 1。"
+          }
+        }
+      }
+    },
+    "Not a Rewatch" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴ではない"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是重看"
+          }
+        }
+      }
+    },
     "Privacy Policy" : {
       "localizations" : {
         "en" : {
@@ -518,6 +566,54 @@
         }
       }
     },
+    "Rewatching" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重看中"
+          }
+        }
+      }
+    },
+    "Start Rewatch" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴を始める"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始重看"
+          }
+        }
+      }
+    },
+    "Starting a rewatch clears episode progress. Marking it watched again adds one to the rewatch count." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴を始めるとエピソード進捗がリセットされます。もう一度視聴済みにすると、再視聴回数が1回増えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始重看会清除分集进度。再次标为已看时，重看次数会加 1。"
+          }
+        }
+      }
+    },
     "Sync Issues" : {
       "localizations" : {
         "ja" : {
@@ -530,6 +626,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同步问题"
+          }
+        }
+      }
+    },
+    "Times Rewatched" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴回数"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重看次数"
           }
         }
       }

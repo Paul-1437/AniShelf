@@ -154,6 +154,10 @@ fileprivate struct EntryDetailTrackingEditor: View {
         entry.watchStatus == .dropped
     }
 
+    private var showsRewatchControls: Bool {
+        entry.watchStatus == .watching || entry.watchStatus == .watched || entry.rewatchCount > 0
+    }
+
     private var activeWatchStatusBinding: Binding<AnimeEntry.WatchStatus> {
         Binding(
             get: {
@@ -206,6 +210,10 @@ fileprivate struct EntryDetailTrackingEditor: View {
                 }
             }
 
+            if showsRewatchControls {
+                EntryRewatchControls(entry: entry)
+            }
+
             if episodeProgressTrackingEnabled, entry.watchStatus == .watching {
                 EntryEpisodeProgressControl(
                     entry: entry,
@@ -240,6 +248,58 @@ fileprivate struct EntryDetailTrackingEditor: View {
             }
         }
         .animation(.default, value: entry.watchStatus)
+    }
+}
+
+fileprivate struct EntryRewatchControls: View {
+    @Bindable var entry: AnimeEntry
+
+    private static let rewatchCountRange = 0...999
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if entry.watchStatus == .watching {
+                Toggle(isOn: rewatchingBinding) {
+                    Text(EntryDetailL10n.rewatching)
+                        .font(.subheadline)
+                }
+            }
+
+            Stepper(value: rewatchCountBinding, in: Self.rewatchCountRange) {
+                HStack(spacing: 12) {
+                    Text(EntryDetailL10n.timesRewatched)
+                        .font(.subheadline)
+                    Spacer(minLength: 12)
+                    Text(entry.rewatchCount, format: .number)
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText(value: Double(entry.rewatchCount)))
+                }
+            }
+        }
+    }
+
+    private var rewatchingBinding: Binding<Bool> {
+        Binding(
+            get: { entry.isRewatching },
+            set: { isRewatching in
+                withAnimation(.default) {
+                    _ = entry.updateRewatching(isRewatching)
+                }
+            }
+        )
+    }
+
+    private var rewatchCountBinding: Binding<Int> {
+        Binding(
+            get: { entry.rewatchCount },
+            set: { count in
+                withAnimation(.default) {
+                    _ = entry.updateRewatchCount(count)
+                }
+            }
+        )
     }
 }
 

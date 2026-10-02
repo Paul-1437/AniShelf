@@ -43,6 +43,8 @@ struct LibraryEntrySyncTests {
         source.dateStarted = referenceDate(year: 2026, month: 5, day: 11)
         source.favorite = true
         source.notes = "Remote notes"
+        source.isRewatching = true
+        source.rewatchCount = 2
         source.libraryUpdatedAt = referenceDate(year: 2026, month: 5, day: 12)
         source.trackingUpdatedAt = referenceDate(year: 2026, month: 5, day: 12)
         source.applyEpisodeProgressSnapshot(
@@ -75,6 +77,8 @@ struct LibraryEntrySyncTests {
         #expect(local.notes == "Remote notes")
         #expect(local.usingCustomPoster)
         #expect(local.customPosterPath == "/custom.jpg")
+        #expect(local.isRewatching)
+        #expect(local.rewatchCount == 2)
         #expect(local.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 7)
     }
 

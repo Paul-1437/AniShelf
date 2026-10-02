@@ -36,6 +36,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         case customPosterPath
         case customPosterURL
         case episodeProgresses
+        case isRewatching
+        case rewatchCount
         case libraryUpdatedAt
         case trackingUpdatedAt
     }
@@ -79,6 +81,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
     public var usingCustomPoster: Bool
     public var customPosterPath: String?
     public var episodeProgresses: [EpisodeProgress]
+    public var isRewatching: Bool
+    public var rewatchCount: Int
     public var libraryUpdatedAt: Date?
     public var trackingUpdatedAt: Date?
     /// Newest sync clock used when deciding whether remote state can clear a
@@ -133,9 +137,12 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
     ///     `usingCustomPoster` is true.
     ///   - episodeProgresses: Per-season episode progress. Entries are
     ///     normalized to one positive progress value per positive season.
+    ///   - isRewatching: Rewatch marker. Dropped unless `watchStatus` is
+    ///     watching.
+    ///   - rewatchCount: Completed rewatches. Negative values clamp to zero.
     ///   - libraryUpdatedAt: Clock for membership/display changes.
     ///   - trackingUpdatedAt: Clock for status, date, score, favorite, notes,
-    ///     poster, and progress changes.
+    ///     poster, rewatch, and progress changes.
     public init(
         schemaVersion: Int = Self.currentSchemaVersion,
         identity: LibraryEntryIdentity,
@@ -155,6 +162,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         usingCustomPoster: Bool,
         customPosterPath: String?,
         episodeProgresses: [EpisodeProgress],
+        isRewatching: Bool = false,
+        rewatchCount: Int = 0,
         libraryUpdatedAt: Date?,
         trackingUpdatedAt: Date?
     ) {
@@ -176,6 +185,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         self.usingCustomPoster = usingCustomPoster
         self.customPosterPath = usingCustomPoster ? TMDbImagePath.storagePath(from: customPosterPath) : nil
         self.episodeProgresses = Self.normalizedEpisodeProgresses(episodeProgresses)
+        self.isRewatching = isRewatching && watchStatus == .watching
+        self.rewatchCount = max(0, rewatchCount)
         self.libraryUpdatedAt = libraryUpdatedAt.map(LibrarySyncTimestamp.normalized)
         self.trackingUpdatedAt = trackingUpdatedAt.map(LibrarySyncTimestamp.normalized)
     }
@@ -199,6 +210,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         usingCustomPoster: Bool,
         customPosterURL: URL?,
         episodeProgresses: [EpisodeProgress],
+        isRewatching: Bool = false,
+        rewatchCount: Int = 0,
         libraryUpdatedAt: Date?,
         trackingUpdatedAt: Date?
     ) {
@@ -221,6 +234,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
             usingCustomPoster: usingCustomPoster,
             customPosterPath: TMDbImagePath.storagePath(from: customPosterURL),
             episodeProgresses: episodeProgresses,
+            isRewatching: isRewatching,
+            rewatchCount: rewatchCount,
             libraryUpdatedAt: libraryUpdatedAt,
             trackingUpdatedAt: trackingUpdatedAt
         )
@@ -252,6 +267,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
                     updatedAt: $0.updatedAt
                 )
             },
+            isRewatching: entry.isRewatching,
+            rewatchCount: entry.rewatchCount,
             libraryUpdatedAt: entry.libraryUpdatedAt,
             trackingUpdatedAt: entry.trackingUpdatedAt
         )
@@ -284,6 +301,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
                 ),
             episodeProgresses: try container.decodeIfPresent([EpisodeProgress].self, forKey: .episodeProgresses)
                 ?? [],
+            isRewatching: try container.decodeIfPresent(Bool.self, forKey: .isRewatching) ?? false,
+            rewatchCount: try container.decodeIfPresent(Int.self, forKey: .rewatchCount) ?? 0,
             libraryUpdatedAt: try container.decodeIfPresent(Date.self, forKey: .libraryUpdatedAt),
             trackingUpdatedAt: try container.decodeIfPresent(Date.self, forKey: .trackingUpdatedAt)
         )
@@ -313,6 +332,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         // Drop this once backward compat with pre-V2.8 is no longer required.
         try container.encodeIfPresent(TMDbImagePath.fullURL(for: customPosterPath), forKey: .customPosterURL)
         try container.encode(episodeProgresses, forKey: .episodeProgresses)
+        try container.encode(isRewatching, forKey: .isRewatching)
+        try container.encode(rewatchCount, forKey: .rewatchCount)
         try container.encodeIfPresent(libraryUpdatedAt, forKey: .libraryUpdatedAt)
         try container.encodeIfPresent(trackingUpdatedAt, forKey: .trackingUpdatedAt)
     }
@@ -357,6 +378,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
             merged.notes = candidate.notes
             merged.usingCustomPoster = candidate.usingCustomPoster
             merged.customPosterPath = candidate.usingCustomPoster ? candidate.customPosterPath : nil
+            merged.isRewatching = candidate.isRewatching
+            merged.rewatchCount = candidate.rewatchCount
             merged.trackingUpdatedAt = candidate.trackingUpdatedAt
         }
 
@@ -421,7 +444,9 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
                 favorite: snapshot.favorite,
                 notes: snapshot.notes,
                 usingCustomPoster: snapshot.usingCustomPoster,
-                customPosterPath: snapshot.customPosterPath
+                customPosterPath: snapshot.customPosterPath,
+                isRewatching: snapshot.isRewatching,
+                rewatchCount: snapshot.rewatchCount
             )
         )
     }
@@ -447,6 +472,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         var notes: String
         var usingCustomPoster: Bool
         var customPosterPath: String?
+        var isRewatching: Bool
+        var rewatchCount: Int
     }
 
     fileprivate static func isNewer(_ candidate: Date?, than existing: Date?) -> Bool {
@@ -567,6 +594,8 @@ extension AnimeEntry {
         } else if wasUsingCustomPoster {
             customPosterPath = nil
         }
+        isRewatching = merged.isRewatching
+        rewatchCount = merged.rewatchCount
         trackingUpdatedAt = merged.trackingUpdatedAt
         applySyncEpisodeProgresses(merged.episodeProgresses, now: now)
     }
@@ -606,6 +635,8 @@ extension AnimeEntry {
         if snapshot.usingCustomPoster {
             customPosterPath = snapshot.customPosterPath
         }
+        isRewatching = snapshot.isRewatching
+        rewatchCount = snapshot.rewatchCount
         trackingUpdatedAt = snapshot.trackingUpdatedAt
 
         applySyncEpisodeProgresses(snapshot.episodeProgresses, now: now)

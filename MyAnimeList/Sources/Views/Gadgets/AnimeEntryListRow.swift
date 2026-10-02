@@ -236,6 +236,6 @@ struct AnimeEntryListRow: View {
     }
 
     private var statusBadge: some View {
-        LibraryWatchStatusBadge(status: snapshot.watchStatus)
+        LibraryWatchStatusBadge(status: snapshot.watchStatus, isRewatching: snapshot.isRewatching)
     }
 }
