@@ -27,7 +27,6 @@ struct LibraryWatchStatusIndicator: View {
 struct LibraryWatchStatusBadge: View {
     let status: AnimeEntry.WatchStatus
     var isRewatching = false
-    var rewatchCount = 0
 
     private static let rewatchingTitle: LocalizedStringResource = "Rewatching"
 
@@ -48,27 +47,6 @@ struct LibraryWatchStatusBadge: View {
                 .font(Self.textFont)
                 .foregroundStyle(status.libraryTintColor.opacity(0.92))
                 .lineLimit(1)
-
-            if showsRewatching || rewatchCount > 0 {
-                HStack(spacing: 3) {
-                    if !showsRewatching {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(Self.iconFont)
-                    }
-                    Text(verbatim: "×\((showsRewatching ? rewatchCount + 1 : rewatchCount).formatted())")
-                        .font(Self.textFont)
-                        .monospacedDigit()
-                }
-                .foregroundStyle(status.libraryTintColor.opacity(0.92))
-                .fixedSize()
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(
-                    showsRewatching
-                        ? EntryDetailL10n.rewatching
-                        : EntryDetailL10n.timesRewatched
-                )
-                .accessibilityValue(Text(showsRewatching ? rewatchCount + 1 : rewatchCount, format: .number))
-            }
         }
         .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, Self.verticalPadding)
@@ -82,6 +60,34 @@ struct LibraryWatchStatusBadge: View {
     fileprivate static let verticalPadding: CGFloat = 4
     fileprivate static let textFont = Font.caption2.weight(.semibold)
     fileprivate static let iconFont = Font.system(size: 10).weight(.semibold)
+}
+
+struct LibraryRewatchCountBadge: View {
+    let count: Int
+
+    var body: some View {
+        if count > 0 {
+            HStack(spacing: 3) {
+                Image(systemName: "repeat")
+                    .font(LibraryWatchStatusBadge.iconFont)
+                Text(count, format: .number)
+                    .font(LibraryWatchStatusBadge.textFont)
+                    .monospacedDigit()
+            }
+            .foregroundStyle(.purple.opacity(0.92))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(.purple.opacity(0.1))
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(EntryDetailL10n.timesRewatched)
+            .accessibilityValue(Text(count, format: .number))
+        }
+    }
 }
 
 struct LibraryScoreBadge: View {

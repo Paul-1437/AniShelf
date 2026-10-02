@@ -229,6 +229,7 @@ struct AnimeEntryListRow: View {
                 label: snapshot.episodeProgressLabel,
                 fractionCompleted: snapshot.episodeProgressFraction
             )
+            LibraryRewatchCountBadge(count: snapshot.rewatchCount)
             LibraryScoreBadge(score: snapshot.score)
             Spacer(minLength: 8)
             favoriteButton
@@ -236,10 +237,6 @@ struct AnimeEntryListRow: View {
     }
 
     private var statusBadge: some View {
-        LibraryWatchStatusBadge(
-            status: snapshot.watchStatus,
-            isRewatching: snapshot.isRewatching,
-            rewatchCount: snapshot.rewatchCount
-        )
+        LibraryWatchStatusBadge(status: snapshot.watchStatus, isRewatching: snapshot.isRewatching)
     }
 }
