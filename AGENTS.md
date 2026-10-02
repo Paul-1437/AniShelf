@@ -51,3 +51,7 @@
 - When adjacent schema versions mostly share the same entry payload, prefer shared plain DTO bridges such as `AnimeEntryMigrationDTO` and `AnimeEntryDetailDTO` instead of re-copying field lists in `MigrationPlan.swift`. Treat those DTOs as transient migration/fetch bridges, not persisted SwiftData model types.
 - During SwiftData schema version bumps, qualify versioned model references inside older schema helper/bridge files, for example `SchemaV2_7_3.AnimeEntrySeasonSummary` instead of bare `AnimeEntrySeasonSummary`. Once `CurrentSchema` advances, unqualified names in older versioned files can resolve to the new schema types and break the build.
 - When you change/add user-facing text, update the localization files.
+
+## Website Maintenance
+
+- When screenshots or user-facing feature names change, update `../anishelf-site` to match. The site uses `.app-store-assets/screenshots/` and follows `MyAnimeList/Resources/Localizable.xcstrings`.
