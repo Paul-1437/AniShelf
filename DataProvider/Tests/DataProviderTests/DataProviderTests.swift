@@ -276,7 +276,7 @@ fileprivate enum TestStartupError: Error {
     #expect(entry.startRewatch())
 
     #expect(entry.isRewatching)
-    #expect(entry.episodeProgresses.isEmpty)
+    #expect(entry.episodeProgressSummaries.isEmpty)
 }
 
 @Test func entryDetailOrdersPersistedChildrenByDisplayOrder() async throws {
@@ -504,7 +504,9 @@ fileprivate enum TestStartupError: Error {
     #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 10)
 
     entry.clearEpisodeProgress(seasonNumber: 1)
-    #expect(entry.episodeProgresses.isEmpty)
+    #expect(entry.episodeProgressSummaries.isEmpty)
+    // Clearing keeps a zero row so the reset clock can win later sync merges.
+    #expect(entry.episodeProgresses.map(\.watchedThroughEpisode) == [0])
 }
 
 @Test func userEntryInfoRoundTripPreservesEpisodeProgress() async throws {

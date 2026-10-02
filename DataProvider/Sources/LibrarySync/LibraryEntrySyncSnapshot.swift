@@ -136,7 +136,8 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
     ///   - customPosterPath: User-selected TMDb poster path. Ignored unless
     ///     `usingCustomPoster` is true.
     ///   - episodeProgresses: Per-season episode progress. Entries are
-    ///     normalized to one positive progress value per positive season.
+    ///     normalized to one progress value per positive season. Zero values
+    ///     are clocked resets, not missing progress.
     ///   - isRewatching: Rewatch marker. Dropped unless `watchStatus` is
     ///     watching.
     ///   - rewatchCount: Completed rewatches. Negative values clamp to zero.
@@ -491,7 +492,7 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         _ rhs: [EpisodeProgress]
     ) -> [EpisodeProgress] {
         var progressBySeason: [Int: EpisodeProgress] = [:]
-        for progress in lhs where progress.watchedThroughEpisode > 0 {
+        for progress in lhs {
             if let existing = progressBySeason[progress.seasonNumber] {
                 progressBySeason[progress.seasonNumber] = newerEpisodeProgress(existing, progress)
             } else {
@@ -499,7 +500,7 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
             }
         }
 
-        for progress in rhs where progress.watchedThroughEpisode > 0 {
+        for progress in rhs {
             if let existing = progressBySeason[progress.seasonNumber] {
                 progressBySeason[progress.seasonNumber] = newerEpisodeProgress(existing, progress)
             } else {
@@ -521,7 +522,9 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
         return lhs.updatedAt > rhs.updatedAt ? lhs : rhs
     }
 
-    /// Drops invalid/empty progress and returns one sorted value per season.
+    /// Drops invalid seasons and returns one sorted value per season.
+    ///
+    /// Zero progress is kept so a reset can win against older progress.
     private static func normalizedEpisodeProgresses(
         _ progresses: [EpisodeProgress]
     ) -> [EpisodeProgress] {
@@ -533,7 +536,7 @@ public struct LibraryEntrySyncSnapshot: Codable, Equatable, Sendable {
             )
         }
         return Dictionary(
-            grouping: normalized.filter { $0.seasonNumber > 0 && $0.watchedThroughEpisode > 0 },
+            grouping: normalized.filter { $0.seasonNumber > 0 },
             by: \.seasonNumber
         )
         .values
@@ -682,7 +685,7 @@ extension AnimeEntry {
         _ progresses: [LibraryEntrySyncSnapshot.EpisodeProgress],
         now: Date
     ) {
-        for progress in progresses where progress.watchedThroughEpisode > 0 {
+        for progress in progresses {
             if let localProgress = episodeProgress(forSeason: progress.seasonNumber) {
                 guard
                     LibrarySyncTimestamp.milliseconds(progress.updatedAt)

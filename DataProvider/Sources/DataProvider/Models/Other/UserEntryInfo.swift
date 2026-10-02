@@ -119,7 +119,7 @@ public struct UserEntryInfo: Equatable, Codable {
         watchStatus == .planToWatch && dateStarted == nil && dateFinished == nil
             && isDateTrackingEnabled
             && score == nil && favorite == false && notes.isEmpty && usingCustomPoster == false
-            && episodeProgresses.isEmpty
+            && episodeProgresses.allSatisfy { $0.watchedThroughEpisode == 0 }
             && !isRewatching && rewatchCount == 0
     }
 
@@ -180,7 +180,7 @@ public struct UserEntryInfo: Equatable, Codable {
     ) -> [EpisodeProgressSnapshot] {
         Dictionary(
             grouping: episodeProgresses.filter {
-                $0.seasonNumber > 0 && $0.watchedThroughEpisode > 0
+                $0.seasonNumber > 0
             },
             by: \.seasonNumber
         )
@@ -218,8 +218,11 @@ public struct UserEntryInfo: Equatable, Codable {
             && rewatchCount == other.rewatchCount
     }
 
+    /// Zero progress is a sync reset marker; to the user it reads the same as no progress.
     private var semanticEpisodeProgresses: [EpisodeProgressValue] {
-        episodeProgresses.map(EpisodeProgressValue.init)
+        episodeProgresses
+            .filter { $0.watchedThroughEpisode > 0 }
+            .map(EpisodeProgressValue.init)
     }
 
     private struct EpisodeProgressValue: Equatable {
