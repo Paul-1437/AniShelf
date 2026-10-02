@@ -4,7 +4,7 @@ struct AboutAniShelfSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private let websiteURL = URL(string: "https://anishelf.konakona.dev")!
-    private let privacyPolicyURL = URL(string: "https://github.com/samuelhe52/AniShelf/blob/main/PRIVACY_POLICY.md")!
+    private let privacyPolicyURL = URL(string: "https://anishelf.konakona.dev/privacy/")!
     private let githubURL = URL(string: "https://github.com/samuelhe52/AniShelf")!
     private let githubProfileURL = URL(string: "https://github.com/samuelhe52")!
     private let tmdbURL = URL(string: "https://www.themoviedb.org/")!
