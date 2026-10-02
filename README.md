@@ -3,15 +3,15 @@
 
   <h1>AniShelf</h1>
 
-  <p>A native iOS app for tracking and managing your anime library.</p>
+  <p>A native app for tracking and managing your anime library on iPhone, iPad, and Mac.</p>
 
   <p>
-    <img src="https://img.shields.io/badge/platform-iOS%2026%2B-34C759" alt="iOS 26 or later" />
+    <img src="https://img.shields.io/badge/platform-iOS%20%C2%B7%20iPadOS%2026%2B-34C759" alt="iOS and iPadOS 26 or later" />
     <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache License 2.0" />
-    <a href="https://apps.apple.com/us/app/anishelf/id6759359144"><img src="https://img.shields.io/badge/App%20Store-Download%20now-007AFF?logo=apple&logoColor=white" alt="Download AniShelf on the App Store" /></a>
+    <a href="https://apps.apple.com/app/id6759359144"><img src="https://img.shields.io/badge/App%20Store-Download%20now-007AFF?logo=apple&logoColor=white" alt="Download AniShelf on the App Store" /></a>
   </p>
 
-  <p><a href="README.zh-CN.md">中文</a> · <a href="docs/anishelf_overview.en.md">User Guide</a> · <a href="https://testflight.apple.com/join/ns3sR38X">TestFlight Beta</a></p>
+  <p><a href="README.zh-CN.md">中文</a> · <a href="https://anishelf.konakona.dev">Website</a> · <a href="docs/anishelf_overview.en.md">User Guide</a> · <a href="https://testflight.apple.com/join/ns3sR38X">TestFlight Beta</a></p>
 </div>
 
 ---
@@ -35,7 +35,7 @@
 
 ## 📱 Availability
 
-AniShelf is currently available on the [App Store](https://apps.apple.com/us/app/anishelf/id6759359144).
+AniShelf is available on the [App Store](https://apps.apple.com/app/id6759359144) for iPhone and iPad running iOS or iPadOS 26 or later, and for Mac with Apple silicon running the iPad app.
 
 New features will be released on TestFlight before being pushed to the App Store. You can join the [TestFlight Beta](https://testflight.apple.com/join/ns3sR38X) to get early access to new features and provide feedback.
 

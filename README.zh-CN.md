@@ -3,15 +3,15 @@
 
   <h1>AniShelf</h1>
 
-  <p>一款原生 iOS 动漫收藏管理应用。</p>
+  <p>一款适用于 iPhone、iPad 和 Mac 的原生动漫收藏管理应用。</p>
 
   <p>
-    <img src="https://img.shields.io/badge/platform-iOS%2026%2B-34C759" alt="支持 iOS 26 及以上版本" />
+    <img src="https://img.shields.io/badge/platform-iOS%20%C2%B7%20iPadOS%2026%2B-34C759" alt="支持 iOS 和 iPadOS 26 及以上版本" />
     <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache 2.0 许可证" />
-    <a href="https://apps.apple.com/us/app/anishelf/id6759359144"><img src="https://img.shields.io/badge/App%20Store-%E7%AB%8B%E5%8D%B3%E4%B8%8B%E8%BD%BD-007AFF?logo=apple&logoColor=white" alt="从 App Store 下载 AniShelf" /></a>
+    <a href="https://apps.apple.com/app/id6759359144"><img src="https://img.shields.io/badge/App%20Store-%E7%AB%8B%E5%8D%B3%E4%B8%8B%E8%BD%BD-007AFF?logo=apple&logoColor=white" alt="从 App Store 下载 AniShelf" /></a>
   </p>
 
-  <p><a href="README.md">English</a> · <a href="docs/anishelf_overview.md">使用教程</a> · <a href="https://testflight.apple.com/join/ns3sR38X">TestFlight 测试版</a></p>
+  <p><a href="README.md">English</a> · <a href="https://anishelf.konakona.dev/zh/">官方网站</a> · <a href="docs/anishelf_overview.md">使用教程</a> · <a href="https://testflight.apple.com/join/ns3sR38X">TestFlight 测试版</a></p>
 </div>
 
 ---
@@ -35,7 +35,7 @@
 
 ## 📱 获取方式
 
-AniShelf 现已上架 [App Store](https://apps.apple.com/us/app/anishelf/id6759359144)。
+AniShelf 现已上架 [App Store](https://apps.apple.com/app/id6759359144)，支持运行 iOS 或 iPadOS 26 及以上版本的 iPhone 和 iPad，以及搭载 Apple 芯片的 Mac（运行 iPad 版应用）。
 
 新功能会先通过 TestFlight 发布，之后再推送到 App Store。你可以加入 [TestFlight 测试版](https://testflight.apple.com/join/ns3sR38X)，抢先体验新功能并提供反馈。
 
