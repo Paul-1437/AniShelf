@@ -27,6 +27,7 @@ struct LibraryWatchStatusIndicator: View {
 struct LibraryWatchStatusBadge: View {
     let status: AnimeEntry.WatchStatus
     var isRewatching = false
+    var rewatchCount = 0
 
     private static let rewatchingTitle: LocalizedStringResource = "Rewatching"
 
@@ -47,6 +48,27 @@ struct LibraryWatchStatusBadge: View {
                 .font(Self.textFont)
                 .foregroundStyle(status.libraryTintColor.opacity(0.92))
                 .lineLimit(1)
+
+            if showsRewatching || rewatchCount > 0 {
+                HStack(spacing: 3) {
+                    if !showsRewatching {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(Self.iconFont)
+                    }
+                    Text(verbatim: "×\((showsRewatching ? rewatchCount + 1 : rewatchCount).formatted())")
+                        .font(Self.textFont)
+                        .monospacedDigit()
+                }
+                .foregroundStyle(status.libraryTintColor.opacity(0.92))
+                .fixedSize()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    showsRewatching
+                        ? EntryDetailL10n.rewatching
+                        : EntryDetailL10n.timesRewatched
+                )
+                .accessibilityValue(Text(showsRewatching ? rewatchCount + 1 : rewatchCount, format: .number))
+            }
         }
         .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, Self.verticalPadding)

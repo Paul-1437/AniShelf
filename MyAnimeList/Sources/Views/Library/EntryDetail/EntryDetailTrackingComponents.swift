@@ -182,6 +182,10 @@ fileprivate struct EntryDetailTrackingEditor: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
 
+                    if showsRewatchControls {
+                        EntryRewatchControls(entry: entry)
+                    }
+
                     Spacer(minLength: 12)
 
                     Button {
@@ -197,7 +201,8 @@ fileprivate struct EntryDetailTrackingEditor: View {
                 }
                 AnimeEntryWatchedStatusPicker(
                     selection: activeWatchStatusBinding,
-                    isDisabled: isDateTrackingLocked
+                    isDisabled: isDateTrackingLocked,
+                    isRewatching: entry.isRewatching
                 )
                 .pickerStyle(.segmented)
 
@@ -208,10 +213,6 @@ fileprivate struct EntryDetailTrackingEditor: View {
                         isLocked: isDateTrackingLocked
                     )
                 }
-            }
-
-            if showsRewatchControls {
-                EntryRewatchControls(entry: entry)
             }
 
             if episodeProgressTrackingEnabled, entry.watchStatus == .watching {
@@ -253,10 +254,63 @@ fileprivate struct EntryDetailTrackingEditor: View {
 
 fileprivate struct EntryRewatchControls: View {
     @Bindable var entry: AnimeEntry
+    @State private var showingEditor = false
 
     private static let rewatchCountRange = 0...999
 
+    private var badgeTint: Color {
+        entry.isRewatching ? .accentColor : .secondary
+    }
+
     var body: some View {
+        Button {
+            showingEditor = true
+        } label: {
+            badge
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(entry.isRewatching ? EntryDetailL10n.rewatching : EntryDetailL10n.timesRewatched)
+        .accessibilityValue(accessibilityValue)
+        .popover(isPresented: $showingEditor) {
+            editor
+                .padding(16)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+
+    private var badge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "repeat")
+            if entry.isRewatching {
+                Text(EntryDetailL10n.watchNumber(entry.rewatchCount + 1))
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(entry.rewatchCount + 1)))
+            } else if entry.rewatchCount > 0 {
+                Text(verbatim: "×\(entry.rewatchCount.formatted())")
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(entry.rewatchCount)))
+            }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(badgeTint)
+        .lineLimit(1)
+        .fixedSize()
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background {
+            Capsule()
+                .fill(badgeTint.opacity(0.14))
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var accessibilityValue: Text {
+        entry.isRewatching
+            ? Text(EntryDetailL10n.watchNumber(entry.rewatchCount + 1))
+            : Text(entry.rewatchCount, format: .number)
+    }
+
+    private var editor: some View {
         VStack(alignment: .leading, spacing: 10) {
             if entry.watchStatus == .watching {
                 Toggle(isOn: rewatchingBinding) {
@@ -278,6 +332,8 @@ fileprivate struct EntryRewatchControls: View {
                 }
             }
         }
+        .frame(idealWidth: 280, maxWidth: 320)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var rewatchingBinding: Binding<Bool> {

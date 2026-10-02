@@ -646,6 +646,22 @@
         }
       }
     },
+    "Watch #%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld周目"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第%lld遍"
+          }
+        }
+      }
+    },
     "Website" : {
       "localizations" : {
         "en" : {

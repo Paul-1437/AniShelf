@@ -34,6 +34,9 @@ enum EntryDetailL10n {
         "Starting a rewatch clears episode progress. Marking it watched again adds one to the rewatch count."
     static let rewatchPromptMovieMessage: LocalizedStringResource =
         "Marking it watched again adds one to the rewatch count."
+    static func watchNumber(_ number: Int) -> LocalizedStringResource {
+        "Watch #\(number)"
+    }
     static let trackDates: LocalizedStringResource = "Track Dates"
     static let hideDates: LocalizedStringResource = "Hide Dates"
     static let dateStarted: LocalizedStringResource = "Date Started"
