@@ -64,6 +64,7 @@ struct LibraryWatchStatusBadge: View {
 
 struct LibraryRewatchCountBadge: View {
     let count: Int
+    let status: AnimeEntry.WatchStatus
 
     var body: some View {
         if count > 0 {
@@ -74,14 +75,14 @@ struct LibraryRewatchCountBadge: View {
                     .font(LibraryWatchStatusBadge.textFont)
                     .monospacedDigit()
             }
-            .foregroundStyle(.purple.opacity(0.92))
+            .foregroundStyle(status.libraryTintColor.opacity(0.92))
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
             .background {
                 Capsule(style: .continuous)
-                    .fill(.purple.opacity(0.1))
+                    .fill(status.libraryTintColor.opacity(0.09))
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(EntryDetailL10n.timesRewatched)
