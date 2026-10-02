@@ -1,6 +1,6 @@
 # Privacy Policy for AniShelf
 
-Effective date: October 1, 2026
+Effective date: October 2, 2026
 
 AniShelf is an anime library management app for iPhone, iPad, and Mac. This
 Privacy Policy explains what information the app handles, how that information
@@ -248,6 +248,6 @@ updated version will be posted with a new effective date.
 
 ## Contact
 
-For privacy questions about AniShelf, contact the app publisher through the
-contact method listed on the app's App Store product page or the project's
-repository.
+For privacy questions about AniShelf, email the app publisher at
+[samuelhe52@outlook.com](mailto:samuelhe52@outlook.com). For other help, see the
+[AniShelf support page](https://anishelf.konakona.dev/support/).
