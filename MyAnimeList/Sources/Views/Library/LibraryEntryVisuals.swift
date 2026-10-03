@@ -27,11 +27,30 @@ struct LibraryWatchStatusIndicator: View {
 struct LibraryWatchStatusBadge: View {
     let status: AnimeEntry.WatchStatus
     var isRewatching = false
+    var rewatchCount = 0
 
     private static let rewatchingTitle: LocalizedStringResource = "Rewatching"
 
     private var showsRewatching: Bool {
         isRewatching && status == .watching
+    }
+
+    private var statusTitle: LocalizedStringResource {
+        showsRewatching ? Self.rewatchingTitle : status.localizedStringResource
+    }
+
+    private var title: LocalizedStringResource {
+        if rewatchCount > 0 {
+            return "\(String(localized: statusTitle)) ×\(rewatchCount)"
+        }
+        return statusTitle
+    }
+
+    private var accessibilityTitle: LocalizedStringResource {
+        if rewatchCount > 0 {
+            return "\(String(localized: statusTitle)), times rewatched: \(rewatchCount)"
+        }
+        return statusTitle
     }
 
     var body: some View {
@@ -43,8 +62,9 @@ struct LibraryWatchStatusBadge: View {
             } else {
                 LibraryWatchStatusIndicator(status: status, diameter: 5)
             }
-            Text(showsRewatching ? Self.rewatchingTitle : status.localizedStringResource)
+            Text(title)
                 .font(Self.textFont)
+                .monospacedDigit()
                 .foregroundStyle(status.libraryTintColor.opacity(0.92))
                 .lineLimit(1)
         }
@@ -54,6 +74,8 @@ struct LibraryWatchStatusBadge: View {
             Capsule(style: .continuous)
                 .fill(status.libraryTintColor.opacity(0.09))
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(accessibilityTitle))
     }
 
     fileprivate static let horizontalPadding: CGFloat = 8
