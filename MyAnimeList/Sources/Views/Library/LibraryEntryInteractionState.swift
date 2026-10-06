@@ -11,18 +11,9 @@ import Observation
 import SwiftUI
 import UIKit
 
-enum LibraryEntryWorkflow: Identifiable, Equatable, Sendable {
+enum LibraryEntryWorkflow: Equatable, Sendable {
     case posterSelection(LibraryEntrySyncIdentity)
     case sharing(LibraryEntrySyncIdentity)
-
-    var id: String {
-        switch self {
-        case .posterSelection(let identity):
-            "poster:\(identity.rawID)"
-        case .sharing(let identity):
-            "sharing:\(identity.rawID)"
-        }
-    }
 
     var entryIdentity: LibraryEntrySyncIdentity {
         switch self {
@@ -33,32 +24,17 @@ enum LibraryEntryWorkflow: Identifiable, Equatable, Sendable {
     }
 }
 
-enum LibraryEntryDetailMode: Equatable, Sendable {
-    case gallery
-    case list
-    case grid
-}
-
 enum LibraryEntryDetailHost: Equatable, Sendable {
     case sheet
     case inspector
-}
-
-enum LibraryEntryDetailHostChangeSource: Equatable, Sendable {
-    case initial
-    case horizontalSizeClass
-    case displayMode
 }
 
 struct LibraryEntryDetailHostPolicy: Equatable, Sendable {
     let host: LibraryEntryDetailHost
     let activation: LibraryEntryDetailActivation
 
-    init(
-        mode: LibraryEntryDetailMode,
-        horizontalSizeClass: UserInterfaceSizeClass?
-    ) {
-        if mode != .gallery, horizontalSizeClass == .regular {
+    init(horizontalSizeClass: UserInterfaceSizeClass?) {
+        if horizontalSizeClass == .regular {
             host = .inspector
             activation = .singleTap
         } else {
@@ -124,6 +100,7 @@ final class LibraryEntryInteractionState {
     private(set) var detailHostPresentation: LibraryEntryDetailHostPresentation?
     private(set) var workflowPresentation: LibraryEntryWorkflowPresentation?
     private(set) var isInteractivelyResizing = false
+    private(set) var isDetailDormantUntilInspector = false
 
     init(initialDetailHost: LibraryEntryDetailHost = .sheet) {
         desiredDetailHost = initialDetailHost
@@ -131,10 +108,6 @@ final class LibraryEntryInteractionState {
 
     var presentedDetailEntryID: LibraryEntrySyncIdentity? {
         detailPresentation?.entryIdentity
-    }
-
-    var activeWorkflow: LibraryEntryWorkflow? {
-        workflowPresentation?.workflow
     }
 
     var detailSheetPresentation: LibraryEntryDetailHostPresentation? {
@@ -175,19 +148,12 @@ final class LibraryEntryInteractionState {
         deletingEntryID != nil
     }
 
-    var isPresentingDetail: Bool {
-        presentedDetailEntryID != nil
-    }
-
     func focus(_ entry: AnimeEntry) {
         focusedEntryID = entry.syncIdentity
     }
 
-    func focus(entryID: LibraryEntrySyncIdentity?) {
-        focusedEntryID = entryID
-    }
-
     func openDetails(for entry: AnimeEntry) {
+        isDetailDormantUntilInspector = false
         if detailEditRequest?.entryIdentity != entry.syncIdentity {
             detailEditRequest = nil
         }
@@ -212,11 +178,7 @@ final class LibraryEntryInteractionState {
         detailPresentation = nil
         detailHostPresentation = nil
         detailEditRequest = nil
-    }
-
-    func dismissDetails(ifPresentationID presentationID: UUID) {
-        guard detailPresentation?.id == presentationID else { return }
-        dismissDetails()
+        isDetailDormantUntilInspector = false
     }
 
     func dismissDetails(ifHostPresentationID hostPresentationID: UUID) {
@@ -226,12 +188,28 @@ final class LibraryEntryInteractionState {
 
     func requestDetailHost(
         _ host: LibraryEntryDetailHost,
-        source: LibraryEntryDetailHostChangeSource,
-        migrationBlocked: Bool
+        migrationBlocked: Bool,
+        rootPresentationActive: Bool = false
     ) {
         desiredDetailHost = host
+
+        if rootPresentationActive,
+            host == .sheet,
+            detailPresentation != nil,
+            detailHostPresentation?.host == .inspector
+        {
+            isDetailDormantUntilInspector = true
+            detailHostPresentation?.isHostPresented = false
+            return
+        }
+
+        if isDetailDormantUntilInspector {
+            guard host == .inspector else { return }
+            isDetailDormantUntilInspector = false
+        }
+
         guard !migrationBlocked else { return }
-        guard source != .horizontalSizeClass || !isInteractivelyResizing else { return }
+        guard !isInteractivelyResizing else { return }
         reconcileDetailHostPresentation()
     }
 
@@ -246,13 +224,19 @@ final class LibraryEntryInteractionState {
     }
 
     func reconcileDetailHostIfPossible(migrationBlocked: Bool) {
-        guard !isInteractivelyResizing, !migrationBlocked else { return }
+        guard !isInteractivelyResizing,
+            !migrationBlocked,
+            !isDetailDormantUntilInspector
+        else { return }
         reconcileDetailHostPresentation()
     }
 
     func detailHostDidDismiss(_ presentation: LibraryEntryDetailHostPresentation) {
         guard detailHostPresentation?.id == presentation.id else { return }
-        if isInteractivelyResizing {
+        if isInteractivelyResizing
+            || isDetailDormantUntilInspector
+            || hasPendingDetailHostMigration
+        {
             detailHostPresentation?.isHostPresented = false
         } else {
             dismissDetails()
@@ -277,10 +261,6 @@ final class LibraryEntryInteractionState {
     func workflowPresentationDidDismiss(_ presentation: LibraryEntryWorkflowPresentation) {
         guard workflowPresentation?.id == presentation.id else { return }
         workflowPresentation = nil
-    }
-
-    func isCurrentDetailPresentation(_ presentationID: UUID) -> Bool {
-        detailPresentation?.id == presentationID
     }
 
     func isCurrentDetailHostPresentation(_ presentationID: UUID) -> Bool {
@@ -332,10 +312,6 @@ final class LibraryEntryInteractionState {
 
     func isSelected(_ entryID: Int) -> Bool {
         selectedEntryIDs.contains(entryID)
-    }
-
-    func selectedEntries(from entries: [AnimeEntry]) -> [AnimeEntry] {
-        entries.filter { selectedEntryIDs.contains($0.tmdbID) }
     }
 
     func prepareDeletion(for entry: AnimeEntry) {

@@ -114,14 +114,11 @@ struct LibraryView: View {
             store.groupStrategy = .none
         }
         .onAppear {
-            updateDetailHost(source: .initial)
+            updateDetailHost()
             restorePresentedDetailIfNeeded()
         }
         .onChange(of: horizontalSizeClass) {
-            updateDetailHost(source: .horizontalSizeClass)
-        }
-        .onChange(of: libraryViewStyle) {
-            updateDetailHost(source: .displayMode)
+            updateDetailHost()
         }
         .onChange(of: detailHostMigrationBlocked) { _, isBlocked in
             guard !isBlocked else { return }
@@ -139,11 +136,6 @@ struct LibraryView: View {
         .onChange(of: interaction.detailHostPresentation) {
             reconcileInspectorDetailPersistence()
         }
-        #if DEBUG
-            .onAppear {
-                openDebugDetailIfRequested()
-            }
-        #endif
     }
 
     private var libraryNavigation: some View {
@@ -333,10 +325,11 @@ struct LibraryView: View {
     @ViewBuilder
     private var libraryView: some View {
         let displayItems = selectionDisplayItems ?? store.libraryDisplayItems
+        let layoutIDs = displayItems.map(\.id)
 
         switch libraryViewStyle {
         case .gallery:
-            libraryViewPage(id: .gallery) {
+            libraryViewPage(id: .gallery, layoutIDs: layoutIDs) {
                 LibraryGalleryView(
                     scrolledID: $scrollState.scrolledID
                 )
@@ -344,7 +337,7 @@ struct LibraryView: View {
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             }
         case .list:
-            libraryViewPage(id: .list) {
+            libraryViewPage(id: .list, layoutIDs: layoutIDs) {
                 LibraryListView(
                     displayItems: displayItems,
                     scrolledID: $scrollState.scrolledID,
@@ -353,7 +346,7 @@ struct LibraryView: View {
                 .safeAreaPadding(.bottom, 20)
             }
         case .grid:
-            libraryViewPage(id: .grid) {
+            libraryViewPage(id: .grid, layoutIDs: layoutIDs) {
                 LibraryGridView(
                     displayItems: displayItems,
                     scrolledID: $scrollState.scrolledID,
@@ -753,10 +746,7 @@ struct LibraryView: View {
     // MARK: - Entry Actions
 
     private var detailHostPolicy: LibraryEntryDetailHostPolicy {
-        LibraryEntryDetailHostPolicy(
-            mode: libraryViewStyle.detailMode,
-            horizontalSizeClass: horizontalSizeClass
-        )
+        LibraryEntryDetailHostPolicy(horizontalSizeClass: horizontalSizeClass)
     }
 
     private var currentDetailActivation: LibraryEntryDetailActivation {
@@ -767,17 +757,31 @@ struct LibraryView: View {
     }
 
     private var detailHostMigrationBlocked: Bool {
-        interaction.workflowPresentation != nil
-            || detailSessionStore.session(
-                for: interaction.presentedDetailEntryID
-            )?.blocksHostMigration == true
+        detailSessionStore.session(
+            for: interaction.presentedDetailEntryID
+        )?.blocksHostMigration == true
     }
 
-    private func updateDetailHost(source: LibraryEntryDetailHostChangeSource) {
+    private var isRootPresentationActive: Bool {
+        isSearching
+            || showProfileSettings
+            || interaction.workflowPresentation != nil
+    }
+
+    private func updateDetailHost() {
+        let desiredHost = detailHostPolicy.host
+        if !isRootPresentationActive,
+            let presentation = interaction.detailHostPresentation,
+            presentation.host != desiredHost || !presentation.isHostPresented
+        {
+            detailSessionStore.session(for: interaction.presentedDetailEntryID)?
+                .dismissActiveSheetForHostChange()
+        }
+
         interaction.requestDetailHost(
-            detailHostPolicy.host,
-            source: source,
-            migrationBlocked: detailHostMigrationBlocked
+            desiredHost,
+            migrationBlocked: detailHostMigrationBlocked,
+            rootPresentationActive: isRootPresentationActive
         )
     }
 
@@ -794,13 +798,13 @@ struct LibraryView: View {
 
     private func openDetails(_ entry: AnimeEntry) {
         prepareDetailSession(for: entry)
-        updateDetailHost(source: .initial)
+        updateDetailHost()
         interaction.openDetails(for: entry)
     }
 
     private func editDetails(_ entry: AnimeEntry) {
         prepareDetailSession(for: entry)
-        updateDetailHost(source: .initial)
+        updateDetailHost()
         interaction.setEditingEntry(entry)
     }
 
@@ -874,18 +878,6 @@ struct LibraryView: View {
             interaction.openDetails(for: entry)
         }
     }
-
-    #if DEBUG
-        private func openDebugDetailIfRequested() {
-            guard ProcessInfo.processInfo.arguments.contains("-OpenFirstLibraryDetail"),
-                interaction.presentedDetailEntryID == nil,
-                let entry = store.libraryOnDisplay.first
-            else { return }
-
-            scrollState.scrolledID = entry.tmdbID
-            openDetails(entry)
-        }
-    #endif
 
     private func jumpToEntryInLibrary(withID id: Int) {
         scrollState.scrolledID = id
@@ -1012,10 +1004,12 @@ struct LibraryView: View {
 
     private func libraryViewPage<Content: View>(
         id: LibraryViewStyle,
+        layoutIDs: [Int],
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
             .id(id)
+            .animation(.default, value: layoutIDs)
             .transition(libraryViewTransition)
     }
 
@@ -1039,14 +1033,6 @@ struct LibraryView: View {
             case .gallery: "photo.on.rectangle.angled"
             case .list: "list.bullet.rectangle.portrait"
             case .grid: "rectangle.grid.3x2.fill"
-            }
-        }
-
-        var detailMode: LibraryEntryDetailMode {
-            switch self {
-            case .gallery: .gallery
-            case .list: .list
-            case .grid: .grid
             }
         }
 

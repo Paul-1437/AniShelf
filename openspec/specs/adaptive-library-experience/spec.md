@@ -1,7 +1,13 @@
-## ADDED Requirements
+# Adaptive Library Experience
+
+## Purpose
+
+Define adaptive library layout, entry-detail hosting, and resize behavior across supported scene sizes.
+
+## Requirements
 
 ### Requirement: Device-independent Gallery layout policy
-Gallery SHALL select its arrangement from its own proposed content size and viable card geometry. It MUST NOT use device idiom, named device model, fold state, or interface orientation as the structural layout decision. Gallery entry detail SHALL always use a sheet. List and Grid entry detail SHALL use the library root's horizontal size class for discrete system-host selection instead of participating in this geometry policy.
+Gallery SHALL select its arrangement from its own proposed content size and viable card geometry. It MUST NOT use device idiom, named device model, fold state, or interface orientation as the structural layout decision. Entry detail SHALL use the library root's horizontal size class for discrete system-host selection instead of participating in this geometry policy.
 
 #### Scenario: Gallery gains useful shelf space
 - **WHEN** Gallery's proposed size can show a viable focused card and neighboring content
@@ -34,34 +40,30 @@ The system SHALL preserve the current one-entry-per-page Gallery at current on-d
 - **THEN** at least part of a neighboring entry is visible and scrolling remains aligned to a focused entry
 
 #### Scenario: Gallery opens entry detail
-- **WHEN** the user opens detail from Gallery at any size class
-- **THEN** detail appears in a genuine sheet and Gallery retains its full proposed width, shelf arrangement, and neighboring posters behind the presentation
+- **WHEN** the user opens detail from Gallery
+- **THEN** detail uses the same size-class-driven sheet or inspector host as the other library modes without changing Gallery's arrangement policy
 
 ### Requirement: On-demand adaptive entry detail
-The system SHALL present entry detail only after an explicit open-detail action. Gallery SHALL always use a genuine SwiftUI sheet. List and Grid SHALL use a genuine SwiftUI sheet when the library root horizontal size class is compact and a SwiftUI inspector when it is regular. The app MUST NOT use root geometry, device idiom, device model, or interface orientation to choose between these hosts.
+The system SHALL present entry detail only after an explicit open-detail action. Gallery, List, and Grid SHALL use a genuine SwiftUI sheet when the library root horizontal size class is compact and a SwiftUI inspector when it is regular. The app MUST NOT use root geometry, active library mode, device idiom, device model, or interface orientation to choose between these hosts.
 
-#### Scenario: Detail opens in a spacious List or Grid
-- **WHEN** the user opens an entry from List or Grid while the library root horizontal size class is regular
+#### Scenario: Detail opens in a spacious library
+- **WHEN** the user opens an entry from any library mode while the library root horizontal size class is regular
 - **THEN** a dismissible trailing inspector appears while the library remains the primary surface
 
 #### Scenario: Primary tap targets an entry in regular width
-- **WHEN** the horizontal environment is regular and the user taps a List or Grid entry once
+- **WHEN** the horizontal environment is regular and the user taps an entry once
 - **THEN** that explicit tap opens or updates the inspector regardless of the constrained-layout tap preference
 
 #### Scenario: Compact environment opens a genuine sheet
-- **WHEN** the user opens an entry from List or Grid while the library root horizontal size class is compact
+- **WHEN** the user opens an entry from any library mode while the library root horizontal size class is compact
 - **THEN** a genuine SwiftUI sheet presents the canonical detail session with the v1.95 system surface, Liquid Glass compositing, navigation behavior, and dismissal behavior
-
-#### Scenario: Regular Gallery still opens a genuine sheet
-- **WHEN** the user opens an entry from Gallery while the library root horizontal size class is regular
-- **THEN** a genuine SwiftUI sheet appears and no inspector is introduced into Gallery
 
 #### Scenario: Wide phone-hosted environment remains compact
 - **WHEN** a geometrically wide phone-hosted scene still reports a compact horizontal size class
 - **THEN** entry detail remains in the genuine sheet host and the app does not infer regular presentation semantics from width
 
 #### Scenario: Selection changes while inspector is open
-- **WHEN** the user focuses another entry in List or Grid while the inspector is visible
+- **WHEN** the user focuses another entry while the inspector is visible
 - **THEN** the inspector updates to the newly focused entry without creating another presentation
 
 #### Scenario: Detail host closes
@@ -69,7 +71,7 @@ The system SHALL present entry detail only after an explicit open-detail action.
 - **THEN** the active library mode immediately reclaims the complete library canvas
 
 ### Requirement: Separate focus and presentation state
-The system SHALL distinguish the focused library entry, an explicitly presented detail entry, its transient system host, multi-selection, and an active modal workflow. Presentation routes MUST carry lightweight stable identifiers rather than view instances. The canonical detail route and session MUST remain independent from sheet and inspector host lifecycles.
+The system SHALL distinguish the focused library entry, an explicitly presented detail entry, its transient system host, multi-selection, a root-owned presentation, and a detail-owned nested presentation. Presentation routes MUST carry lightweight stable identifiers rather than view instances. The canonical detail route and session MUST remain independent from sheet and inspector host lifecycles, including while retained detail is inspector-only dormant.
 
 #### Scenario: Gallery focus moves without opening detail
 - **WHEN** the user pages to another Gallery card without invoking the open-detail gesture
@@ -79,8 +81,20 @@ The system SHALL distinguish the focused library entry, an explicitly presented 
 - **WHEN** the user enters List or Grid multi-selection
 - **THEN** focused-entry state does not replace or corrupt the set of selected entry identifiers
 
+#### Scenario: Root workflow crosses into compact width
+- **WHEN** Search, profile/settings, or context-menu poster selection or sharing remains active while its underlying inspector environment becomes compact
+- **THEN** the root workflow remains uninterrupted while detail becomes inspector-only dormant without clearing its canonical route or session
+
+#### Scenario: Dormant detail resumes according to the active host policy
+- **WHEN** the root-owned presentation dismisses after detail became inspector-only dormant
+- **THEN** compact width reveals the library home without a detail sheet, while later inspector capacity restores the same detail session
+
+#### Scenario: User explicitly opens detail while dormant and compact
+- **WHEN** inspector-only dormant detail exists and the user explicitly opens an entry in compact width
+- **THEN** dormancy ends and the explicitly selected entry opens in a genuine detail sheet
+
 ### Requirement: Non-destructive live resizing
-The system SHALL preserve display mode, focused entry, scroll position, multi-selection, presented destination, and active workflow state while the scene resizes. Resizing MUST NOT dismiss or reset unsaved work.
+The system SHALL preserve display mode, focused entry, scroll position, multi-selection, canonical detail state, and root-owned workflow state while the scene resizes. Resizing MUST NOT dismiss or reset unsaved detail work. Detail-owned poster selection and sharing are transient exceptions that dismiss when their parent detail host changes.
 
 #### Scenario: Interactive resize crosses the host boundary
 - **WHEN** the library root horizontal size class changes while the scene is being interactively resized and detail is presented
@@ -90,17 +104,13 @@ The system SHALL preserve display mode, focused entry, scroll position, multi-se
 - **WHEN** the library root horizontal size class changes outside an interactive resize and detail is presented
 - **THEN** the system migrates to the matching host without losing the selected entry or detail session state
 
-#### Scenario: Display mode changes with detail presented
-- **WHEN** the active mode changes between Gallery and List or Grid while detail remains presented
-- **THEN** the system migrates to the host required by the new mode and root size class without losing the selected entry or detail session state
-
 #### Scenario: Outgoing host finishes a delayed dismissal
 - **WHEN** an outgoing sheet or inspector reports dismissal after another host generation has been committed
 - **THEN** the callback is rejected without clearing the canonical detail route or dismissing the incoming host
 
 #### Scenario: Nested detail workflow is active during migration
-- **WHEN** a host change is requested while detail owns a nested presentation that cannot be safely rehosted
-- **THEN** the canonical detail and nested workflow state remain intact and host migration waits until the unsafe transition has ended
+- **WHEN** a host change is requested while detail owns poster selection or sharing
+- **THEN** the system dismisses the nested presentation, waits for dismissal to complete, and migrates the canonical detail session without restoring the nested destination
 
 #### Scenario: Editing during resize
 - **WHEN** the scene resizes while entry edits are unsaved
