@@ -61,22 +61,43 @@ final class LibrarySyncCoordinator {
         }
     }
 
-    private weak var store: LibraryStore?
-    private let importer: CloudLibrarySyncImporter
+    struct SyncOutcome {
+        let result: SyncResult
+        let wasCoalesced: Bool
+        let shouldHandleResult: Bool
+
+        init(
+            _ result: SyncResult,
+            wasCoalesced: Bool = false,
+            shouldHandleResult: Bool = true
+        ) {
+            self.result = result
+            self.wasCoalesced = wasCoalesced
+            self.shouldHandleResult = shouldHandleResult
+        }
+    }
+
+    weak var store: LibraryStore?
+    let importer: CloudLibrarySyncImporter
     let exporter: CloudLibrarySyncExporter
     private let changeTokenStore: CloudLibrarySyncChangeTokenStore
     private let namespaceProvider: @MainActor () async throws -> CloudLibrarySyncChangeTokenStore.Namespace?
     let hydrateMissingEntry: @MainActor (LibraryEntrySyncSnapshot, LibraryStore) async throws -> AnimeEntry
-    private let dateProvider: @MainActor @Sendable () -> Date
+    let dateProvider: @MainActor @Sendable () -> Date
 
-    private var isSyncing = false
-    private var syncRequestedWhileRunning = false
-    private var syncWaiters: [CheckedContinuation<SyncResult, Never>] = []
+    private let syncGate = SyncGate()
+    private var activeSyncRequestCount = 0
     private var ordinarySyncCancellationGeneration = 0
+    private var canceledSyncNeedsDrain = false
+    private var activeBootstrapTask: Task<SyncResult, Never>?
     private var activeFirstEnableBootstrapIDs = Set<UUID>()
     private var canceledFirstEnableBootstrapIDs = Set<UUID>()
 
-    typealias SyncPhase = LibraryCloudSyncPhase
+    var hasActiveSyncRequest: Bool {
+        activeSyncRequestCount > 0
+    }
+
+    typealias SyncPhase = LibraryCloudSyncOperation
 
     /// Creates the coordinator and wires the sync pipeline dependencies.
     ///
@@ -87,17 +108,21 @@ final class LibrarySyncCoordinator {
     ///   - database: Optional CloudKit database adapter. When omitted, the
     ///     coordinator uses the client's private database if available.
     ///   - changeTokenStore: Storage for zone change tokens.
+    ///   - quarantineStore: Durable records that this build cannot decode.
     ///   - namespaceProvider: Async namespace resolver. This is injected for
     ///     tests and otherwise resolves the current iCloud account through the
     ///     client.
     ///   - hydrateMissingEntry: Entry hydration hook used when remote state
-    ///     refers to an entry the local store does not currently have.
+    ///     refers to an entry the local store does not currently have. The hook
+    ///     must return a detached entry; the coordinator inserts it only after
+    ///     hydration planning passes its cancellation boundary.
     ///   - dateProvider: Clock injection for status timestamps and tests.
     init(
         store: LibraryStore,
         client: CloudLibrarySyncClient? = nil,
         database: CloudLibrarySyncDatabase? = nil,
         changeTokenStore: CloudLibrarySyncChangeTokenStore = .init(),
+        quarantineStore: CloudLibrarySyncQuarantineStore = .init(),
         namespaceProvider: (@MainActor () async throws -> CloudLibrarySyncChangeTokenStore.Namespace?)? = nil,
         hydrateMissingEntry: @escaping @MainActor (LibraryEntrySyncSnapshot, LibraryStore) async throws -> AnimeEntry =
             LibrarySyncCoordinator.hydrateMissingEntry,
@@ -125,7 +150,8 @@ final class LibrarySyncCoordinator {
             self.importer = CloudLibrarySyncImporter(
                 client: resolvedClient,
                 database: resolvedDatabase,
-                changeTokenStore: changeTokenStore
+                changeTokenStore: changeTokenStore,
+                quarantineStore: quarantineStore
             )
             self.exporter = CloudLibrarySyncExporter(
                 client: resolvedClient,
@@ -136,7 +162,8 @@ final class LibrarySyncCoordinator {
             self.importer = CloudLibrarySyncImporter(
                 client: resolvedClient,
                 database: disabledDatabase,
-                changeTokenStore: changeTokenStore
+                changeTokenStore: changeTokenStore,
+                quarantineStore: quarantineStore
             )
             self.exporter = CloudLibrarySyncExporter(
                 client: resolvedClient,
@@ -161,21 +188,25 @@ final class LibrarySyncCoordinator {
     /// Runs one coalesced sync pass and preserves failure classification for
     /// local dirty-queue retry scheduling.
     func syncResult(trigger: Trigger) async -> SyncResult {
-        guard !Task.isCancelled else { return .skipped(.disabled) }
+        await syncOutcome(trigger: trigger).result
+    }
+
+    func syncOutcome(trigger: Trigger) async -> SyncOutcome {
+        activeSyncRequestCount += 1
+        defer { activeSyncRequestCount -= 1 }
+
+        guard !Task.isCancelled else { return .init(.skipped(.disabled)) }
         guard let store else {
             librarySyncCoordinatorLogger.warning(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because the library store was unavailable."
             )
-            return .permanentFailure
+            return .init(.permanentFailure)
         }
-        if isSyncing {
-            syncRequestedWhileRunning = true
+        if let queuedResult = await syncGate.waitForRunningPass() {
             librarySyncCoordinatorLogger.info(
                 "Queued iCloud library sync for \(trigger.rawValue, privacy: .public) while another sync was already running."
             )
-            return await withCheckedContinuation { continuation in
-                syncWaiters.append(continuation)
-            }
+            return queuedResult
         }
         if let blockedReason = store.libraryCloudSyncPolicyBlockReason() {
             store.recordLibraryCloudSyncSkipped(
@@ -186,10 +217,45 @@ final class LibrarySyncCoordinator {
             librarySyncCoordinatorLogger.info(
                 "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because policy blocked ordinary sync: \(blockedReason.rawValue, privacy: .public)."
             )
-            return .skipped(blockedReason)
+            return .init(.skipped(blockedReason))
         }
 
-        isSyncing = true
+        var scopeRequiringBootstrap: LibraryCloudSyncScope?
+        do {
+            scopeRequiringBootstrap = try await currentScopeRequiringBootstrap(store: store)
+        } catch {
+            // Continue through the normal pipeline so the existing phase and
+            // failure reporting path records the namespace-resolution error.
+        }
+
+        guard !Task.isCancelled else { return .init(.skipped(.disabled)) }
+        if let queuedResult = await syncGate.waitForRunningPass() {
+            librarySyncCoordinatorLogger.info(
+                "Queued iCloud library sync for \(trigger.rawValue, privacy: .public) because another sync started during scope resolution."
+            )
+            return queuedResult
+        }
+        if let blockedReason = store.libraryCloudSyncPolicyBlockReason() {
+            store.recordLibraryCloudSyncSkipped(
+                trigger: trigger,
+                reason: blockedReason,
+                at: dateProvider()
+            )
+            librarySyncCoordinatorLogger.info(
+                "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because policy changed during scope resolution: \(blockedReason.rawValue, privacy: .public)."
+            )
+            return .init(.skipped(blockedReason))
+        }
+        if let scopeRequiringBootstrap,
+            store.libraryCloudSyncStatus.lastCompletedScope != scopeRequiringBootstrap
+        {
+            librarySyncCoordinatorLogger.info(
+                "Starting iCloud library bootstrap because the active sync scope differs from the last completed scope."
+            )
+            return await store.bootstrapLibraryCloudSyncEnablementOutcome(canHandleResult: true)
+        }
+
+        syncGate.begin(kind: .ordinary, ownerHandlesResult: true)
         librarySyncCoordinatorLogger.info(
             "Starting iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
         )
@@ -197,21 +263,15 @@ final class LibrarySyncCoordinator {
         let cancellationGeneration = ordinarySyncCancellationGeneration
 
         repeat {
-            syncRequestedWhileRunning = false
             result = result.merged(
                 with: await runSync(
                     trigger: trigger,
                     cancellationGeneration: cancellationGeneration
                 ))
-        } while syncRequestedWhileRunning
+        } while syncGate.consumeRerunRequest()
 
-        isSyncing = false
-        let waiters = syncWaiters
-        syncWaiters.removeAll()
-        for waiter in waiters {
-            waiter.resume(returning: result)
-        }
-        return result
+        syncGate.finish(result)
+        return .init(result)
     }
 
     /// Executes the ordered sync phases once.
@@ -225,160 +285,34 @@ final class LibrarySyncCoordinator {
             )
             return .permanentFailure
         }
-        var currentPhase: SyncPhase?
-
+        let pass = ordinarySyncPass(
+            trigger: trigger,
+            cancellationGeneration: cancellationGeneration,
+            store: store
+        )
+        let state = SyncPipelineState(dateProvider: dateProvider)
         do {
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-            currentPhase = .prepareZoneSubscription
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .prepareZoneSubscription,
-                at: dateProvider()
-            )
-            try await importer.prepareRemoteSync()
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-
-            currentPhase = .namespaceResolution
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .namespaceResolution,
-                at: dateProvider()
-            )
-            guard let namespace = try await resolveNamespace(reportingTo: store) else {
-                try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-                librarySyncCoordinatorLogger.warning(
-                    "Skipped iCloud library sync for \(trigger.rawValue, privacy: .public) because no iCloud account namespace was available."
-                )
-                store.recordLibraryCloudSyncFailure(
-                    trigger: trigger,
-                    phase: currentPhase,
-                    result: .permanentFailure,
-                    reason: "No iCloud account namespace was available.",
-                    degradedReason: "iCloud library sync is blocked until iCloud account access is available.",
-                    at: dateProvider()
-                )
+            guard let head = try await runImportHead(pass: pass, state: state, store: store) else {
                 return .permanentFailure
             }
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-
-            let localSnapshots = try localSnapshotsByIdentity(for: store)
-            currentPhase = .remoteFetch
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .remoteFetch,
-                at: dateProvider()
+            let result = try await runApplyExportTail(
+                pass: pass,
+                state: state,
+                store: store,
+                importBatch: head.importBatch
             )
-            let importBatch = try await importer.fetchChanges(
-                namespace: namespace,
-                localSnapshotsByIdentity: localSnapshots
-            )
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-
-            currentPhase = .hydrationApply
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .hydrationApply,
-                at: dateProvider()
-            )
-            _ = try await applyImportedChanges(importBatch, to: store)
-            applyImportedSettingsIfNeeded(importBatch.settingsSnapshot, to: store)
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-
-            currentPhase = .tokenCommit
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .tokenCommit,
-                at: dateProvider()
-            )
-            importer.commit(importBatch)
-
-            currentPhase = .libraryRefresh
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .libraryRefresh,
-                at: dateProvider()
-            )
-            try refreshLibraryAfterImport(in: store)
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-
-            currentPhase = .dirtyQueueReconciliation
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .dirtyQueueReconciliation,
-                at: dateProvider()
-            )
-            _ = try reconcileDirtyQueue(with: importBatch, in: store)
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-
-            let postImportSnapshots = try localSnapshotsByIdentity(for: store)
-            let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
-            let localSettingsState = localSettingsSnapshotState(for: store)
-            let settingsSnapshotForExport = settingsSnapshotForExport(
-                localState: localSettingsState,
-                remoteSnapshot: importBatch.settingsSnapshot,
-                store: store
-            )
-            currentPhase = .export
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .export,
-                at: dateProvider()
-            )
-            let exportResult = try await export(
-                entries: dirtyEntries,
-                localSnapshotsByIdentity: postImportSnapshots,
-                settingsSnapshot: settingsSnapshotForExport,
-                observedDirtyEntries: dirtyEntries,
-                store: store
-            )
-            logSettingsExportResult(
-                settingsSnapshotForExport,
-                exportResult: exportResult
-            )
-            try checkOrdinarySyncCancellation(cancellationGeneration, store: store)
-            try removeExportedDirtyEntries(
-                exportResult.exportedIdentities,
-                from: dirtyEntries,
-                in: store
-            )
-            let reconciledCloudSyncedSettingsUpdatedAt =
-                reconciledCloudSyncedSettingsUpdatedAt(
-                    store: store,
-                    exportedSnapshot: settingsSnapshotForExport,
-                    settingsExported: exportResult.settingsExported
-                )
             librarySyncCoordinatorLogger.info(
                 "Finished iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
             )
-            store.recordLibraryCloudSyncSuccess(
-                trigger: trigger,
-                completedBootstrap: false,
-                reconciledCloudSyncedSettingsUpdatedAt: reconciledCloudSyncedSettingsUpdatedAt,
-                at: dateProvider()
-            )
-            return .success
+            return result
         } catch is CancellationError {
+            store.recordLibraryCloudSyncCancellation()
             librarySyncCoordinatorLogger.info(
                 "Cancelled iCloud library sync triggered by \(trigger.rawValue, privacy: .public)."
             )
             return .skipped(.disabled)
         } catch {
-            let phase = currentPhase?.rawValue ?? "unknown"
-            librarySyncCoordinatorLogger.error(
-                "iCloud library sync triggered by \(trigger.rawValue, privacy: .public) failed during \(phase, privacy: .public): \(error.localizedDescription, privacy: .private)"
-            )
-            let result: SyncResult = error.isPermanentLibrarySyncFailure ? .permanentFailure : .retryableFailure
-            store.recordLibraryCloudSyncFailure(
-                trigger: trigger,
-                phase: currentPhase,
-                result: result.resultClass,
-                reason: error.localizedDescription,
-                degradedReason: result == .permanentFailure
-                    ? "iCloud library sync is blocked by a permanent failure."
-                    : nil,
-                at: dateProvider()
-            )
-            return result
+            return recordPipelineFailure(error, pass: pass, state: state, store: store)
         }
     }
 
@@ -389,31 +323,51 @@ final class LibrarySyncCoordinator {
     /// existing local library into the dirty queue before continuing through the
     /// normal import-before-export pass.
     func bootstrapFirstEnablement(
-        preference: LibraryCloudSyncConflictPreference?
+        preference: LibraryCloudSyncConflictPreference?,
+        isUserRetry: Bool = false
     ) async -> SyncResult {
+        await bootstrapFirstEnablementOutcome(
+            preference: preference, isUserRetry: isUserRetry
+        ).result
+    }
+
+    func bootstrapFirstEnablementOutcome(
+        preference: LibraryCloudSyncConflictPreference?,
+        isUserRetry: Bool = false,
+        canHandleResult: Bool = false
+    ) async -> SyncOutcome {
+        activeSyncRequestCount += 1
+        defer { activeSyncRequestCount -= 1 }
+
         let bootstrapID = UUID()
-        if isSyncing {
-            syncRequestedWhileRunning = true
+        if let queuedResult = await syncGate.waitForRunningPass(canHandleResult: canHandleResult) {
             librarySyncCoordinatorLogger.info(
                 "Queued iCloud library first-enable bootstrap while another sync was already running."
             )
-            return await withCheckedContinuation { continuation in
-                syncWaiters.append(continuation)
-            }
+            return queuedResult
         }
 
-        isSyncing = true
+        syncGate.begin(kind: .bootstrap, ownerHandlesResult: canHandleResult)
         activeFirstEnableBootstrapIDs.insert(bootstrapID)
-        var result = await runFirstEnableBootstrap(
-            preference: preference,
-            bootstrapID: bootstrapID
-        )
+        let task = Task {
+            await runFirstEnableBootstrap(
+                preference: preference,
+                bootstrapID: bootstrapID,
+                isUserRetry: isUserRetry
+            )
+        }
+        activeBootstrapTask = task
+        var result = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        activeBootstrapTask = nil
         activeFirstEnableBootstrapIDs.remove(bootstrapID)
         canceledFirstEnableBootstrapIDs.remove(bootstrapID)
         if result == .success {
             let cancellationGeneration = ordinarySyncCancellationGeneration
-            while syncRequestedWhileRunning {
-                syncRequestedWhileRunning = false
+            while syncGate.consumeRerunRequest() {
                 result = result.merged(
                     with: await runSync(
                         trigger: .firstEnableBootstrap,
@@ -421,43 +375,38 @@ final class LibrarySyncCoordinator {
                     ))
             }
         }
-        isSyncing = false
-        if result == .conflictChoiceRequired, !syncWaiters.isEmpty {
-            return result
-        }
-        let waiters = syncWaiters
-        syncWaiters.removeAll()
-        for waiter in waiters {
-            waiter.resume(returning: result)
-        }
-        return result
+        // A queued ordinary sync must remain parked until the caller resolves
+        // the bootstrap conflict and starts the next bootstrap pass.
+        syncGate.finish(result, parkingWaiters: result == .conflictChoiceRequired)
+        return .init(result, shouldHandleResult: canHandleResult)
     }
 
-    func cancelOrdinarySync() {
+    func cancelAllSync() {
+        canceledSyncNeedsDrain = hasActiveSyncRequest
         ordinarySyncCancellationGeneration &+= 1
-        syncRequestedWhileRunning = false
-        let waiters = syncWaiters
-        syncWaiters.removeAll()
-        for waiter in waiters {
-            waiter.resume(returning: .skipped(.disabled))
-        }
-    }
-
-    func cancelFirstEnableBootstrap() {
         canceledFirstEnableBootstrapIDs.formUnion(activeFirstEnableBootstrapIDs)
-        syncRequestedWhileRunning = false
-        let waiters = syncWaiters
-        syncWaiters.removeAll()
-        for waiter in waiters {
-            waiter.resume(returning: .skipped(.disabled))
-        }
+        activeBootstrapTask?.cancel()
+        syncGate.cancelAll()
     }
 
-    private func checkOrdinarySyncCancellation(
+    func waitUntilCanceledSyncFinishes() async {
+        guard canceledSyncNeedsDrain else { return }
+        await syncGate.waitUntilIdle()
+        canceledSyncNeedsDrain = false
+    }
+
+    func waitUntilAllSyncFinishes() async {
+        await syncGate.waitUntilIdle()
+    }
+
+    func checkOrdinarySyncCancellation(
         _ cancellationGeneration: Int,
         store: LibraryStore
     ) throws {
         guard cancellationGeneration == ordinarySyncCancellationGeneration else {
+            throw CancellationError()
+        }
+        if store.requiresDuplicateRepair {
             throw CancellationError()
         }
         if store.libraryCloudSyncPolicyBlockReason() == .disabled {
@@ -466,7 +415,7 @@ final class LibrarySyncCoordinator {
         try Task.checkCancellation()
     }
 
-    private func resolveNamespace(
+    func resolveNamespace(
         reportingTo store: LibraryStore
     ) async throws -> CloudLibrarySyncChangeTokenStore.Namespace? {
         do {
@@ -479,17 +428,57 @@ final class LibrarySyncCoordinator {
         }
     }
 
-    private func checkFirstEnableBootstrapCancellation(_ bootstrapID: UUID) throws {
+    private func currentScopeRequiringBootstrap(store: LibraryStore) async throws
+        -> LibraryCloudSyncScope?
+    {
+        guard let namespace = try await resolveNamespace(reportingTo: store) else {
+            return nil
+        }
+        let currentScope = LibraryCloudSyncScope(namespace: namespace)
+        if store.libraryCloudSyncStatus.lastCompletedScope == currentScope {
+            return nil
+        }
+
+        if store.libraryCloudSyncStatus.lastCompletedScope == nil,
+            changeTokenStore.token(
+                for: CloudLibrarySyncClient.recordZoneID,
+                namespace: namespace
+            ) != nil
+        {
+            store.updateLibraryCloudSyncStatus { status in
+                status.lastCompletedScope = currentScope
+            }
+            librarySyncCoordinatorLogger.info(
+                "Adopted the current iCloud sync scope from compatible legacy completed state."
+            )
+            return nil
+        }
+
+        return currentScope
+    }
+
+    /// Throws the bootstrap-specific cancellation sentinel.
+    ///
+    /// The dedicated type is what lets `runFirstEnableBootstrap` tell a
+    /// deliberate cancel apart from an ambient `CancellationError` raised
+    /// somewhere inside the pass. Only the former may return without recording
+    /// an outcome, because only then has the caller already reset the
+    /// bootstrap state. An ambient cancellation must fall through to
+    /// `recordPipelineFailure` so the bootstrap lands on `.failed` with a
+    /// reason instead of stranding the persisted state at `.running`.
+    func checkFirstEnableBootstrapCancellation(_ bootstrapID: UUID) throws {
+        try Task.checkCancellation()
         if canceledFirstEnableBootstrapIDs.contains(bootstrapID) {
             throw FirstEnableBootstrapCancellation.cancelled
         }
     }
 
-    private func applyImportedSettingsIfNeeded(
+    func applyImportedSettingsIfNeeded(
         _ remoteSnapshot: LibrarySettingsSyncSnapshot?,
         to store: LibraryStore
     ) {
         guard let remoteSnapshot else { return }
+        store.preferences.noteCloudSyncedSettingsTypes(remoteSnapshot)
         let localUpdatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt() ?? .distantPast
         guard remoteSnapshot.updatedAt > localUpdatedAt else {
             librarySyncCoordinatorLogger.debug(
@@ -500,7 +489,7 @@ final class LibrarySyncCoordinator {
         store.applyRemoteCloudSyncedPreferences(remoteSnapshot)
     }
 
-    private func localSettingsSnapshotState(for store: LibraryStore) -> LocalSettingsSnapshotState {
+    func localSettingsSnapshotState(for store: LibraryStore) -> LocalSettingsSnapshotState {
         let updatedAt = store.preferences.cloudSyncedDefaultsUpdatedAt()
         return .init(
             updatedAt: updatedAt,
@@ -510,11 +499,19 @@ final class LibrarySyncCoordinator {
         )
     }
 
-    private func settingsSnapshotForExport(
+    func settingsSnapshotForExport(
         localState: LocalSettingsSnapshotState,
         remoteSnapshot: LibrarySettingsSyncSnapshot?,
         store: LibraryStore
     ) -> LibrarySettingsSyncSnapshot? {
+        // Export constructs a new payload from this build's known defaults. Until
+        // unknown values can be retained across passes, uploading would erase them.
+        guard !store.preferences.hasUnknownCloudSyncedSettingsValues else {
+            librarySyncCoordinatorLogger.warning(
+                "Skipped iCloud settings export because an imported snapshot has unknown value types."
+            )
+            return nil
+        }
         guard let localUpdatedAt = localState.updatedAt else {
             guard remoteSnapshot == nil, !localState.snapshot.payload.isEmpty else { return nil }
             let updatedAt = dateProvider()
@@ -553,6 +550,9 @@ final class LibrarySyncCoordinator {
         exportedSnapshot: LibrarySettingsSyncSnapshot?,
         settingsExported: Bool
     ) -> Date? {
+        if store.preferences.hasUnknownCloudSyncedSettingsValues {
+            return store.libraryCloudSyncStatus.lastReconciledCloudSyncedSettingsUpdatedAt
+        }
         if let exportedSnapshot, settingsExported {
             return exportedSnapshot.updatedAt
         }
@@ -569,14 +569,19 @@ final class LibrarySyncCoordinator {
 
     private func runFirstEnableBootstrap(
         preference: LibraryCloudSyncConflictPreference?,
-        bootstrapID: UUID
+        bootstrapID: UUID,
+        isUserRetry: Bool
     ) async -> SyncResult {
-        let trigger = Trigger.firstEnableBootstrap
         guard let store else {
             librarySyncCoordinatorLogger.warning(
                 "Skipped iCloud library first-enable bootstrap because the library store was unavailable."
             )
             return .permanentFailure
+        }
+
+        guard !Task.isCancelled else {
+            store.recordLibraryCloudSyncCancellation()
+            return .skipped(.disabled)
         }
 
         store.updateLibraryCloudSyncStatus { status in
@@ -587,67 +592,37 @@ final class LibrarySyncCoordinator {
             }
             status.currentPhase = nil
             status.lastResult = nil
+            status.lastFailurePhase = nil
             status.lastFailureReason = nil
         }
 
-        var currentPhase: SyncPhase?
+        let pass = bootstrapSyncPass(bootstrapID: bootstrapID)
+        let state = SyncPipelineState(dateProvider: dateProvider)
         do {
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-            currentPhase = .prepareZoneSubscription
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .prepareZoneSubscription,
-                at: dateProvider()
-            )
-            try await importer.prepareRemoteSync()
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-
-            currentPhase = .namespaceResolution
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .namespaceResolution,
-                at: dateProvider()
-            )
-            guard let namespace = try await resolveNamespace(reportingTo: store) else {
-                store.recordLibraryCloudSyncFailure(
-                    trigger: trigger,
-                    phase: currentPhase,
-                    result: .permanentFailure,
-                    reason: "No iCloud account namespace was available.",
-                    degradedReason:
-                        "iCloud library sync enablement is blocked until iCloud account access is available.",
-                    at: dateProvider()
-                )
-                store.updateLibraryCloudSyncStatus { status in
-                    status.bootstrapState = .failed
-                }
+            guard let head = try await runImportHead(pass: pass, state: state, store: store) else {
                 return .permanentFailure
             }
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
+            // The full fetch is authoritative for this scope. A bootstrap
+            // request can join an ordinary pass at the gate, so only replace
+            // the old settings block after this fetch actually completes.
+            if let settingsSnapshot = head.importBatch.settingsSnapshot {
+                store.preferences.noteCloudSyncedSettingsTypes(settingsSnapshot)
+            } else {
+                store.preferences.clearUnknownCloudSyncedSettingsTypes()
+            }
+            let preImportSnapshots = head.preImportSnapshots
+            let fetchedBatch = head.importBatch
 
-            currentPhase = .remoteFetch
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .remoteFetch,
-                at: dateProvider()
-            )
-            let preImportSnapshots = try localSnapshotsByIdentity(for: store)
-            let fetchedBatch = try await importer.fetchChanges(
-                namespace: namespace,
-                localSnapshotsByIdentity: preImportSnapshots
-            )
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-
-            currentPhase = .conflictDetection
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .conflictDetection,
-                at: dateProvider()
-            )
-            let ambiguousConflicts = ambiguousConflicts(
-                localSnapshotsByIdentity: preImportSnapshots,
-                remoteChanges: fetchedBatch.remoteChanges
-            )
+            let ambiguousConflicts = try await pass.run(
+                .conflictDetection,
+                state: state,
+                store: store
+            ) {
+                self.ambiguousConflicts(
+                    localSnapshotsByIdentity: preImportSnapshots,
+                    remoteChanges: fetchedBatch.remoteChanges
+                )
+            }
             if preference == nil, !ambiguousConflicts.isEmpty {
                 store.recordLibraryCloudSyncConflictNeeded(
                     summary: ambiguousConflicts.summary,
@@ -659,7 +634,7 @@ final class LibrarySyncCoordinator {
                 return .conflictChoiceRequired
             }
 
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
+            try pass.checkCancellation()
             if preference == .preferLocal, !ambiguousConflicts.isEmpty {
                 try stampLocalClocks(
                     for: ambiguousConflicts,
@@ -667,21 +642,19 @@ final class LibrarySyncCoordinator {
                     in: store
                 )
             }
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
+            try pass.checkCancellation()
 
             let decisionSnapshots = try localSnapshotsByIdentity(for: store)
-            currentPhase = .dirtyQueueSeeding
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .dirtyQueueSeeding,
-                at: dateProvider()
-            )
-            try seedDirtyQueue(
-                with: decisionSnapshots,
-                at: dateProvider(),
-                in: store
-            )
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
+            let remoteChangesByIdentity = try Self.coalescedRemoteChangesByIdentity(fetchedBatch.remoteChanges)
+            try await pass.run(.dirtyQueueSeeding, state: state, store: store) {
+                try seedDirtyQueue(
+                    with: decisionSnapshots.filter { identity, snapshot in
+                        remoteChangesByIdentity[identity] != .snapshot(snapshot)
+                    },
+                    at: dateProvider(),
+                    in: store
+                )
+            }
 
             var importBatch = fetchedBatch
             if let preference {
@@ -700,148 +673,129 @@ final class LibrarySyncCoordinator {
                     )
                 }
             }
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-
-            currentPhase = .hydrationApply
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .hydrationApply,
-                at: dateProvider()
-            )
-            _ = try await applyImportedChanges(
-                importBatch,
-                to: store,
+            try pass.checkCancellation()
+            let result = try await runApplyExportTail(
+                pass: pass,
+                state: state,
+                store: store,
+                importBatch: importBatch,
                 forcedDomainsByIdentity: preference == .preferCloud
                     ? ambiguousConflicts.domainsByIdentity
-                    : [:]
-            )
-            applyImportedSettingsIfNeeded(importBatch.settingsSnapshot, to: store)
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-
-            currentPhase = .tokenCommit
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .tokenCommit,
-                at: dateProvider()
-            )
-            importer.commit(importBatch)
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-
-            currentPhase = .libraryRefresh
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .libraryRefresh,
-                at: dateProvider()
-            )
-            try refreshLibraryAfterImport(in: store)
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-
-            currentPhase = .dirtyQueueReconciliation
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .dirtyQueueReconciliation,
-                at: dateProvider()
-            )
-            _ = try reconcileDirtyQueue(with: importBatch, in: store)
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-
-            let postImportSnapshots = try localSnapshotsByIdentity(for: store)
-            let dirtyEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
-            let localSettingsState = localSettingsSnapshotState(for: store)
-            let settingsSnapshotForExport = settingsSnapshotForExport(
-                localState: localSettingsState,
-                remoteSnapshot: importBatch.settingsSnapshot,
-                store: store
-            )
-            currentPhase = .export
-            store.recordLibraryCloudSyncPhase(
-                trigger: trigger,
-                phase: .export,
-                at: dateProvider()
-            )
-            try checkFirstEnableBootstrapCancellation(bootstrapID)
-            let exportResult = try await export(
-                entries: dirtyEntries,
-                localSnapshotsByIdentity: postImportSnapshots,
-                settingsSnapshot: settingsSnapshotForExport,
-                observedDirtyEntries: dirtyEntries,
-                store: store
-            )
-            logSettingsExportResult(
-                settingsSnapshotForExport,
-                exportResult: exportResult
-            )
-            try removeExportedDirtyEntries(
-                exportResult.exportedIdentities,
-                from: dirtyEntries,
-                in: store
-            )
-            let reconciledCloudSyncedSettingsUpdatedAt =
-                reconciledCloudSyncedSettingsUpdatedAt(
-                    store: store,
-                    exportedSnapshot: settingsSnapshotForExport,
-                    settingsExported: exportResult.settingsExported
-                )
-
-            store.recordLibraryCloudSyncSuccess(
-                trigger: trigger,
-                completedBootstrap: true,
-                reconciledCloudSyncedSettingsUpdatedAt: reconciledCloudSyncedSettingsUpdatedAt,
-                at: dateProvider()
+                    : [:],
+                isUserRetry: isUserRetry
             )
             librarySyncCoordinatorLogger.info(
                 "Finished iCloud library first-enable bootstrap."
             )
-            return .success
-        } catch FirstEnableBootstrapCancellation.cancelled {
+            return result
+        } catch is FirstEnableBootstrapCancellation {
+            store.recordLibraryCloudSyncCancellation()
+            librarySyncCoordinatorLogger.info(
+                "Cancelled iCloud library first-enable bootstrap."
+            )
+            return .skipped(.disabled)
+        } catch is CancellationError {
+            store.recordLibraryCloudSyncCancellation()
             librarySyncCoordinatorLogger.info(
                 "Cancelled iCloud library first-enable bootstrap."
             )
             return .skipped(.disabled)
         } catch {
-            let result: SyncResult = error.isPermanentLibrarySyncFailure ? .permanentFailure : .retryableFailure
-            store.recordLibraryCloudSyncFailure(
-                trigger: trigger,
-                phase: currentPhase,
-                result: result.resultClass,
-                reason: error.localizedDescription,
-                degradedReason: result == .permanentFailure
-                    ? "iCloud library sync enablement is blocked by a permanent failure."
-                    : nil,
-                at: dateProvider()
-            )
-            store.updateLibraryCloudSyncStatus { status in
-                status.bootstrapState = .failed
-            }
-            librarySyncCoordinatorLogger.error(
-                "iCloud library first-enable bootstrap failed during \(currentPhase?.rawValue ?? "unknown", privacy: .public): \(error.localizedDescription, privacy: .private)"
-            )
-            return result
+            return recordPipelineFailure(error, pass: pass, state: state, store: store)
         }
     }
 
 }
 
-fileprivate struct LocalSettingsSnapshotState {
+struct LocalSettingsSnapshotState {
     var updatedAt: Date?
     var snapshot: LibrarySettingsSyncSnapshot
 }
 
 extension Error {
-    fileprivate var isPermanentLibrarySyncFailure: Bool {
+    var isPermanentLibrarySyncFailure: Bool {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.isPermanentLibrarySyncFailure
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure {
+            return partialFailure.accountError != nil || partialFailure.isQuotaExceeded
+        }
+        if let hydrationError = self as? LibrarySyncHydrationError {
+            return hydrationError.underlyingError.isPermanentLibrarySyncFailure
+        }
         if self is DisabledCloudLibrarySyncDatabase.DisabledError {
             return true
         }
         guard let ckError = self as? CKError else { return false }
         switch ckError.code {
-        case .notAuthenticated, .permissionFailure:
+        case .notAuthenticated, .permissionFailure, .quotaExceeded:
             return true
         default:
             return false
         }
     }
 
-    fileprivate var libraryCloudKitAvailability: LibraryCloudKitAvailability {
+    var librarySyncRetryAfterSeconds: TimeInterval? {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.librarySyncRetryAfterSeconds
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure {
+            return partialFailure.retryAfterSeconds
+        }
+        if let hydrationError = self as? LibrarySyncHydrationError {
+            return hydrationError.underlyingError.librarySyncRetryAfterSeconds
+        }
+        guard let ckError = self as? CKError else { return nil }
+        return ckError.retryAfterSeconds
+    }
+
+    var librarySyncFailureReason: String {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.librarySyncFailureReason
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure,
+            partialFailure.isQuotaExceeded
+        {
+            return String(
+                localized: "iCloud storage is full. Free up space or upgrade your iCloud storage, then retry sync."
+            )
+        }
+        if let hydrationError = self as? LibrarySyncHydrationError {
+            return hydrationError.localizedDescription
+        }
+        guard let ckError = self as? CKError, ckError.code == .quotaExceeded else {
+            return localizedDescription
+        }
+        return String(
+            localized: "iCloud storage is full. Free up space or upgrade your iCloud storage, then retry sync."
+        )
+    }
+
+    var librarySyncDegradedReason: String? {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.librarySyncDegradedReason
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure,
+            partialFailure.isQuotaExceeded
+        {
+            return librarySyncFailureReason
+        }
+        if let hydrationError = self as? LibrarySyncHydrationError {
+            return hydrationError.underlyingError.librarySyncDegradedReason
+        }
+        guard let ckError = self as? CKError, ckError.code == .quotaExceeded else { return nil }
+        return librarySyncFailureReason
+    }
+
+    var libraryCloudKitAvailability: LibraryCloudKitAvailability {
+        if let exportFailure = self as? CloudLibrarySyncExportFailure {
+            return exportFailure.underlyingError.libraryCloudKitAvailability
+        }
+        if let partialFailure = self as? CloudLibrarySyncPartialSaveFailure,
+            let accountError = partialFailure.accountError
+        {
+            return accountError.libraryCloudKitAvailability
+        }
         guard let ckError = self as? CKError else {
             return .couldNotDetermine
         }
@@ -875,11 +829,19 @@ fileprivate struct DisabledCloudLibrarySyncDatabase: CloudLibrarySyncDatabase {
         throw DisabledError.unavailable
     }
 
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
+        throw DisabledError.unavailable
+    }
+
     func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
         throw DisabledError.unavailable
     }
 }
 
+/// Marks a first-enable bootstrap that the caller deliberately cancelled.
+///
+/// Kept distinct from `CancellationError` so an ambient cancellation surfacing
+/// from inside the shared pipeline is still recorded as a failure.
 fileprivate enum FirstEnableBootstrapCancellation: Error {
     case cancelled
 }

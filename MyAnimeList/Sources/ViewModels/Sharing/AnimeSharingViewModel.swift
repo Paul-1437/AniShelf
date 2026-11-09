@@ -21,6 +21,7 @@ final class AnimeSharingViewModel {
     private static let minAspectRatio: CGFloat = 0.45
     private static let maxAspectRatio: CGFloat = 0.85
     private static let jpegQuality: CGFloat = 0.9
+    private static let heicQuality: CGFloat = 0.95
 
     private static let yearFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -36,10 +37,46 @@ final class AnimeSharingViewModel {
     /// Root entry the sharing UI references, collapsing seasons into series.
     let entry: AnimeEntry
 
-    var selectedLanguage: Language
-    var selectedPosterURL: URL?
+    var selectedLanguage: Language {
+        didSet {
+            guard selectedLanguage != oldValue else { return }
+            invalidateRenderedArtifact()
+            if !isApplyingLanguageFallback {
+                sharingPreferences.saveSelectedLanguage(selectedLanguage)
+            }
+        }
+    }
+    var selectedPosterURL: URL? {
+        didSet {
+            guard selectedPosterURL != oldValue else { return }
+            invalidateRenderedArtifact()
+        }
+    }
+    var usesRoundedCorners: Bool {
+        didSet {
+            guard usesRoundedCorners != oldValue else { return }
+            invalidateRenderedArtifact()
+            sharingPreferences.saveUsesRoundedCorners(usesRoundedCorners)
+        }
+    }
+    var roundedExportFormat: SharingCardRoundedExportFormat {
+        didSet {
+            guard roundedExportFormat != oldValue else { return }
+            invalidateRenderedArtifact()
+            sharingPreferences.saveRoundedExportFormat(roundedExportFormat)
+        }
+    }
+    var exportSize: SharingCardExportSize {
+        didSet {
+            guard exportSize != oldValue else { return }
+            invalidateRenderedArtifact()
+            sharingPreferences.saveExportSize(exportSize)
+        }
+    }
     private(set) var renderedImageURL: URL?
+    private(set) var renderedPixelSize: CGSize?
     private(set) var loadedImage: UIImage?
+    private(set) var previewRevision = 0
     /// Aspect ratio applied to previews and exports, sourced from renderer output.
     private(set) var posterAspectRatio: CGFloat = AnimeSharingViewModel.defaultAspectRatio
 
@@ -75,30 +112,65 @@ final class AnimeSharingViewModel {
         posterAspectRatio
     }
 
-    /// Hashable token that captures the poster/language pair for rendering.
-    var renderTrigger: SharingCardRenderTrigger {
-        SharingCardRenderTrigger(posterURL: selectedPosterURL, language: selectedLanguage)
+    /// Stable TMDb path used to highlight the selected poster across image rendition URLs.
+    var selectedPosterPath: String? {
+        TMDbImagePath.storagePath(from: selectedPosterURL)
     }
 
+    /// Hashable token that captures all inputs that affect loading and export.
+    var renderTrigger: SharingCardRenderTrigger {
+        SharingCardRenderTrigger(
+            posterURL: selectedPosterURL,
+            language: selectedLanguage,
+            exportStyle: usesRoundedCorners ? roundedExportFormat.exportStyle : .squareJPEG,
+            exportSize: exportSize
+        )
+    }
+
+    /// Whether a remembered language was restored for this entry rather than
+    /// supplied by the temporary initialization fallback.
+    let hasRestoredRememberedLanguage: Bool
+
     @ObservationIgnored private var preferredLanguage: Language
+    @ObservationIgnored private var isApplyingLanguageFallback = false
     @ObservationIgnored private let renderer: SharingCardRenderer
+    @ObservationIgnored private let sharingPreferences: AnimeSharingPreferences
 
     /// Creates a view model scoped to the provided entry, optionally forcing a
     /// specific default language for the generated metadata.
-    init(entry: AnimeEntry, defaultLanguage: Language = .english) {
-        self.entry = entry.parentSeriesEntry ?? entry
+    init(
+        entry: AnimeEntry,
+        defaultLanguage: Language = .english,
+        defaults: UserDefaults = .standard
+    ) {
+        let sharingPreferences = AnimeSharingPreferences(defaults: defaults)
+        let initialSettings = sharingPreferences.load(defaultLanguage: defaultLanguage)
+        let sharingEntry = entry.parentSeriesEntry ?? entry
+        let translations = AnimeSharingViewModel.buildTranslations(from: sharingEntry)
+        self.entry = sharingEntry
         self.selectedPosterURL = self.entry.posterURL
-        self.selectedLanguage = defaultLanguage
+        self.selectedLanguage = initialSettings.selectedLanguage
+        self.usesRoundedCorners = initialSettings.usesRoundedCorners
+        self.roundedExportFormat = initialSettings.roundedExportFormat
+        self.exportSize = initialSettings.exportSize
         self.preferredLanguage = defaultLanguage
-        self.translations = AnimeSharingViewModel.buildTranslations(from: self.entry)
+        self.translations = translations
+        self.hasRestoredRememberedLanguage =
+            initialSettings.didRestoreSelectedLanguage
+            && translations.keys.contains(initialSettings.selectedLanguage)
+        self.sharingPreferences = sharingPreferences
         self.renderer = SharingCardRenderer(
             baseWidth: AnimeSharingViewModel.previewCardWidth,
             jpegQuality: AnimeSharingViewModel.jpegQuality,
+            heicQuality: AnimeSharingViewModel.heicQuality,
             defaultAspectRatio: AnimeSharingViewModel.defaultAspectRatio,
             minAspectRatio: AnimeSharingViewModel.minAspectRatio,
             maxAspectRatio: AnimeSharingViewModel.maxAspectRatio
         )
-        applyPreferredLanguage(defaultLanguage, respectingCurrentSelection: false)
+        applyPreferredLanguage(
+            defaultLanguage,
+            respectingCurrentSelection: hasRestoredRememberedLanguage
+        )
     }
 
     /// Adjusts the preferred language if available, optionally keeping the
@@ -111,11 +183,12 @@ final class AnimeSharingViewModel {
             return
         }
 
-        if availableLanguages.contains(language) {
-            selectedLanguage = language
-        } else if let fallback = availableLanguages.first {
-            selectedLanguage = fallback
-        }
+        let resolvedLanguage = availableLanguages.contains(language) ? language : availableLanguages.first
+        guard let resolvedLanguage, resolvedLanguage != selectedLanguage else { return }
+
+        isApplyingLanguageFallback = true
+        selectedLanguage = resolvedLanguage
+        isApplyingLanguageFallback = false
     }
 
     /// Updates the candidate poster URL while falling back to the entry
@@ -130,6 +203,7 @@ final class AnimeSharingViewModel {
     /// card for the provided trigger.
     func processRenderRequest(for trigger: SharingCardRenderTrigger) async {
         guard !Task.isCancelled else { return }
+        invalidateRenderedArtifact()
         let metadata = posterMetadata(for: trigger.language)
         let fileName = fileName(for: trigger)
 
@@ -137,30 +211,44 @@ final class AnimeSharingViewModel {
             let outcome = await renderer.renderPoster(
                 for: trigger,
                 metadata: metadata,
-                fileName: fileName
+                fileName: fileName,
+                onPosterLoaded: { [weak self] image, aspectRatio in
+                    guard let self, !Task.isCancelled, self.renderTrigger == trigger else { return }
+                    loadedImage = image
+                    posterAspectRatio = aspectRatio
+                    previewRevision &+= 1
+                }
             )
         else { return }
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled, renderTrigger == trigger else { return }
 
         renderedImageURL = outcome.imageURL
-        if let image = outcome.image {
-            loadedImage = image
-        }
+        renderedPixelSize = outcome.pixelSize
         posterAspectRatio = outcome.aspectRatio
     }
 
     /// Removes cached render artifacts to free disk space.
     func cleanupRenderedFiles() {
         renderer.cleanup()
-        renderedImageURL = nil
+        invalidateRenderedArtifact()
         loadedImage = nil
         posterAspectRatio = AnimeSharingViewModel.defaultAspectRatio
     }
 
-    /// Builds a stable filename so repeat renders overwrite earlier versions
-    /// for the same poster/language pair.
+    /// Builds a stable filename so repeat renders overwrite the same variant.
     private func fileName(for trigger: SharingCardRenderTrigger) -> String {
-        "poster_\(entry.tmdbID)_\(trigger.language).jpg"
+        let identity = entry.libraryIdentity.rawID.replacingOccurrences(of: ":", with: "-")
+        let posterIdentifier =
+            trigger.posterURL?
+            .deletingPathExtension()
+            .lastPathComponent ?? "default"
+        return
+            "poster_\(identity)_\(trigger.language)_\(posterIdentifier)_\(trigger.exportSize.rawValue).\(trigger.exportStyle.fileExtension)"
+    }
+
+    private func invalidateRenderedArtifact() {
+        renderedImageURL = nil
+        renderedPixelSize = nil
     }
 
     private func attributedTitle(for language: Language) -> AttributedString {

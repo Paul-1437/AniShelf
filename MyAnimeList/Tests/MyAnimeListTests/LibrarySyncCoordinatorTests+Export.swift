@@ -14,6 +14,94 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test(arguments: [false, true])
+    @MainActor func partialSaveAccountErrorIsPermanentAndUpdatesAvailability(
+        permissionFailure: Bool
+    ) async throws {
+        let store = makeSyncReadyStore()
+        let entry = AnimeEntry(name: "Account Failure", type: .movie, tmdbID: 725)
+        entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
+        try store.repository.newEntry(entry)
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
+            .upsert(.init(identity: entry.libraryIdentity, dirtyAt: .now))
+        ])
+        store.rebuildSyncChangeTracking()
+
+        let client = CloudLibrarySyncClient()
+        let accountError = CKError(permissionFailure ? .permissionFailure : .notAuthenticated)
+        let unrelatedID = CKRecord.ID(
+            recordName: "unrelated", zoneID: CloudLibrarySyncClient.recordZoneID
+        )
+        let partial = CloudLibrarySyncPartialSaveFailure(
+            savedRecordIDs: [],
+            failedErrorsByID: [
+                client.recordID(for: entry.libraryIdentity): accountError,
+                unrelatedID: CKError(.networkFailure)
+            ]
+        )
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [makeEmptyChangeBatch()], saveErrorsByCallIndex: [1: partial]
+        )
+        let coordinator = LibrarySyncCoordinator(
+            store: store, client: client, database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .permanentFailure)
+        #expect(store.libraryCloudSyncStatus.lastResult == .permanentFailure)
+        #expect(
+            store.libraryCloudSyncStatus.cloudKitAvailability
+                == (permissionFailure ? .restricted : .noAccount)
+        )
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: entry.libraryIdentity) != nil)
+    }
+
+    @Test @MainActor
+    func cancellationImmediatelyAfterExportDequeuesConfirmedDirtyEntriesWithoutRecordingSuccess() async throws {
+        let store = makeSyncReadyStore()
+        let entry = AnimeEntry(name: "Cancelled Export", type: .movie, tmdbID: 706)
+        entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 1))
+        try store.repository.newEntry(entry)
+        try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
+            .upsert(
+                .init(
+                    identity: entry.libraryIdentity,
+                    dirtyAt: referenceDate(year: 2026, month: 5, day: 8)
+                ))
+        ])
+        store.rebuildSyncChangeTracking()
+
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
+        database.suspendNextSave = true
+        let coordinator = LibrarySyncCoordinator(
+            store: store,
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let syncTask = Task {
+            await coordinator.syncResult(trigger: .manualRetry)
+        }
+        while !database.isSaveSuspended {
+            await Task.yield()
+        }
+
+        database.resumeSuspendedSave()
+        coordinator.cancelAllSync()
+
+        // `merged(with:)` seeds `.success`, so a skipped pass reports `.success`
+        // here; the recorded status below is what reflects the cancellation.
+        #expect(await syncTask.value == .success)
+        #expect(database.savedRecords.count == 1)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+        // A pass cancelled after export must not stamp success over the status
+        // the disable path already reset.
+        #expect(store.libraryCloudSyncStatus.lastResult == nil)
+        #expect(store.libraryCloudSyncStatus.lastSuccessfulSyncDate == nil)
+    }
+
     @Test @MainActor func partialExportOnlyDequeuesAcceptedDirtyEntries() async throws {
         let store = makeSyncReadyStore()
         let first = AnimeEntry(name: "First Export", type: .movie, tmdbID: 707)
@@ -25,12 +113,12 @@ extension LibrarySyncCoordinatorTests {
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
             .upsert(
                 .init(
-                    identity: first.syncIdentity,
+                    identity: first.libraryIdentity,
                     dirtyAt: referenceDate(year: 2026, month: 5, day: 8)
                 )),
             .upsert(
                 .init(
-                    identity: second.syncIdentity,
+                    identity: second.libraryIdentity,
                     dirtyAt: referenceDate(year: 2026, month: 5, day: 9)
                 ))
         ])
@@ -46,7 +134,7 @@ extension LibrarySyncCoordinatorTests {
                     moreComing: false
                 )
             ],
-            successfulSaveRecordIDs: [client.recordID(for: first.syncIdentity)]
+            successfulSaveRecordIDs: [client.recordID(for: first.libraryIdentity)]
         )
         let coordinator = LibrarySyncCoordinator(
             store: store,
@@ -55,13 +143,16 @@ extension LibrarySyncCoordinatorTests {
             namespaceProvider: { makeNamespace() }
         )
 
-        await coordinator.sync(trigger: .manualRetry)
+        // A record CloudKit rejects stays queued without failing the pass.
+        #expect(await coordinator.syncResult(trigger: .manualRetry) == .success)
 
         let remainingEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
         #expect(database.savedRecords.count == 2)
         #expect(remainingEntries.count == 1)
-        #expect(remainingEntries.first?.identity == second.syncIdentity)
-        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: first.syncIdentity) == nil)
+        #expect(remainingEntries.first?.identity == second.libraryIdentity)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entry(for: first.libraryIdentity) == nil)
+        #expect(store.libraryCloudSyncStatus.rejectedUploadCount == 1)
+        #expect(store.hasPendingLibrarySyncItemRetryWork())
     }
 
     @Test @MainActor func partialExportFailureDequeuesAcceptedBatchesBeforeRetry() async throws {
@@ -79,7 +170,7 @@ extension LibrarySyncCoordinatorTests {
             dirtyEntries.append(
                 .upsert(
                     .init(
-                        identity: entry.syncIdentity,
+                        identity: entry.libraryIdentity,
                         dirtyAt: referenceDate(year: 2026, month: 5, day: 8)
                     ))
             )
@@ -118,12 +209,12 @@ extension LibrarySyncCoordinatorTests {
 
         let olderEntry = LibraryEntrySyncDirtyQueueEntry.upsert(
             .init(
-                identity: entry.syncIdentity,
+                identity: entry.libraryIdentity,
                 dirtyAt: referenceDate(year: 2026, month: 5, day: 8)
             ))
         let newerEntry = LibraryEntrySyncDirtyQueueEntry.upsert(
             .init(
-                identity: entry.syncIdentity,
+                identity: entry.libraryIdentity,
                 dirtyAt: referenceDate(year: 2026, month: 5, day: 9)
             ))
         try writeRawDirtyQueueEntries([olderEntry, newerEntry], in: store)
@@ -143,7 +234,7 @@ extension LibrarySyncCoordinatorTests {
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 
-    @Test @MainActor func duplicateLocalSnapshotsChooseRepositoryPreferredWinner() async throws {
+    @Test @MainActor func duplicateLocalSnapshotsBlockExportUntilRepair() async throws {
         let store = makeSyncReadyStore()
         let olderEntry = AnimeEntry(
             name: "Older Duplicate",
@@ -164,7 +255,7 @@ extension LibrarySyncCoordinatorTests {
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
             .upsert(
                 .init(
-                    identity: newerEntry.syncIdentity,
+                    identity: newerEntry.libraryIdentity,
                     dirtyAt: referenceDate(year: 2026, month: 5, day: 9)
                 ))
         ])
@@ -179,12 +270,72 @@ extension LibrarySyncCoordinatorTests {
             namespaceProvider: { makeNamespace() }
         )
 
-        await coordinator.sync(trigger: .manualRetry)
+        let blockedResult = await coordinator.syncResult(trigger: .manualRetry)
+
+        #expect(blockedResult == .skipped(.duplicateRepairRequired))
+        #expect(database.savedRecords.isEmpty)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.count == 1)
+
+        try await store.resolveDuplicateEntryGroup(
+            newerEntry.libraryIdentity,
+            keeping: newerEntry
+        )
+        let repairedResult = await coordinator.syncResult(trigger: .manualRetry)
 
         let savedSnapshot = try savedSnapshot(from: try #require(database.savedRecords.first), client: client)
+        #expect(repairedResult == .success)
         #expect(database.savedRecords.count == 1)
-        #expect(savedSnapshot.identity == newerEntry.syncIdentity)
+        #expect(savedSnapshot.identity == newerEntry.libraryIdentity)
         #expect(savedSnapshot.notes == "Preferred local")
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
+    }
+
+    @Test @MainActor func finalDuplicateRepairResumesInterruptedBootstrap() async throws {
+        let store = makeStore(
+            enabled: true,
+            bootstrapState: .running,
+            hasTMDbAPIKey: true
+        )
+        let olderEntry = AnimeEntry(
+            name: "Older Interrupted Duplicate",
+            type: .movie,
+            tmdbID: 715,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 1)
+        )
+        let newerEntry = AnimeEntry(
+            name: "Newer Interrupted Duplicate",
+            type: .movie,
+            tmdbID: 715,
+            dateSaved: referenceDate(year: 2026, month: 5, day: 3)
+        )
+        newerEntry.notes = "Keep after repair"
+        try store.repository.newEntry(olderEntry)
+        try store.repository.newEntry(newerEntry)
+        try store.refreshLibrary()
+
+        let client = CloudLibrarySyncClient()
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()])
+        store.configureLibrarySyncCoordinator(
+            client: client,
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        try await store.resolveDuplicateEntryGroup(
+            newerEntry.libraryIdentity,
+            keeping: newerEntry
+        )
+
+        let savedSnapshot = try savedSnapshot(
+            from: try #require(database.savedRecords.first),
+            client: client
+        )
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .completed)
+        #expect(store.libraryCloudSyncStatus.lastResult == .success)
+        #expect(database.ensureZoneCallCount == 1)
+        #expect(database.savedRecords.count == 1)
+        #expect(savedSnapshot.identity == newerEntry.libraryIdentity)
+        #expect(savedSnapshot.notes == "Keep after repair")
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
     }
 
@@ -197,7 +348,7 @@ extension LibrarySyncCoordinatorTests {
         entry.updateNotes("Before export", at: initialDirtyAt)
         try store.repository.newEntry(entry)
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
-            .upsert(.init(identity: entry.syncIdentity, dirtyAt: initialDirtyAt))
+            .upsert(.init(identity: entry.libraryIdentity, dirtyAt: initialDirtyAt))
         ])
         store.rebuildSyncChangeTracking()
 
@@ -225,7 +376,7 @@ extension LibrarySyncCoordinatorTests {
         _ = await syncTask.value
 
         let remainingEntry = try #require(
-            store.syncChangeRecorder.dirtyQueueStore.load().entry(for: entry.syncIdentity))
+            store.syncChangeRecorder.dirtyQueueStore.load().entry(for: entry.libraryIdentity))
         guard case .upsert(let pendingUpsert) = remainingEntry else {
             Issue.record("Expected the newer same-identity upsert to remain queued.")
             return

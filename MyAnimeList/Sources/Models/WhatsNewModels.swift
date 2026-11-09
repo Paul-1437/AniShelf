@@ -313,10 +313,144 @@ enum WhatsNewRegistry {
                     kind: .openURL(projectURL)
                 )
             ]
+        ),
+        "1.97": .init(
+            version: "1.97",
+            summary:
+                "This release updates AniShelf for iOS 27 and makes sharing more flexible across iPhone and iPad.",
+            highlights: [
+                "Updated AniShelf for iOS 27, refined styling throughout the app, and added a soft navigation bar edge option available only on iOS 27.",
+                "Enhanced sharing customization with image size, rounded corner, and export format controls.",
+                "Optimized sharing for iPad windows, with wide layouts showing the preview, poster picker, and controls together."
+            ],
+            primaryAction: nil,
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
+        ),
+        "1.98": .init(
+            version: "1.98",
+            summary:
+                "This release enriches entry details and makes previous updates easier to revisit. Existing users should perform an info refresh by tapping the action below so production company information can be added to existing entries.",
+            highlights: [
+                "Added production companies to entry details, with an option to show them instead of runtime for series and seasons.",
+                "TMDb status labels now follow your selected metadata language.",
+                "Open What's New from Settings to browse notes from previous releases."
+            ],
+            primaryAction: .init(
+                id: "refresh-metadata",
+                title: "Refresh Metadata",
+                systemImage: "arrow.clockwise",
+                kind: .refreshMetadata
+            ),
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
+        ),
+        "1.99": .init(
+            version: "1.99",
+            summary:
+                "This release adds broadcast airtimes and episode reminders, and improves iCloud Sync reliability.",
+            highlights: [
+                "View broadcast airtimes for eligible anime.",
+                "Set reminders for each new episode as it airs.",
+                "Improved iCloud Sync reliability and added Rebuild iCloud Sync in Settings to resolve certain persistent issues.",
+                "Fixed a bug that could cause a crash at launch."
+            ],
+            primaryAction: nil,
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
+        ),
+        "1.100.0": .init(
+            version: "1.100.0",
+            summary:
+                "This release adds flexible reminder timing and improves library performance and upgrade reliability.",
+            highlights: [
+                "Choose a custom reminder time before or after airtime for each anime.",
+                "Airtime reminders are now more accurate overall.",
+                "Selecting and deleting multiple library entries is now smoother and more efficient.",
+                "Multiple performance improvements."
+            ],
+            primaryAction: nil,
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
+        ),
+        "1.101.0": .init(
+            version: "1.101.0",
+            summary:
+                "This release adds multiple windows on iPad and Mac, fixes a macOS 27 search crash, and improves iCloud Sync and episode tracking.",
+            highlights: [
+                "Open multiple AniShelf windows on iPad and Mac, and search and browse your library independently in each window.",
+                "Fixed a crash when tapping the search field on macOS 27.",
+                "Improved iCloud Sync stability.",
+                "Fixed automatic episode count updates for airing anime and improved some watch progress displays."
+            ],
+            primaryAction: nil,
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
+        ),
+        "1.102.0": .init(
+            version: "1.102.0",
+            summary:
+                "This release adds rewatch tracking and improves iCloud Sync reliability.",
+            highlights: [
+                "Track each anime's rewatch status and completed rewatch count.",
+                "Fixed iCloud Sync getting stuck during preparation and improved recovery after turning sync off and on again.",
+                "Fixed missing information in season entries after deleting their series.",
+                "Fixed episode progress resets being overwritten by older progress from other devices.",
+                "Added website and privacy policy links to the About page in Settings."
+            ],
+            primaryAction: nil,
+            secondaryActions: [
+                .init(
+                    id: "project-github",
+                    title: "AniShelf on GitHub",
+                    systemImage: "arrow.up.right.square",
+                    kind: .openURL(projectURL)
+                )
+            ]
         )
     ]
 
     static func currentEntry(for version: String) -> WhatsNewEntry? {
         entriesByVersion[version]
+    }
+
+    static func pastEntries(before version: String) -> [WhatsNewEntry] {
+        entriesByVersion.values
+            .filter {
+                $0.version.compare(version, options: .numeric) == .orderedAscending
+            }
+            .sorted {
+                $0.version.compare($1.version, options: .numeric) == .orderedDescending
+            }
     }
 }

@@ -115,7 +115,13 @@ struct LibraryMetadataRefreshWriter: Sendable {
 
                 guard let childEntry = fetchedChildEntry else { continue }
 
-                if childEntry.parentSeriesEntry?.tmdbID == parentUpdate.parentSeriesID {
+                guard childEntry.type.parentSeriesID == parentUpdate.parentSeriesID else {
+                    continue
+                }
+
+                if childEntry.parentSeriesEntry?.libraryIdentity
+                    == LibraryEntryIdentity(entryType: .series, tmdbID: parentUpdate.parentSeriesID)
+                {
                     continue
                 }
 
@@ -126,7 +132,9 @@ struct LibraryMetadataRefreshWriter: Sendable {
                 ) {
                     parentEntry = existingParent
                 } else if let parentInfo = parentUpdate.parentInfo,
-                    let parentDetail = parentUpdate.parentDetail
+                    let parentDetail = parentUpdate.parentDetail,
+                    parentInfo.type == .series,
+                    parentInfo.tmdbID == parentUpdate.parentSeriesID
                 {
                     let insertedParent = AnimeEntry(fromInfo: parentInfo)
                     insertedParent.setDisplayState(false)
@@ -175,35 +183,16 @@ struct LibraryMetadataRefreshWriter: Sendable {
         tmdbID: Int,
         in modelContext: ModelContext
     ) throws -> AnimeEntry? {
-        var descriptor = FetchDescriptor(
+        let descriptor = FetchDescriptor(
             predicate: #Predicate<AnimeEntry> { entry in
                 entry.tmdbID == tmdbID
             }
         )
-        descriptor.fetchLimit = 20
-        return try modelContext.fetch(descriptor)
-            .sorted(by: compareExistingEntries)
-            .first
-    }
-
-    private func compareExistingEntries(_ lhs: AnimeEntry, _ rhs: AnimeEntry) -> Bool {
-        if lhs.onDisplay != rhs.onDisplay {
-            return lhs.onDisplay && !rhs.onDisplay
-        }
-
-        if lhs.childSeasonEntries.count != rhs.childSeasonEntries.count {
-            return lhs.childSeasonEntries.count > rhs.childSeasonEntries.count
-        }
-
-        if (lhs.detail != nil) != (rhs.detail != nil) {
-            return lhs.detail != nil
-        }
-
-        if lhs.dateSaved != rhs.dateSaved {
-            return lhs.dateSaved > rhs.dateSaved
-        }
-
-        return lhs.name < rhs.name
+        return AnimeEntryDuplicateResolver.preferredEntry(
+            from: try modelContext.fetch(descriptor).filter {
+                $0.libraryIdentity == LibraryEntryIdentity(entryType: .series, tmdbID: tmdbID)
+            }
+        )
     }
 }
 

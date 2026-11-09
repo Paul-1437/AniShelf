@@ -57,6 +57,10 @@ public protocol CloudLibrarySyncDatabase: Sendable {
         since changeToken: CKServerChangeToken?
     ) async throws -> CloudLibrarySyncZoneChangeBatch
 
+    /// Fetches quarantined records directly for a later app version to retry decoding.
+    /// Missing records are omitted from the result.
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord]
+
     /// Saves records and returns only the record IDs CloudKit accepted.
     func save(records: [CKRecord]) async throws -> [CKRecord.ID]
 }
@@ -120,12 +124,28 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
         )
     }
 
-    /// Saves records non-atomically and reports the subset that succeeded.
-    ///
-    /// Partial CloudKit failures are converted into a successful return value
-    /// containing only accepted record IDs. Non-partial failures are rethrown.
-    ///
-    /// - Throws: Non-partial CloudKit errors from the modify-records request.
+    public func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
+        guard !ids.isEmpty else { return [:] }
+        var records: [CKRecord.ID: CKRecord] = [:]
+        for start in stride(from: 0, to: ids.count, by: Self.recordZoneChangeResultsLimit) {
+            let end = min(start + Self.recordZoneChangeResultsLimit, ids.count)
+            let results = try await database.records(for: Array(ids[start..<end]))
+            for (recordID, result) in results {
+                switch result {
+                case .success(let record):
+                    records[recordID] = record
+                case .failure(let error) where error.isCloudLibrarySyncMissingItem:
+                    continue
+                case .failure(let error):
+                    throw error
+                }
+            }
+        }
+        return records
+    }
+
+    /// Saves records non-atomically and preserves both accepted IDs and
+    /// per-record failures so the caller can retry the remaining work.
     public func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
         guard !records.isEmpty else { return [] }
         do {
@@ -136,13 +156,27 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
                 atomically: false
             )
             var savedRecordIDs: [CKRecord.ID] = []
+            var failedErrorsByID: [CKRecord.ID: any Error] = [:]
             for (recordID, saveResult) in result.saveResults {
-                if case .success = saveResult {
+                switch saveResult {
+                case .success:
                     savedRecordIDs.append(recordID)
+                case .failure(let error):
+                    failedErrorsByID[recordID] = error
                 }
+            }
+            for record in records where result.saveResults[record.recordID] == nil {
+                failedErrorsByID[record.recordID] = CloudLibrarySyncSaveResultError.missingResult
+            }
+            if !failedErrorsByID.isEmpty {
+                throw CloudLibrarySyncPartialSaveFailure(
+                    savedRecordIDs: savedRecordIDs,
+                    failedErrorsByID: failedErrorsByID
+                )
             }
             return savedRecordIDs
         } catch {
+            if error is CloudLibrarySyncPartialSaveFailure { throw error }
             guard
                 let ckError = error as? CKError,
                 ckError.code == .partialFailure,
@@ -151,34 +185,52 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
                 throw error
             }
 
-            let failedIDs = Set(partialErrors.keys.compactMap { $0 as? CKRecord.ID })
-            return records.map(\.recordID).filter { !failedIDs.contains($0) }
+            let failures = partialErrors.reduce(into: [CKRecord.ID: any Error]()) { result, item in
+                if let recordID = item.key as? CKRecord.ID {
+                    result[recordID] = item.value
+                }
+            }
+            guard !failures.isEmpty else { throw ckError }
+            throw CloudLibrarySyncPartialSaveFailure(
+                // An aggregate error supplies failures but no per-record success
+                // confirmations. Retrying an accepted record is safer than
+                // dropping an unconfirmed record from the local queue.
+                savedRecordIDs: [],
+                failedErrorsByID: failures,
+                aggregateError: ckError
+            )
         }
     }
 
     /// Creates the custom zone when CloudKit reports it as missing.
     private func ensureZone(_ zoneID: CKRecordZone.ID) async throws {
-        let results = try await database.recordZones(for: [zoneID])
-        switch results[zoneID] {
-        case .success:
-            return
-        case .failure(let error) where error.isCloudLibrarySyncMissingItem:
-            let saveResults = try await database.modifyRecordZones(
-                saving: [CKRecordZone(zoneID: zoneID)],
-                deleting: []
+        let operation = CKFetchRecordZonesOperation(recordZoneIDs: [zoneID])
+        let pending = CloudLibrarySyncOperation(operation)
+        operation.perRecordZoneResultBlock = { [weak pending] _, result in
+            pending?.finish(result.map { _ in () })
+        }
+        operation.fetchRecordZonesResultBlock = { [weak pending] result in
+            // A successful lookup must have supplied a per-zone result.
+            pending?.finish(result.flatMap { .failure(CKError(.unknownItem)) })
+        }
+        do {
+            try await pending.run { self.database.add(operation) }
+        } catch  where error.isCloudLibrarySyncMissingItem {
+            try Task.checkCancellation()
+            let save = CKModifyRecordZonesOperation(
+                recordZonesToSave: [CKRecordZone(zoneID: zoneID)], recordZoneIDsToDelete: nil
             )
-            if case .failure(let error)? = saveResults.saveResults[zoneID], !error.isCloudLibrarySyncAlreadyExists {
-                throw error
+            let pendingSave = CloudLibrarySyncOperation(save)
+            save.perRecordZoneSaveBlock = { [weak pendingSave] _, result in
+                pendingSave?.finish(result.map { _ in () })
             }
-        case .failure(let error)?:
-            throw error
-        case nil:
-            let saveResults = try await database.modifyRecordZones(
-                saving: [CKRecordZone(zoneID: zoneID)],
-                deleting: []
-            )
-            if case .failure(let error)? = saveResults.saveResults[zoneID], !error.isCloudLibrarySyncAlreadyExists {
-                throw error
+            save.modifyRecordZonesResultBlock = { [weak pendingSave] result in
+                pendingSave?.finish(result)
+            }
+            do {
+                try await pendingSave.run { self.database.add(save) }
+            } catch  where error.isCloudLibrarySyncAlreadyExists {
+                return
             }
         }
     }
@@ -188,15 +240,18 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
         _ subscriptionID: CKSubscription.ID,
         zoneID: CKRecordZone.ID
     ) async throws {
-        let results = try await database.subscriptions(for: [subscriptionID])
-        switch results[subscriptionID] {
-        case .success:
-            return
-        case .failure(let error) where error.isCloudLibrarySyncMissingItem:
-            try await saveSubscription(subscriptionID, zoneID: zoneID)
-        case .failure(let error)?:
-            throw error
-        case nil:
+        try Task.checkCancellation()
+        let operation = CKFetchSubscriptionsOperation(subscriptionIDs: [subscriptionID])
+        let pending = CloudLibrarySyncOperation(operation)
+        operation.perSubscriptionResultBlock = { [weak pending] _, result in
+            pending?.finish(result.map { _ in () })
+        }
+        operation.fetchSubscriptionsResultBlock = { [weak pending] result in
+            pending?.finish(result.flatMap { .failure(CKError(.unknownItem)) })
+        }
+        do {
+            try await pending.run { self.database.add(operation) }
+        } catch  where error.isCloudLibrarySyncMissingItem {
             try await saveSubscription(subscriptionID, zoneID: zoneID)
         }
     }
@@ -214,19 +269,99 @@ public final class CloudLibrarySyncLiveDatabase: CloudLibrarySyncDatabase, @unch
         notificationInfo.shouldSendContentAvailable = true
         subscription.notificationInfo = notificationInfo
 
-        let saveResults = try await database.modifySubscriptions(
-            saving: [subscription],
-            deleting: []
+        try Task.checkCancellation()
+        let operation = CKModifySubscriptionsOperation(
+            subscriptionsToSave: [subscription], subscriptionIDsToDelete: nil
         )
-        if case .failure(let error)? = saveResults.saveResults[subscriptionID],
-            !error.isCloudLibrarySyncAlreadyExists
-        {
-            throw error
+        let pending = CloudLibrarySyncOperation(operation)
+        operation.perSubscriptionSaveBlock = { [weak pending] _, result in
+            pending?.finish(result.map { _ in () })
+        }
+        operation.modifySubscriptionsResultBlock = { [weak pending] result in
+            pending?.finish(result)
+        }
+        do {
+            try await pending.run { self.database.add(operation) }
+        } catch  where error.isCloudLibrarySyncAlreadyExists {
+            return
         }
     }
 }
 
+fileprivate enum CloudLibrarySyncSaveResultError: LocalizedError {
+    case missingResult
+
+    var errorDescription: String? {
+        "CloudKit did not confirm whether a library sync record was saved."
+    }
+}
+
+/// Accepted records from a non-atomic save remain confirmed while failed
+/// records retain CloudKit's retry and quota information.
+public struct CloudLibrarySyncPartialSaveFailure: Error, LocalizedError {
+    public let savedRecordIDs: [CKRecord.ID]
+    public let failedErrorsByID: [CKRecord.ID: any Error]
+    public let aggregateError: CKError?
+
+    public init(
+        savedRecordIDs: [CKRecord.ID],
+        failedErrorsByID: [CKRecord.ID: any Error],
+        aggregateError: CKError? = nil
+    ) {
+        self.savedRecordIDs = savedRecordIDs
+        self.failedErrorsByID = failedErrorsByID
+        self.aggregateError = aggregateError
+    }
+
+    public var retryAfterSeconds: TimeInterval? {
+        (failedErrorsByID.values.compactMap { ($0 as? CKError)?.retryAfterSeconds }
+            + [aggregateError?.retryAfterSeconds].compactMap(\.self)).max()
+    }
+
+    public var isQuotaExceeded: Bool {
+        !failedErrorsByID.isEmpty
+            && failedErrorsByID.values.allSatisfy { ($0 as? CKError)?.code == .quotaExceeded }
+    }
+
+    /// An account failure affects the whole save, even if CloudKit also
+    /// reports unrelated per-record errors in the same partial result.
+    public var accountError: CKError? {
+        let errors = failedErrorsByID.values.compactMap { $0 as? CKError }
+        return errors.first { $0.code == .notAuthenticated }
+            ?? errors.first { $0.code == .permissionFailure }
+    }
+
+    /// Whether every failure concerns only its own record.
+    ///
+    /// Those records can stay queued for a later attempt while the rest of the
+    /// export finishes. Account, network, quota, and throttling errors affect
+    /// every record, so they leave this `false` and fail the pass instead.
+    public var isRecordScoped: Bool {
+        !failedErrorsByID.isEmpty
+            && failedErrorsByID.values.allSatisfy(\.isCloudLibrarySyncRecordScopedSaveError)
+    }
+
+    public var errorDescription: String? {
+        failedErrorsByID.values.first?.localizedDescription
+            ?? aggregateError?.localizedDescription
+    }
+}
+
 extension Error {
+    /// Whether CloudKit rejected one record for a reason that leaves the rest
+    /// of the save unaffected, such as invalid or oversized record contents.
+    var isCloudLibrarySyncRecordScopedSaveError: Bool {
+        if self is CloudLibrarySyncSaveResultError { return true }
+        guard let ckError = self as? CKError else { return false }
+        switch ckError.code {
+        case .invalidArguments, .constraintViolation, .limitExceeded, .serverRecordChanged,
+            .batchRequestFailed, .referenceViolation, .assetFileNotFound, .assetFileModified:
+            return true
+        default:
+            return false
+        }
+    }
+
     fileprivate var isCloudLibrarySyncMissingItem: Bool {
         guard let ckError = self as? CKError else { return false }
         return ckError.code == .unknownItem || ckError.code == .zoneNotFound

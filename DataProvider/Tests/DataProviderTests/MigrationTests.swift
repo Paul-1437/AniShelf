@@ -325,6 +325,41 @@ struct MigrationTests {
         )
         orphanParentB.onDisplay = false
 
+        visibleSeries.detail = SchemaV2_7_3.AnimeEntryDetail(language: "en", title: "Keep detail")
+        hiddenParentA.detail = SchemaV2_7_3.AnimeEntryDetail(
+            language: "en", title: "Discard detail",
+            staff: [
+                SchemaV2_7_3.AnimeEntryStaff(
+                    id: 1, name: "Discard staff", role: "Director",
+                    jobs: [SchemaV2_7_3.AnimeEntryStaffJob(creditID: "discard", job: "Director", episodeCount: 1)]
+                )
+            ]
+        )
+        // Keep visible duplicates, but prefer the visible parent with detail.
+        let otherVisibleSeries = SchemaV2_7_3.AnimeEntry(
+            name: "Other visible series", type: .series, tmdbID: 209867, usingCustomPoster: true
+        )
+        // With no visible parent, existing child references outrank detail and recency.
+        let unreferencedHidden = SchemaV2_7_3.AnimeEntry(
+            name: "Unreferenced hidden", type: .series, tmdbID: 800001,
+            detail: SchemaV2_7_3.AnimeEntryDetail(language: "en", title: "Discard unreferenced detail")
+        )
+        unreferencedHidden.onDisplay = false
+        let referencedHidden = SchemaV2_7_3.AnimeEntry(
+            name: "Referenced hidden", type: .series, tmdbID: 800001,
+            dateSaved: referenceDate(year: 2020, month: 1, day: 1)
+        )
+        referencedHidden.onDisplay = false
+        let linkedSeason = SchemaV2_7_3.AnimeEntry(
+            name: "Linked season", type: .season(seasonNumber: 1, parentSeriesID: 800001), tmdbID: 800002
+        )
+        linkedSeason.parentSeriesEntry = referencedHidden
+        let unlinkedSeason = SchemaV2_7_3.AnimeEntry(
+            name: "Unlinked season", type: .season(seasonNumber: 2, parentSeriesID: 800001), tmdbID: 800003
+        )
+        let movie = SchemaV2_7_3.AnimeEntry(name: "Movie", type: .movie, tmdbID: 800004)
+        movie.parentSeriesEntry = orphanParentA
+
         for entry in [
             visibleSeries,
             hiddenParentA,
@@ -332,28 +367,52 @@ struct MigrationTests {
             seasonOne,
             seasonTwo,
             orphanParentA,
-            orphanParentB
+            orphanParentB,
+            otherVisibleSeries,
+            unreferencedHidden,
+            referencedHidden,
+            linkedSeason,
+            unlinkedSeason,
+            movie
         ] {
             legacyContainer.mainContext.insert(entry)
         }
         try legacyContainer.mainContext.save()
 
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let retainedIDs = try Set(
+            [
+                visibleSeries, seasonOne, seasonTwo, otherVisibleSeries, referencedHidden, linkedSeason, unlinkedSeason,
+                movie
+            ]
+            .map { try encoder.encode($0.persistentModelID) }
+        )
+
         let migratedProvider = DataProvider(url: storeURL)
         let migratedEntries = try migratedProvider.getAllModels(ofType: AnimeEntry.self)
 
         let migratedVisibleSeries = try #require(
-            migratedEntries.first(where: { $0.tmdbID == 209867 && $0.type == .series && $0.onDisplay })
+            migratedEntries.first(where: { $0.name == "Frieren" })
         )
         let migratedSeasons = migratedEntries.filter {
             guard case .season(_, let parentSeriesID) = $0.type else { return false }
             return parentSeriesID == 209867
         }
 
-        #expect(migratedEntries.count == 3)
+        #expect(migratedEntries.count == 8)
+        #expect(try Set(migratedEntries.map { try encoder.encode($0.persistentModelID) }) == retainedIDs)
         #expect(migratedEntries.contains(where: { $0.tmdbID == 209867 && !$0.onDisplay }) == false)
         #expect(migratedEntries.contains(where: { $0.tmdbID == 999001 }) == false)
         #expect(migratedSeasons.count == 2)
         #expect(migratedSeasons.allSatisfy { $0.parentSeriesEntry?.id == migratedVisibleSeries.id })
+        let hiddenSeasons = migratedEntries.filter { $0.type.parentSeriesID == 800001 }
+        #expect(hiddenSeasons.count == 2)
+        #expect(hiddenSeasons.allSatisfy { $0.parentSeriesEntry?.name == "Referenced hidden" })
+        #expect(migratedEntries.first(where: { $0.tmdbID == 800004 })?.parentSeriesEntry == nil)
+        #expect(try migratedProvider.getAllModels(ofType: AnimeEntryDetail.self).map(\.title) == ["Keep detail"])
+        #expect(try migratedProvider.getAllModels(ofType: AnimeEntryStaff.self).isEmpty)
+        #expect(try migratedProvider.getAllModels(ofType: AnimeEntryStaffJob.self).isEmpty)
     }
 
     @Test @MainActor func detailAndScoreMigrationFromV273PreservesJobs() throws {
@@ -434,11 +493,30 @@ struct MigrationTests {
         legacyContainer.mainContext.insert(legacyEntry)
         try legacyContainer.mainContext.save()
 
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        let entryID = try encoder.encode(legacyEntry.persistentModelID)
+        let detailID = try encoder.encode(legacyDetail.persistentModelID)
+        let characterIDs = try Set(legacyDetail.characters.map { try encoder.encode($0.persistentModelID) })
+        let staffIDs = try Set(legacyDetail.staff.map { try encoder.encode($0.persistentModelID) })
+        let jobIDs = try Set(legacyDetail.staff.flatMap(\.jobs).map { try encoder.encode($0.persistentModelID) })
+        let seasonIDs = try Set(legacyDetail.seasons.map { try encoder.encode($0.persistentModelID) })
+        let episodeIDs = try Set(legacyDetail.episodes.map { try encoder.encode($0.persistentModelID) })
+
         let migratedProvider = DataProvider(url: storeURL)
         let migratedEntries = try migratedProvider.getAllModels(ofType: AnimeEntry.self)
         let migratedEntry = try #require(migratedEntries.first(where: { $0.tmdbID == 700001 }))
         let migratedDetail = try #require(migratedEntry.detail)
         let migratedStaff = try #require(migratedDetail.orderedStaff.first)
+
+        #expect(try encoder.encode(migratedEntry.persistentModelID) == entryID)
+        #expect(try encoder.encode(migratedDetail.persistentModelID) == detailID)
+        #expect(try Set(migratedDetail.characters.map { try encoder.encode($0.persistentModelID) }) == characterIDs)
+        #expect(try Set(migratedDetail.staff.map { try encoder.encode($0.persistentModelID) }) == staffIDs)
+        #expect(
+            try Set(migratedDetail.staff.flatMap(\.jobs).map { try encoder.encode($0.persistentModelID) }) == jobIDs)
+        #expect(try Set(migratedDetail.seasons.map { try encoder.encode($0.persistentModelID) }) == seasonIDs)
+        #expect(try Set(migratedDetail.episodes.map { try encoder.encode($0.persistentModelID) }) == episodeIDs)
 
         #expect(migratedEntry.score == 4)
         #expect(migratedEntry.watchStatus == .dropped)
@@ -548,8 +626,8 @@ struct MigrationTests {
         #expect(migratedEntry.trackingUpdatedAt == nil)
     }
 
-    @Test @MainActor func launchMigrationFromV278ThroughV280PreservesGraph() throws {
-        let storeURL = temporaryStoreURL(name: "launch-migration-v278-through-v280")
+    @Test @MainActor func launchMigrationFromV278ThroughV281PreservesGraph() throws {
+        let storeURL = temporaryStoreURL(name: "launch-migration-v278-through-v281")
 
         let legacySchema = Schema(versionedSchema: SchemaV2_7_8.self)
         let legacyConfiguration = ModelConfiguration(schema: legacySchema, url: storeURL)
@@ -644,6 +722,70 @@ struct MigrationTests {
         #expect(migratedDetail.orderedCharacters.map(\.profilePath) == ["/characters/lead.jpg"])
         #expect(migratedDetail.seasons.map(\.posterPath) == ["/seasons/1.jpg"])
         #expect(migratedDetail.orderedEpisodes.map(\.imagePath) == ["/episodes/1.jpg"])
+    }
+
+    @Test @MainActor func productionCompanyMigrationFromV280PreservesGraphWithEmptyCompanies() throws {
+        let storeURL = temporaryStoreURL(name: "production-company-migration-v280")
+        let legacySchema = Schema(versionedSchema: SchemaV2_8_0.self)
+        let legacyConfiguration = ModelConfiguration(schema: legacySchema, url: storeURL)
+        let legacyContainer = try ModelContainer(
+            for: legacySchema,
+            configurations: legacyConfiguration
+        )
+        let legacyDetail = SchemaV2_8_0.AnimeEntryDetail(
+            language: "en-US",
+            title: "Legacy Detail",
+            runtimeMinutes: 24
+        )
+        let legacyEntry = SchemaV2_8_0.AnimeEntry(
+            name: "Legacy Series",
+            type: .series,
+            tmdbID: 808_100,
+            detail: legacyDetail,
+            dateSaved: referenceDate(year: 2026, month: 8, day: 1)
+        )
+        legacyContainer.mainContext.insert(legacyEntry)
+        try legacyContainer.mainContext.save()
+
+        let migratedProvider = DataProvider(url: storeURL)
+        let migratedEntry = try #require(
+            try migratedProvider.getAllModels(ofType: AnimeEntry.self).first
+        )
+        let migratedDetail = try #require(migratedEntry.detail)
+
+        #expect(migratedDetail.title == "Legacy Detail")
+        #expect(migratedDetail.runtimeMinutes == 24)
+        #expect(migratedDetail.orderedProductionCompanies.isEmpty)
+    }
+
+    @Test @MainActor func rewatchMigrationFromV281DefaultsRewatchState() throws {
+        let storeURL = temporaryStoreURL(name: "rewatch-migration-v281")
+        let legacySchema = Schema(versionedSchema: SchemaV2_8_1.self)
+        let legacyConfiguration = ModelConfiguration(schema: legacySchema, url: storeURL)
+        let legacyContainer = try ModelContainer(
+            for: legacySchema,
+            configurations: legacyConfiguration
+        )
+        let legacyEntry = SchemaV2_8_1.AnimeEntry(
+            name: "Legacy Movie",
+            type: .movie,
+            tmdbID: 808_200,
+            dateSaved: referenceDate(year: 2026, month: 9, day: 1),
+            score: 4
+        )
+        legacyEntry.watchStatus = .watched
+        legacyContainer.mainContext.insert(legacyEntry)
+        try legacyContainer.mainContext.save()
+
+        let migratedProvider = DataProvider(url: storeURL)
+        let migratedEntry = try #require(
+            try migratedProvider.getAllModels(ofType: AnimeEntry.self).first
+        )
+
+        #expect(migratedEntry.watchStatus == .watched)
+        #expect(migratedEntry.score == 4)
+        #expect(!migratedEntry.isRewatching)
+        #expect(migratedEntry.rewatchCount == 0)
     }
 
     @Test @MainActor func imagePathMigrationFromV279PreservesUserState() throws {

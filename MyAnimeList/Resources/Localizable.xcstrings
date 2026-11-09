@@ -17,6 +17,142 @@
         }
       }
     },
+    "%lld changes not uploaded" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld change not uploaded"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld changes not uploaded"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の変更が未アップロード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 项更改未上传"
+          }
+        }
+      }
+    },
+    "%lld entries not loaded" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld entry not loaded"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld entries not loaded"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件の項目を読み込めません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个条目未加载"
+          }
+        }
+      }
+    },
+    "%lld sync issues" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sync issue"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sync issues"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期の問題 %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个同步问题"
+          }
+        }
+      }
+    },
+    "%lld unreadable records" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unreadable record"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unreadable records"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取れないレコード %lld 件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条记录无法读取"
+          }
+        }
+      }
+    },
     "* For security reasons, your TMDb API Key will not be exported." : {
       "localizations" : {
         "ja" : {
@@ -29,6 +165,104 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "* 出于安全考虑，您的TMDb API密钥不会被导出。"
+          }
+        }
+      }
+    },
+    "#%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld"
+          }
+        }
+      }
+    },
+    "%@ ×%lld" : {
+      "comment" : "Library status followed by the completed rewatch count, combined into one compact badge.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ×%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ×%lld"
+          }
+        }
+      }
+    },
+    "%@, times rewatched: %lld" : {
+      "comment" : "Accessibility label for a combined library status and completed rewatch count badge.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、再視聴回数：%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@，重看次数：%lld"
+          }
+        }
+      }
+    },
+    "%@ aired %lld minutes ago." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@は%lld分前に放送されました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@已于%lld分钟前播出。"
+          }
+        }
+      }
+    },
+    "%@ airs in %lld minutes." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@は%2$lld分後に放送されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 将在 %2$lld 分钟后播出。"
+          }
+        }
+      }
+    },
+    "%@ is airing now." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@は現在放送中です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 正在播出。"
           }
         }
       }
@@ -111,6 +345,9 @@
         }
       }
     },
+    "%lld entries. Two entries deliberately fail every metadata restoration attempt. Use Retry three times to expose their discard actions." : {
+
+    },
     "%lld episodes" : {
       "localizations" : {
         "ja" : {
@@ -143,6 +380,22 @@
         }
       }
     },
+    "%lld hr" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld小时"
+          }
+        }
+      }
+    },
     "%lld min" : {
       "localizations" : {
         "ja" : {
@@ -155,6 +408,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 分钟"
+          }
+        }
+      }
+    },
+    "%lld min after" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld分後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "延后%lld分钟"
+          }
+        }
+      }
+    },
+    "%lld min before" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld分前"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提前%lld分钟"
           }
         }
       }
@@ -229,6 +514,306 @@
         }
       }
     },
+    "Added website and privacy policy links to the About page in Settings." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定の「このアプリについて」ページに公式サイトとプライバシーポリシーへのリンクを追加しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置中“关于”页面新增官网和隐私政策入口。"
+          }
+        }
+      }
+    },
+    "AniShelf couldn't read these records. They may have been saved by a newer version of the app. They stay untouched in iCloud, and this device won't overwrite them. Updating AniShelf may resolve this." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf はこれらのレコードを読み取れませんでした。新しいバージョンのアプリで保存された可能性があります。iCloud 上のデータはそのまま残り、このデバイスが上書きすることはありません。AniShelf をアップデートすると解決する場合があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 无法读取这些记录，它们可能由更新版本的 App 保存。这些记录会原样保留在 iCloud 中，此设备不会覆盖它们。更新 AniShelf 可能会解决此问题。"
+          }
+        }
+      }
+    },
+    "Are You Rewatching?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是在重看吗？"
+          }
+        }
+      }
+    },
+    "Fixed episode progress resets being overwritten by older progress from other devices." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エピソード進捗をリセットした後、ほかのデバイスの古い進捗で上書きされる問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复分集进度重置后，可能被其他设备的旧进度覆盖的问题。"
+          }
+        }
+      }
+    },
+    "Fixed iCloud Sync getting stuck during preparation and improved recovery after turning sync off and on again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud同期が準備中のまま進まなくなる問題を修正し、同期をオフにしてから再度オンにした際の復旧を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复 iCloud 同步卡在准备阶段的问题，并改善关闭后重新开启同步时的恢复。"
+          }
+        }
+      }
+    },
+    "Fixed missing information in season entries after deleting their series." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シリーズを削除した際に、対応するシーズンの情報が一部表示されなくなる問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了删除系列时，对应的季度条目可能信息显示不全的问题。"
+          }
+        }
+      }
+    },
+    "Marking it watched again adds one to the rewatch count." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度視聴済みにすると、再視聴回数が1回増えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再次标为已看时，重看次数会加 1。"
+          }
+        }
+      }
+    },
+    "Not a Rewatch" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴ではない"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是重看"
+          }
+        }
+      }
+    },
+    "Privacy Policy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy Policy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プライバシーポリシー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私政策"
+          }
+        }
+      }
+    },
+    "Rewatching" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重看中"
+          }
+        }
+      }
+    },
+    "Start Rewatch" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴を始める"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始重看"
+          }
+        }
+      }
+    },
+    "Starting a rewatch clears episode progress. Marking it watched again adds one to the rewatch count." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴を始めるとエピソード進捗がリセットされます。もう一度視聴済みにすると、再視聴回数が1回増えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始重看会清除分集进度。再次标为已看时，重看次数会加 1。"
+          }
+        }
+      }
+    },
+    "Sync Issues" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期の問題"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步问题"
+          }
+        }
+      }
+    },
+    "This release adds rewatch tracking and improves iCloud Sync reliability." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回のアップデートでは再視聴の記録機能を追加し、iCloud同期の信頼性を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次更新新增重看记录功能，并优化 iCloud 同步的可靠性。"
+          }
+        }
+      }
+    },
+    "Times Rewatched" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再視聴回数"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重看次数"
+          }
+        }
+      }
+    },
+    "Track each anime's rewatch status and completed rewatch count." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各作品の再視聴の状態と、完了した再視聴の回数を記録できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持记录每部动画的重看状态与已完成的重看次数。"
+          }
+        }
+      }
+    },
+    "Watch #%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld周目"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第%lld遍"
+          }
+        }
+      }
+    },
+    "Website" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Website"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公式サイト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "官方网站"
+          }
+        }
+      }
+    },
     "•" : {
       "localizations" : {
         "ja" : {
@@ -241,6 +826,134 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "•"
+          }
+        }
+      }
+    },
+    "1 hour after" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1時間後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "延后 1 小时"
+          }
+        }
+      }
+    },
+    "1 hour before" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1時間前"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提前 1 小时"
+          }
+        }
+      }
+    },
+    "5 minutes after" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5分後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "延后 5 分钟"
+          }
+        }
+      }
+    },
+    "5 minutes before" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5分前"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提前 5 分钟"
+          }
+        }
+      }
+    },
+    "15 minutes after" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15分後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "延后 15 分钟"
+          }
+        }
+      }
+    },
+    "15 minutes before" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15分前"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提前 15 分钟"
+          }
+        }
+      }
+    },
+    "30 minutes after" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30分後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "延后 30 分钟"
+          }
+        }
+      }
+    },
+    "30 minutes before" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30分前"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提前 30 分钟"
           }
         }
       }
@@ -357,6 +1070,22 @@
         }
       }
     },
+    "Active" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有効"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已启用"
+          }
+        }
+      }
+    },
     "Add a free API key once to unlock search, posters, and more." : {
       "localizations" : {
         "ja" : {
@@ -385,6 +1114,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加入资料库..."
+          }
+        }
+      }
+    },
+    "Added a Dark Mode app icon." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダークモード用のAppアイコンを追加しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加深色模式 App 图标。"
           }
         }
       }
@@ -549,6 +1294,22 @@
         }
       }
     },
+    "Added production companies to entry details, with an option to show them instead of runtime for series and seasons." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品詳細に制作会社を追加し、シリーズとシーズンでは再生時間の代わりに制作会社を表示できるオプションを追加しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目详情现已加入制作公司，并可选择在剧集与季条目中以制作公司替代时长。"
+          }
+        }
+      }
+    },
     "Added sorting by name (A–Z)." : {
       "localizations" : {
         "ja" : {
@@ -577,6 +1338,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增TV动画与电影筛选功能"
+          }
+        }
+      }
+    },
+    "After Airtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出后"
+          }
+        }
+      }
+    },
+    "Airing Reminders" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送リマインダー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出提醒"
+          }
+        }
+      }
+    },
+    "Airtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出时间"
+          }
+        }
+      }
+    },
+    "Airtime Not Supported" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻は非対応"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持播出时间"
+          }
+        }
+      }
+    },
+    "Airtime reminders are now more accurate overall." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻のリマインダーが全体的により正確になりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出时间提醒现在整体更加准确。"
+          }
+        }
+      }
+    },
+    "Airtime Unavailable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻を取得できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无可用播出时间"
+          }
+        }
+      }
+    },
+    "Airtime uncertain" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻が不確か"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出时间不确定"
           }
         }
       }
@@ -743,6 +1616,22 @@
         }
       }
     },
+    "AniShelf can now ask for an App Store review after sustained, meaningful use, without interrupting what you are doing." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelfは、十分に継続してご利用いただいた後、操作を妨げないタイミングでApp Storeのレビューをお願いするようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 现在会在您持续、有意义地使用后，于不打断操作的时机邀请您在 App Store 留下评价。"
+          }
+        }
+      }
+    },
     "AniShelf can now show selected update notes after launch and reopen them later from Settings." : {
       "localizations" : {
         "ja" : {
@@ -771,6 +1660,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AniShelf 无法准备此导出，请重试。"
+          }
+        }
+      }
+    },
+    "AniShelf found multiple stored copies of the same anime. Review them and choose the copy you want to keep before continuing." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じアニメの保存済みコピーが複数見つかりました。内容を確認し、続行する前に残すコピーを選んでください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 发现了同一部动画的多个存储副本。请查看它们，并选择要保留的副本，然后才能继续。"
           }
         }
       }
@@ -807,6 +1712,54 @@
         }
       }
     },
+    "AniShelf links this entry to this anime on TVMaze to retrieve broadcast times." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻を取得するため、AniShelfはこの項目をTVMazeのアニメに関連付けています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为获取播出时间，AniShelf 已将此条目关联到 TVMaze 上的这部动画。"
+          }
+        }
+      }
+    },
+    "AniShelf never enlarges poster artwork. If the source is smaller than the selected export size, the source resolution is used instead. Some size options may therefore produce identical results." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelfはポスター画像を拡大しません。元画像が選択した書き出しサイズより小さい場合は、元画像の解像度が使用されます。そのため、一部のサイズ設定では同じ結果になることがあります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 不会放大海报图片。如果源图小于所选导出尺寸，则会使用源图分辨率。因此，某些尺寸选项可能会产生相同的结果。"
+          }
+        }
+      }
+    },
+    "AniShelf now adapts to resizable iPad windows for a more natural large-screen experience." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可変サイズのiPadウインドウに対応し、大画面でより自然に操作できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适配 iPad 可变大小窗口，大屏交互更自然。"
+          }
+        }
+      }
+    },
     "AniShelf on GitHub" : {
       "localizations" : {
         "ja" : {
@@ -839,6 +1792,22 @@
         }
       }
     },
+    "AniShelf Title" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelfのタイトル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AniShelf 标题"
+          }
+        }
+      }
+    },
     "AniShelf was unable to open your database because it is corrupted or unreadable." : {
       "localizations" : {
         "ja" : {
@@ -851,6 +1820,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "由于数据库已损坏或无法读取，AniShelf 无法打开它。"
+          }
+        }
+      }
+    },
+    "Another duplicate repair is still in progress. Try again when it finishes." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の重複修復がまだ進行中です。完了してからもう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一项重复修复仍在进行中。请在其完成后重试。"
           }
         }
       }
@@ -887,6 +1872,38 @@
         }
       }
     },
+    "Appearance" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外観"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外观"
+          }
+        }
+      }
+    },
+    "Applies to series and seasons when both are available." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シリーズとシーズンで両方の情報がある場合に適用されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适用于同时提供这两项信息的剧集与季。"
+          }
+        }
+      }
+    },
     "Artwork" : {
       "localizations" : {
         "ja" : {
@@ -903,6 +1920,22 @@
         }
       }
     },
+    "At airtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出时"
+          }
+        }
+      }
+    },
     "Auto Prefetch Images" : {
       "localizations" : {
         "ja" : {
@@ -915,6 +1948,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自动预加载图片"
+          }
+        }
+      }
+    },
+    "Available on iOS 27 or later. Turn off to use the system appearance." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 27以降で利用できます。オフにするとシステムの外観になります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅适用于 iOS 27 或更高版本。关闭后使用系统外观。"
           }
         }
       }
@@ -1111,6 +2160,41 @@
         }
       }
     },
+    "Before Airtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送前"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出前"
+          }
+        }
+      }
+    },
+    "Broadcast Airtimes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出时间"
+          }
+        }
+      }
+    },
+    "Broadcast Policy" : {
+
+    },
     "Built-in release notes" : {
       "localizations" : {
         "ja" : {
@@ -1247,6 +2331,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消"
+          }
+        }
+      }
+    },
+    "Candidate" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候选结果"
           }
         }
       }
@@ -1430,7 +2530,20 @@
       }
     },
     "Checking TMDb API key..." : {
-
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb APIキーを確認中..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在验证 TMDb API 密钥..."
+          }
+        }
+      }
     },
     "Checking..." : {
       "localizations" : {
@@ -1477,6 +2590,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中文"
+          }
+        }
+      }
+    },
+    "Choose a custom reminder time before or after airtime for each anime." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作品ごとに、放送前または放送後のリマインダー時刻を設定できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在可以为每部动画分别设置播出前或播出后的提醒时间。"
+          }
+        }
+      }
+    },
+    "Choose an Anime to Keep" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残すアニメを選択"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择要保留的动画"
           }
         }
       }
@@ -1609,6 +2754,9 @@
         }
       }
     },
+    "Completed Sync" : {
+
+    },
     "Confirm" : {
       "localizations" : {
         "ja" : {
@@ -1621,6 +2769,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "确认"
+          }
+        }
+      }
+    },
+    "Confirm Anime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アニメを確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认动画"
           }
         }
       }
@@ -1706,6 +2870,7 @@
       }
     },
     "Controls" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -1882,6 +3047,54 @@
         }
       }
     },
+    "Could not restore metadata for %@: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ のメタデータを復元できませんでした: %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法恢复 %1$@ 的元数据：%2$@"
+          }
+        }
+      }
+    },
+    "Couldn’t Find a Match" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致する番組が見つかりませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到匹配项"
+          }
+        }
+      }
+    },
+    "Couldn’t Load Airtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻を読み込めませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法载入播出时间"
+          }
+        }
+      }
+    },
     "Couldn't load details" : {
       "localizations" : {
         "ja" : {
@@ -1898,6 +3111,22 @@
         }
       }
     },
+    "Couldn’t Save Selection" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択内容を保存できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存选择"
+          }
+        }
+      }
+    },
     "Create an account or log in first." : {
       "localizations" : {
         "ja" : {
@@ -1910,6 +3139,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请先创建账号或登录。"
+          }
+        }
+      }
+    },
+    "Customize" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カスタマイズ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义"
           }
         }
       }
@@ -2000,6 +3245,22 @@
         }
       }
     },
+    "Default" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认"
+          }
+        }
+      }
+    },
     "Default Filters" : {
       "localizations" : {
         "ja" : {
@@ -2012,6 +3273,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认筛选"
+          }
+        }
+      }
+    },
+    "Default Timing" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準の通知時刻"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认提醒时间"
           }
         }
       }
@@ -2096,6 +3373,22 @@
         }
       }
     },
+    "Deletion pending. Retry to finish." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除は保留中です。再試行してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除尚未完成，请重试。"
+          }
+        }
+      }
+    },
     "Developer assistance" : {
       "localizations" : {
         "ja" : {
@@ -2108,6 +3401,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开发者协助"
+          }
+        }
+      }
+    },
+    "Disable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフにする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
           }
         }
       }
@@ -2157,6 +3466,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放弃更改"
+          }
+        }
+      }
+    },
+    "Discard Entry from iCloud?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud から項目を削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 iCloud 删除此条目？"
+          }
+        }
+      }
+    },
+    "Discard from iCloud" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud から削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 iCloud 删除"
+          }
+        }
+      }
+    },
+    "Discard from iCloud…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud から削除…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 iCloud 删除…"
           }
         }
       }
@@ -2216,6 +3573,38 @@
         }
       }
     },
+    "Duplicate anime %lld of %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複アニメ %1$lld / %2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重复动画组 %1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "Duplicate Anime Found" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリに重複したアニメがあります"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库中发现重复动画"
+          }
+        }
+      }
+    },
     "Edit" : {
       "localizations" : {
         "ja" : {
@@ -2228,6 +3617,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "编辑"
+          }
+        }
+      }
+    },
+    "Enable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンにする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启"
           }
         }
       }
@@ -2265,6 +3670,38 @@
         }
       }
     },
+    "Enhanced sharing customization with image size, rounded corner, and export format controls." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有のカスタマイズ機能を強化し、画像サイズ、角丸、書き出し形式を設定できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增强分享自定义能力，现支持图像大小、圆角与导出格式设置。"
+          }
+        }
+      }
+    },
+    "Enter a title to search TVMaze." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイトルを入力してTVMazeを検索してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入标题以搜索 TVMaze。"
+          }
+        }
+      }
+    },
     "Enter Batch Add?" : {
       "localizations" : {
         "ja" : {
@@ -2293,6 +3730,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每行输入一个标题或结构化 TMDb ID。"
+          }
+        }
+      }
+    },
+    "Entries needing retry" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試行が必要な項目"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要重试的条目"
+          }
+        }
+      }
+    },
+    "Entries TMDb no longer lists can be discarded from iCloud. Others retry automatically." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb に掲載されなくなった項目は iCloud から削除できます。その他の項目は自動的に再試行されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb 上已不存在的条目可以从 iCloud 删除。其他条目会自动重试。"
           }
         }
       }
@@ -2463,6 +3932,22 @@
         }
       }
     },
+    "Every reminder on this device will be removed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデバイスのすべてのリマインダーが削除されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将移除此设备上的所有提醒。"
+          }
+        }
+      }
+    },
     "Excel Workbook (.xlsx)" : {
       "localizations" : {
         "ja" : {
@@ -2523,6 +4008,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "默认展开制作人员"
+          }
+        }
+      }
+    },
+    "Expected" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预计"
           }
         }
       }
@@ -2592,6 +4093,22 @@
         }
       }
     },
+    "Export Size" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出しサイズ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出尺寸"
+          }
+        }
+      }
+    },
     "Exporting changes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2605,6 +4122,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在导出更改"
+          }
+        }
+      }
+    },
+    "Failed during %@: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 中に失敗しました: %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %1$@ 阶段失败：%2$@"
           }
         }
       }
@@ -2849,6 +4382,38 @@
         }
       }
     },
+    "Finding Airtime…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻を検索中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在查找播出时间…"
+          }
+        }
+      }
+    },
+    "Fixed a bug that could cause a crash at launch." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動時にクラッシュする可能性があった不具合を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了一个可能导致启动时崩溃的 Bug"
+          }
+        }
+      }
+    },
     "Fixed a crash issue when converting to an animation series." : {
       "localizations" : {
         "ja" : {
@@ -3009,6 +4574,25 @@
         }
       }
     },
+    "Following menu action" : {
+
+    },
+    "Format" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形式"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式"
+          }
+        }
+      }
+    },
     "Frieren\nmovie:4935\nseries:24835\nseason:24835:1" : {
       "localizations" : {
         "ja" : {
@@ -3021,6 +4605,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Frieren\nmovie:4935\nseries:24835\nseason:24835:1"
+          }
+        }
+      }
+    },
+    "Full" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完整"
           }
         }
       }
@@ -3041,6 +4641,22 @@
         }
       }
     },
+    "General" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通用"
+          }
+        }
+      }
+    },
     "Get a TMDB key" : {
       "localizations" : {
         "ja" : {
@@ -3053,6 +4669,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "获取TMDb API密钥"
+          }
+        }
+      }
+    },
+    "Get reminders for upcoming episodes." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今後のエピソードのリマインダーを受け取ります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接收即将播出剧集的提醒。"
           }
         }
       }
@@ -3105,6 +4737,38 @@
         }
       }
     },
+    "HEIC" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HEIC"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HEIC"
+          }
+        }
+      }
+    },
+    "Help Confirm Airtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送時刻の確認に協力"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帮助确认播出时间"
+          }
+        }
+      }
+    },
     "Hide Dates" : {
       "localizations" : {
         "ja" : {
@@ -3153,6 +4817,57 @@
         }
       }
     },
+    "Hold deletions until Retry" : {
+
+    },
+    "Hours" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小时"
+          }
+        }
+      }
+    },
+    "iCloud didn't accept these changes. They stay saved on this device, and AniShelf tries uploading them again on later syncs." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud がこれらの変更を受け付けませんでした。変更はこのデバイスに保存されたままで、AniShelf は以降の同期で再度アップロードを試みます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 未接受这些更改。它们仍保存在此设备上，AniShelf 会在之后的同步中再次尝试上传。"
+          }
+        }
+      }
+    },
+    "iCloud has not confirmed the deletion. Retry to finish discarding this entry." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud で削除が確認されていません。再試行して、この項目の削除を完了してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 尚未确认删除。请重试以完成此条目的删除。"
+          }
+        }
+      }
+    },
     "iCloud Library Sync" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3182,6 +4897,25 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iCloud 同步"
+          }
+        }
+      }
+    },
+    "iCloud Sync Preview" : {
+
+    },
+    "iCloud storage is full. Free up space or upgrade your iCloud storage, then retry sync." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudのストレージがいっぱいです。空き容量を増やすかストレージプランをアップグレードしてから、同期を再試行してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 储存空间已满。请释放空间或升级储存空间方案，然后重试同步。"
           }
         }
       }
@@ -3218,6 +4952,22 @@
         }
       }
     },
+    "Improved iCloud Sync reliability and added Rebuild iCloud Sync in Settings to resolve certain persistent issues." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud同期の安定性を向上し、設定に「iCloud同期を再構築」を追加して、一部の解決しにくい問題に対処できるようにしました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提升 iCloud 同步稳定性，并在设置中新增“重建 iCloud 同步”以解决某些顽固问题"
+          }
+        }
+      }
+    },
     "Improved the rating UI." : {
       "localizations" : {
         "ja" : {
@@ -3234,6 +4984,22 @@
         }
       }
     },
+    "Improved TMDb API key handling at launch to avoid unnecessary setup prompts." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動時のTMDb APIキーの処理を改善し、不必要な設定画面が表示されないようにしました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改进了启动时的 TMDb API 密钥处理，避免出现不必要的设置提示。"
+          }
+        }
+      }
+    },
     "Improved watch status switching and date selection UX." : {
       "localizations" : {
         "ja" : {
@@ -3246,6 +5012,95 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "优化了观看状态切换与日期选择体验。"
+          }
+        }
+      }
+    },
+    "Inactive" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無効"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未启用"
+          }
+        }
+      }
+    },
+    "Inject failures" : {
+
+    },
+    "Injected failures are off. The next Retry will load the pending entries and clear the other notices." : {
+
+    },
+    "Injected failures are off. The next Retry will restore the two pending entries and complete bootstrap." : {
+
+    },
+    "Interface" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インターフェイス"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "界面"
+          }
+        }
+      }
+    },
+    "iOS could not schedule every reminder. AniShelf kept the reminders for the nearest airtimes." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOSですべてのリマインダーを設定できなかったため、AniShelfは放送時刻が近いリマインダーを保持しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 无法安排所有提醒。AniShelf 已保留播出时间最近的提醒。"
+          }
+        }
+      }
+    },
+    "iOS rejected one or more reminders. Existing reminders were restored when possible." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOSが一部のリマインダーを拒否しました。可能な場合は既存のリマインダーを復元しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 拒绝了一个或多个提醒。AniShelf 已尽可能恢复原有提醒。"
+          }
+        }
+      }
+    },
+    "Is this the same anime? AniShelf uses TVMaze to retrieve broadcast times." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じアニメですか？AniShelfはTVMazeから放送時刻を取得します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是同一部动画吗？AniShelf 会通过 TVMaze 获取播出时间。"
           }
         }
       }
@@ -3283,18 +5138,18 @@
         }
       }
     },
-    "Jumps to the episodes section." : {
+    "JPEG" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "エピソードセクションに移動します。"
+            "value" : "JPEG"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳转到集数部分。"
+            "value" : "JPEG"
           }
         }
       }
@@ -3311,6 +5166,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "JSON (.json)"
+          }
+        }
+      }
+    },
+    "Jumps to the episodes section." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エピソードセクションに移動します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳转到集数部分。"
+          }
+        }
+      }
+    },
+    "Keep #%lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld を残す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留 #%lld"
+          }
+        }
+      }
+    },
+    "Keep Reminders" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーを維持"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留提醒"
           }
         }
       }
@@ -3430,6 +5333,22 @@
         }
       }
     },
+    "Last changed %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終変更：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次更改：%@"
+          }
+        }
+      }
+    },
     "Last sync: %@" : {
       "localizations" : {
         "ja" : {
@@ -3479,6 +5398,7 @@
       }
     },
     "Library Defaults" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -3538,6 +5458,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要恢复资料库"
+          }
+        }
+      }
+    },
+    "Light" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "軽量"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻量"
           }
         }
       }
@@ -3638,6 +5574,22 @@
         }
       }
     },
+    "Look up TV broadcast times when you open an eligible anime or season." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対象のアニメやシーズンを開いたときに、テレビの放送時刻を取得します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开符合条件的动画或单季条目时，查询电视播出时间。"
+          }
+        }
+      }
+    },
     "Made by Samuel He. Metadata and artwork are provided by TMDb." : {
       "localizations" : {
         "ja" : {
@@ -3650,6 +5602,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "由Samuel He开发。元数据和图片由TMDb提供。"
+          }
+        }
+      }
+    },
+    "Manage Reminders" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーを管理"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理提醒"
           }
         }
       }
@@ -3736,6 +5704,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总开关"
+          }
+        }
+      }
+    },
+    "Matched Anime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致したアニメ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匹配动画"
+          }
+        }
+      }
+    },
+    "Medium" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标准"
           }
         }
       }
@@ -3832,6 +5832,22 @@
         }
       }
     },
+    "Minutes" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分钟"
+          }
+        }
+      }
+    },
     "Movie" : {
       "localizations" : {
         "ja" : {
@@ -3876,6 +5892,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "电影"
+          }
+        }
+      }
+    },
+    "Multiple performance improvements." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数のパフォーマンス改善を行いました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进行了多项性能优化。"
           }
         }
       }
@@ -3960,6 +5992,22 @@
         }
       }
     },
+    "New episode" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいエピソード"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新剧集"
+          }
+        }
+      }
+    },
     "Next" : {
       "localizations" : {
         "ja" : {
@@ -3972,6 +6020,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一步"
+          }
+        }
+      }
+    },
+    "Next Airing" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次回放送"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次播出"
+          }
+        }
+      }
+    },
+    "Next airtime unavailable" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次回の放送時刻は利用できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无下次播出时间"
+          }
+        }
+      }
+    },
+    "Next Episode" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次回"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一集"
+          }
+        }
+      }
+    },
+    "Next Reminder" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次の通知"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次提醒"
           }
         }
       }
@@ -4052,6 +6164,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无可用海报。"
+          }
+        }
+      }
+    },
+    "No Reminder" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーなし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无提醒"
+          }
+        }
+      }
+    },
+    "No Reminders Set" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーは設定されていません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未设置提醒"
           }
         }
       }
@@ -4152,6 +6296,22 @@
         }
       }
     },
+    "Not a Match" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致しない"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是这部动画"
+          }
+        }
+      }
+    },
     "Not Now" : {
       "localizations" : {
         "ja" : {
@@ -4185,6 +6345,38 @@
         }
       }
     },
+    "Not Set" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置"
+          }
+        }
+      }
+    },
+    "Not This Anime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアニメではありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是这部动画"
+          }
+        }
+      }
+    },
     "Notes" : {
       "localizations" : {
         "ja" : {
@@ -4213,6 +6405,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不会自动上传任何内容。只有在您选择操作后才会准备导出文件。"
+          }
+        }
+      }
+    },
+    "Notifications" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        }
+      }
+    },
+    "Notifications Disabled" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知が無効です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知已关闭"
           }
         }
       }
@@ -4281,6 +6505,9 @@
         }
       }
     },
+    "Open airtime menu" : {
+
+    },
     "Open API Page" : {
       "localizations" : {
         "ja" : {
@@ -4345,6 +6572,22 @@
         }
       }
     },
+    "Open Notification Settings" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知設定を開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开通知设置"
+          }
+        }
+      }
+    },
     "Open the Characters section automatically in entry detail view." : {
       "localizations" : {
         "ja" : {
@@ -4377,6 +6620,22 @@
         }
       }
     },
+    "Open What's New from Settings to browse notes from previous releases." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定から「新機能」を開くと、過去のリリースノートも確認できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从“设置”打开“更新内容”，即可浏览过往版本说明。"
+          }
+        }
+      }
+    },
     "Optimized backup file size." : {
       "localizations" : {
         "ja" : {
@@ -4389,6 +6648,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "优化了备份文件大小"
+          }
+        }
+      }
+    },
+    "Optimized sharing for iPad windows, with wide layouts showing the preview, poster picker, and controls together." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPadウインドウ向けの共有レイアウトを最適化し、ワイド表示では共有画像のプレビュー、ポスター選択、設定調整を同時に行えるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "优化 iPad 窗口下的分享布局，宽屏时可同时预览分享图、选择海报并调整设置。"
           }
         }
       }
@@ -4682,6 +6957,22 @@
         }
       }
     },
+    "PNG" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PNG"
+          }
+        }
+      }
+    },
     "Prefetch Images" : {
       "localizations" : {
         "ja" : {
@@ -4731,6 +7022,22 @@
         }
       }
     },
+    "Premiered" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "初回放送"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首播"
+          }
+        }
+      }
+    },
     "Preparing iCloud" : {
       "localizations" : {
         "ja" : {
@@ -4748,6 +7055,7 @@
       }
     },
     "Preview" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -4759,6 +7067,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "预览"
+          }
+        }
+      }
+    },
+    "Previous Updates" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過去のアップデート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过往更新"
+          }
+        }
+      }
+    },
+    "Production" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "制作"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "制作"
+          }
+        }
+      }
+    },
+    "Production Companies" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "制作会社"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "制作公司"
           }
         }
       }
@@ -4843,6 +7199,70 @@
         }
       }
     },
+    "Rebuild" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再構築"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重建"
+          }
+        }
+      }
+    },
+    "Rebuild iCloud Sync" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud同期を再構築"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重建 iCloud 同步"
+          }
+        }
+      }
+    },
+    "Rebuild iCloud Sync?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud同期を再構築しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重建 iCloud 同步？"
+          }
+        }
+      }
+    },
+    "Recommended" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推奨"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建议保留"
+          }
+        }
+      }
+    },
     "Reduced disk usage. Existing users can optionally clear cache and reload metadata from Settings to reclaim more storage." : {
       "localizations" : {
         "ja" : {
@@ -4855,6 +7275,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "优化了磁盘占用。现有用户可按需在设置中清空缓存并重新加载元数据，以进一步减小占用空间。"
+          }
+        }
+      }
+    },
+    "Refetch and reconcile your iCloud library with your local library." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudライブラリを再取得し、ローカルライブラリと同期し直します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新获取 iCloud 资料库，并与本地资料库重新同步。"
+          }
+        }
+      }
+    },
+    "Refetch and reconcile your iCloud library with your local library. This may resolve some iCloud sync issues." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudライブラリを再取得し、ローカルライブラリと同期し直します。これにより、一部のiCloud同期の問題が解決する場合があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新获取 iCloud 资料库，并与本地资料库重新同步。这可能会解决一些 iCloud 同步问题。"
           }
         }
       }
@@ -5114,6 +7566,167 @@
         }
       }
     },
+    "Remember language, corner style, image format, and export size preferences in the share sheet." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有シートで選んだ言語、角のスタイル、画像形式、書き出しサイズを記憶します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住共享表单中的语言、圆角样式、图像格式和导出尺寸偏好。"
+          }
+        }
+      }
+    },
+    "Remember Share Settings" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共有設定を記憶"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住共享设置"
+          }
+        }
+      }
+    },
+    "Remind Me" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒我"
+          }
+        }
+      }
+    },
+    "Reminder Limit Reached" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーの上限に達しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已达到提醒上限"
+          }
+        }
+      }
+    },
+    "Reminder Scheduling Issue" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダー設定の問題"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒安排问题"
+          }
+        }
+      }
+    },
+    "Reminder Timing" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知時刻"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒时间"
+          }
+        }
+      }
+    },
+    "Reminder timing could not be fully updated. Please try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知のタイミングを完全に更新できませんでした。もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒时间未能完整更新，请重试。"
+          }
+        }
+      }
+    },
+    "Reminders" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダー"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒"
+          }
+        }
+      }
+    },
+    "Remove All" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部移除"
+          }
+        }
+      }
+    },
+    "Remove All Airing Reminders?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての放送リマインダーを削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除所有播出提醒？"
+          }
+        }
+      }
+    },
     "Remove every saved library entry." : {
       "localizations" : {
         "ja" : {
@@ -5126,6 +7739,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除所有已保存的动画。"
+          }
+        }
+      }
+    },
+    "Remove reminder for %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@のリマインダーを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 %@ 的提醒"
+          }
+        }
+      }
+    },
+    "Removes this reminder." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリマインダーを削除します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除此提醒。"
           }
         }
       }
@@ -5162,6 +7807,38 @@
         }
       }
     },
+    "Repair Library" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリを修復"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复资料库"
+          }
+        }
+      }
+    },
+    "Repairing…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修復中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在修复…"
+          }
+        }
+      }
+    },
     "Replace the TMDb key AniShelf uses for search and metadata." : {
       "localizations" : {
         "ja" : {
@@ -5193,6 +7870,41 @@
           }
         }
       }
+    },
+    "Resolve…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解決…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "处理…"
+          }
+        }
+      }
+    },
+    "Resolved" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解決済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已匹配"
+          }
+        }
+      }
+    },
+    "Restoration" : {
+
     },
     "Restore" : {
       "localizations" : {
@@ -5258,6 +7970,22 @@
         }
       }
     },
+    "Restored %lld of %lld entries." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld 件中 %1$lld 件を復元しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已恢复 %1$lld / %2$lld 个条目。"
+          }
+        }
+      }
+    },
     "Retry" : {
       "localizations" : {
         "ja" : {
@@ -5306,6 +8034,22 @@
         }
       }
     },
+    "Review entries" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看条目"
+          }
+        }
+      }
+    },
     "Review image and metadata cache usage." : {
       "localizations" : {
         "ja" : {
@@ -5318,6 +8062,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看缓存使用情况。"
+          }
+        }
+      }
+    },
+    "Review Match" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致を確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看匹配"
+          }
+        }
+      }
+    },
+    "Rounded Corners" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "角を丸くする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圆角"
           }
         }
       }
@@ -5402,6 +8178,41 @@
         }
       }
     },
+    "Saving Selection…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択内容を保存中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在保存选择…"
+          }
+        }
+      }
+    },
+    "Scenario" : {
+
+    },
+    "Schedule" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送予定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播出时间表"
+          }
+        }
+      }
+    },
     "Scope" : {
       "localizations" : {
         "ja" : {
@@ -5466,6 +8277,22 @@
         }
       }
     },
+    "Search for an anime..." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アニメを検索…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索动画…"
+          }
+        }
+      }
+    },
     "Search in your library..." : {
       "localizations" : {
         "ja" : {
@@ -5514,6 +8341,22 @@
         }
       }
     },
+    "Search TVMaze" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TVMazeを検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索 TVMaze"
+          }
+        }
+      }
+    },
     "Search..." : {
       "localizations" : {
         "ja" : {
@@ -5542,6 +8385,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在搜索TMDb..."
+          }
+        }
+      }
+    },
+    "Searching TVMaze…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TVMazeを検索中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在搜索 TVMaze…"
           }
         }
       }
@@ -5627,6 +8486,22 @@
         }
       }
     },
+    "Selecting and deleting multiple library entries is now smoother and more efficient." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリで複数の項目を選択・削除する操作が、よりスムーズで効率的になりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择和删除多个资料库条目时更加流畅高效。"
+          }
+        }
+      }
+    },
     "Series" : {
       "localizations" : {
         "ja" : {
@@ -5639,6 +8514,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "动画系列"
+          }
+        }
+      }
+    },
+    "Set reminders for each new episode as it airs." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新作アニメの各話の放送に合わせてリマインダーを設定できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持为新番每集播出设置提醒"
           }
         }
       }
@@ -5755,6 +8646,38 @@
         }
       }
     },
+    "Show production company instead of runtime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生時間の代わりに制作会社を表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示制作公司而非时长"
+          }
+        }
+      }
+    },
+    "Shows all production companies." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての制作会社を表示します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示所有制作公司。"
+          }
+        }
+      }
+    },
     "Sibling Season Exists" : {
       "localizations" : {
         "ja" : {
@@ -5803,6 +8726,38 @@
         }
       }
     },
+    "Some reminders could not be refreshed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のリマインダーを更新できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分提醒无法刷新。"
+          }
+        }
+      }
+    },
+    "Some reminders could not be scheduled." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のリマインダーを設定できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分提醒无法安排。"
+          }
+        }
+      }
+    },
     "Some support options are not ready yet. Please try again after App Store Connect finishes syncing." : {
       "localizations" : {
         "ja" : {
@@ -5831,6 +8786,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "排序"
+          }
+        }
+      }
+    },
+    "Source Resolution" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元画像の解像度"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "源图分辨率"
           }
         }
       }
@@ -6126,6 +9097,9 @@
         }
       }
     },
+    "Sync succeeded, but two entries couldn't be loaded, two changes weren't uploaded, and one record is unreadable. The entry TMDb no longer lists can be discarded right away." : {
+
+    },
     "Synced" : {
       "localizations" : {
         "ja" : {
@@ -6174,6 +9148,9 @@
           }
         }
       }
+    },
+    "Synthetic iCloud Library" : {
+
     },
     "Tab-Separated Values (.tsv)" : {
       "localizations" : {
@@ -6303,6 +9280,22 @@
         }
       }
     },
+    "The other stored copies will be removed from this device." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほかの保存済みコピーはこのデバイスから削除されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他存储副本将从此设备移除。"
+          }
+        }
+      }
+    },
     "The replacement library is empty. A backup from an earlier build or iCloud Sync may help recover your data." : {
       "localizations" : {
         "ja" : {
@@ -6315,6 +9308,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "替代资料库为空。您可以尝试通过早期版本的备份或 iCloud 同步恢复数据。"
+          }
+        }
+      }
+    },
+    "The selected anime copy is no longer available. Choose another copy to keep." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したアニメのコピーは利用できなくなりました。別のコピーを選んでください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所选动画副本已不可用。请选择另一个副本。"
           }
         }
       }
@@ -6335,6 +9344,22 @@
         }
       }
     },
+    "These duplicate anime copies have already changed. Review the updated list and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複したアニメのコピーはすでに変更されています。更新された一覧を確認して、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些重复动画副本已经发生变化。请查看更新后的列表并重试。"
+          }
+        }
+      }
+    },
     "This anime already has edits. Pasting will overwrite current info." : {
       "localizations" : {
         "ja" : {
@@ -6347,6 +9372,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此动画信息已有更改。粘贴会覆盖已有更改。"
+          }
+        }
+      }
+    },
+    "This deletes %@ and its saved tracking data from your iCloud library. The deletion will sync to your other devices." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud ライブラリから %@ と保存済みの視聴記録を削除します。削除はほかのデバイスにも同期されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这会从 iCloud 片库中删除 %@ 及其保存的观看记录。删除操作将同步到你的其他设备。"
+          }
+        }
+      }
+    },
+    "This Is the Anime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアニメです"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就是这部动画"
+          }
+        }
+      }
+    },
+    "This may be the wrong anime" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別のアニメかもしれません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这可能不是同一部动画"
           }
         }
       }
@@ -6383,6 +9456,70 @@
         }
       }
     },
+    "This release adds broadcast airtimes and episode reminders, and improves iCloud Sync reliability." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースでは、アニメの放送時刻と各話の放送リマインダーを追加し、iCloud同期の安定性を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次更新新增动画播出时间与新番每集播出提醒，并提升了 iCloud 同步稳定性。"
+          }
+        }
+      }
+    },
+    "This release adds flexible reminder timing and improves library performance and upgrade reliability." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースでは、放送リマインダーの時刻設定を柔軟にし、ライブラリのパフォーマンスとアップグレード時の信頼性を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次更新提供更灵活的播出提醒时间设置，并提升了资料库性能与升级可靠性。"
+          }
+        }
+      }
+    },
+    "This release adds thoughtful review prompts and improves the reliability of TMDb artwork and setup." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースでは、配慮したレビューのお願いを追加し、TMDbアートワークと設定の信頼性を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本新增了更周到的评价提示，并提升了 TMDb 图片与设置的可靠性。"
+          }
+        }
+      }
+    },
+    "This release enriches entry details and makes previous updates easier to revisit. Existing users should perform an info refresh by tapping the action below so production company information can be added to existing entries." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースでは作品詳細の情報を拡充し、過去のアップデートを振り返りやすくしました。既存ユーザーは、既存の項目に制作会社の情報を追加するため、下のアクションから情報を更新してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本丰富了条目详情，并让你更方便地回顾过往更新。现有用户请点击下方操作刷新信息，以便为现有条目添加制作公司信息。"
+          }
+        }
+      }
+    },
     "This release fixes data correctness issues. Existing users should perform an info refresh by tapping the action button below so their library metadata can be corrected." : {
       "localizations" : {
         "ja" : {
@@ -6395,6 +9532,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此版本修复了影响数据正确性的问题。现有用户请点击下方操作按钮执行一次信息刷新，以修正资料库中的元数据。"
+          }
+        }
+      }
+    },
+    "This release improves AniShelf on iPad and larger displays." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースでは、iPadと大画面でのAniShelfの体験を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本优化了 AniShelf 在 iPad 和大屏设备上的体验。"
+          }
+        }
+      }
+    },
+    "This release updates AniShelf for iOS 27 and makes sharing more flexible across iPhone and iPad." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このリリースでは、AniShelfをiOS 27に対応させ、iPhoneとiPadでの共有機能をより柔軟にしました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本适配 iOS 27，并增强了 AniShelf 在 iPhone 和 iPad 上的分享体验。"
           }
         }
       }
@@ -6624,6 +9793,22 @@
         }
       }
     },
+    "TMDb logos now support SVG artwork for sharper images." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDbのロゴでSVGアートワークをサポートし、より鮮明な画像を表示できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb 标志现已支持 SVG 图像，可显示更清晰的图片。"
+          }
+        }
+      }
+    },
     "TMDB powers AniShelf." : {
       "localizations" : {
         "ja" : {
@@ -6700,6 +9885,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "TMDb评分"
+          }
+        }
+      }
+    },
+    "TMDb status labels now follow your selected metadata language." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDbのステータス表示が、選択したメタデータ言語に対応しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TMDb 状态标签现会跟随你选择的元数据语言显示。"
           }
         }
       }
@@ -6913,6 +10114,22 @@
         }
       }
     },
+    "TVMaze’s network-local next-airing date is %@, while TMDb expects %@." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TVMazeの放送地域では次回放送日が%1$@ですが、TMDbでは%2$@の予定です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 TVMaze 播出地区的当地日期，下次播出为 %1$@，而 TMDb 预计为 %2$@。"
+          }
+        }
+      }
+    },
     "Unable to complete the purchase right now." : {
       "localizations" : {
         "ja" : {
@@ -6957,6 +10174,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法准备导出"
+          }
+        }
+      }
+    },
+    "Unable to Repair Library" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリを修復できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法修复资料库"
           }
         }
       }
@@ -7047,6 +10280,22 @@
         }
       }
     },
+    "Updated AniShelf for iOS 27, refined styling throughout the app, and added a soft navigation bar edge option available only on iOS 27." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 27に対応し、アプリ全体のUIスタイルを改善しました。iOS 27では、ナビゲーションバーの境界をソフトにする新しいオプションも利用できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适配 iOS 27，优化多处 UI 样式，新增柔和导航栏边缘选项（仅在 iOS 27 系统上可见）。"
+          }
+        }
+      }
+    },
     "Updated the icon shown when loading fails." : {
       "localizations" : {
         "ja" : {
@@ -7079,6 +10328,22 @@
         }
       }
     },
+    "Use Default" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準設定を使う"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用默认设置"
+          }
+        }
+      }
+    },
     "Use iCloud" : {
       "localizations" : {
         "ja" : {
@@ -7107,6 +10372,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用海报"
+          }
+        }
+      }
+    },
+    "Use Soft Navigation Bar Edges" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ナビゲーションバーの境界をソフトにする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用柔和的导航栏边缘"
           }
         }
       }
@@ -7235,6 +10516,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "版本、链接和鸣谢。"
+          }
+        }
+      }
+    },
+    "View broadcast airtimes for eligible anime." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対象のアニメの放送時刻を確認できるようになりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持查看符合条件动画的播出时间"
           }
         }
       }
@@ -7533,6 +10830,102 @@
         }
       }
     },
+    "Your iCloud account changed while iCloud Sync was starting. Try again to rebuild sync for the new account." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud同期の開始中にiCloudアカウントが変更されました。新しいアカウント用に同期を再構築するには、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 同步启动时，你的 iCloud 账户发生了变化。请重试，以便为新账户重建同步。"
+          }
+        }
+      }
+    },
+    "This release adds multiple windows on iPad and Mac, fixes a macOS 27 search crash, and improves iCloud Sync and episode tracking." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアップデートでは、iPad と Mac での複数ウインドウに対応し、macOS 27 で検索時にクラッシュする問題を修正するとともに、iCloud 同期と視聴進捗を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次更新支持在 iPad 和 Mac 上使用多窗口，修复 macOS 27 搜索崩溃问题，并改进 iCloud 同步与追番进度。"
+          }
+        }
+      }
+    },
+    "Open multiple AniShelf windows on iPad and Mac, and search and browse your library independently in each window." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPad と Mac で複数の AniShelf ウインドウを開き、各ウインドウで個別に検索したりライブラリを閲覧したりできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持在 iPad 和 Mac 上打开多个 AniShelf 窗口，在各窗口中分别搜索和浏览资料库。"
+          }
+        }
+      }
+    },
+    "Fixed a crash when tapping the search field on macOS 27." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 27 で検索欄をタップするとアプリがクラッシュする問題を修正しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了 MacOS 27 上点击搜索框 App 即崩溃的问题"
+          }
+        }
+      }
+    },
+    "Improved iCloud Sync stability." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 同期の安定性を改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改进了 iCloud 同步的稳定性"
+          }
+        }
+      }
+    },
+    "Fixed automatic episode count updates for airing anime and improved some watch progress displays." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放送中の作品の話数が自動更新されない問題を修正し、視聴進捗の表示を一部改善しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了新番集数自动同步，优化部分观看进度显示问题。"
+          }
+        }
+      }
+    },
     "Your original files were preserved" : {
       "localizations" : {
         "ja" : {
@@ -7545,118 +10938,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原始文件已保留"
-          }
-        }
-      }
-    },
-    "This release adds thoughtful review prompts and improves the reliability of TMDb artwork and setup." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このリリースでは、配慮したレビューのお願いを追加し、TMDbアートワークと設定の信頼性を改善しました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此版本新增了更周到的评价提示，并提升了 TMDb 图片与设置的可靠性。"
-          }
-        }
-      }
-    },
-    "AniShelf can now ask for an App Store review after sustained, meaningful use, without interrupting what you are doing." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AniShelfは、十分に継続してご利用いただいた後、操作を妨げないタイミングでApp Storeのレビューをお願いするようになりました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AniShelf 现在会在您持续、有意义地使用后，于不打断操作的时机邀请您在 App Store 留下评价。"
-          }
-        }
-      }
-    },
-    "TMDb logos now support SVG artwork for sharper images." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TMDbのロゴでSVGアートワークをサポートし、より鮮明な画像を表示できるようになりました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "TMDb 标志现已支持 SVG 图像，可显示更清晰的图片。"
-          }
-        }
-      }
-    },
-    "Improved TMDb API key handling at launch to avoid unnecessary setup prompts." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "起動時のTMDb APIキーの処理を改善し、不必要な設定画面が表示されないようにしました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "改进了启动时的 TMDb API 密钥处理，避免出现不必要的设置提示。"
-          }
-        }
-      }
-    },
-    "This release improves AniShelf on iPad and larger displays." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このリリースでは、iPadと大画面でのAniShelfの体験を改善しました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此版本优化了 AniShelf 在 iPad 和大屏设备上的体验。"
-          }
-        }
-      }
-    },
-    "AniShelf now adapts to resizable iPad windows for a more natural large-screen experience." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可変サイズのiPadウインドウに対応し、大画面でより自然に操作できるようになりました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "适配 iPad 可变大小窗口，大屏交互更自然。"
-          }
-        }
-      }
-    },
-    "Added a Dark Mode app icon." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ダークモード用のAppアイコンを追加しました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加深色模式 App 图标。"
           }
         }
       }

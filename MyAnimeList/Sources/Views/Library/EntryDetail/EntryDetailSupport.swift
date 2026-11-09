@@ -25,6 +25,18 @@ enum EntryDetailL10n {
     static let watching: LocalizedStringResource = "Watching"
     static let watched: LocalizedStringResource = "Watched"
     static let episodeProgress: LocalizedStringResource = "Episode Progress"
+    static let rewatching: LocalizedStringResource = "Rewatching"
+    static let timesRewatched: LocalizedStringResource = "Times Rewatched"
+    static let rewatchPromptTitle: LocalizedStringResource = "Are You Rewatching?"
+    static let startRewatch: LocalizedStringResource = "Start Rewatch"
+    static let notARewatch: LocalizedStringResource = "Not a Rewatch"
+    static let rewatchPromptEpisodeMessage: LocalizedStringResource =
+        "Starting a rewatch clears episode progress. Marking it watched again adds one to the rewatch count."
+    static let rewatchPromptMovieMessage: LocalizedStringResource =
+        "Marking it watched again adds one to the rewatch count."
+    static func watchNumber(_ number: Int) -> LocalizedStringResource {
+        "Watch #\(number)"
+    }
     static let trackDates: LocalizedStringResource = "Track Dates"
     static let hideDates: LocalizedStringResource = "Hide Dates"
     static let dateStarted: LocalizedStringResource = "Date Started"
@@ -75,8 +87,67 @@ enum EntryDetailL10n {
     static let tmdbScore: LocalizedStringResource = "TMDb Score"
     static let runtime: LocalizedStringResource = "Runtime"
     static let averageRuntime: LocalizedStringResource = "Avg Runtime"
+    static let production: LocalizedStringResource = "Production"
+    static let productionCompanies: LocalizedStringResource = "Production Companies"
+    static let showsAllProductionCompanies: LocalizedStringResource =
+        "Shows all production companies."
     static let episode: LocalizedStringResource = "Episode"
     static let noEpisodesAvailable: LocalizedStringResource = "No episodes available for this season."
+    static let airtime: LocalizedStringResource = "Airtime"
+    static let airtimeNotSupported: LocalizedStringResource = "Airtime Not Supported"
+    static let airtimeUnavailable: LocalizedStringResource = "Airtime Unavailable"
+    static let findingAirtime: LocalizedStringResource = "Finding Airtime…"
+    static let nextAiring: LocalizedStringResource = "Next Airing"
+    static let expected: LocalizedStringResource = "Expected"
+    static let uncertainAirtime: LocalizedStringResource = "Airtime uncertain"
+    static let possiblyWrongAnime: LocalizedStringResource = "This may be the wrong anime"
+    static let nextAirtimeUnavailable: LocalizedStringResource = "Next airtime unavailable"
+    static let airingReminders: LocalizedStringResource = "Airing Reminders"
+    static let notifications: LocalizedStringResource = "Notifications"
+    static let active: LocalizedStringResource = "Active"
+    static let inactive: LocalizedStringResource = "Inactive"
+    static let nextEpisode: LocalizedStringResource = "Next Episode"
+    static let notSet: LocalizedStringResource = "Not Set"
+    static let notificationsDisabled: LocalizedStringResource = "Notifications Disabled"
+    static let openNotificationSettings: LocalizedStringResource = "Open Notification Settings"
+    static let enable: LocalizedStringResource = "Enable"
+    static let disable: LocalizedStringResource = "Disable"
+    static let helpConfirmAirtime: LocalizedStringResource = "Help Confirm Airtime"
+    static let reviewAirtimeMatch: LocalizedStringResource = "Review Match"
+    static let couldNotLoadAirtime: LocalizedStringResource = "Couldn’t Load Airtime"
+    static let airtimeMatch: LocalizedStringResource = "Matched Anime"
+    static let confirmAirtimeMatch: LocalizedStringResource = "Confirm Anime"
+    static let searchingTVMaze: LocalizedStringResource = "Searching TVMaze…"
+    static let savingAirtimeMatch: LocalizedStringResource = "Saving Selection…"
+    static let couldNotSaveAirtimeMatch: LocalizedStringResource = "Couldn’t Save Selection"
+    static let candidate: LocalizedStringResource = "Candidate"
+    static let resolved: LocalizedStringResource = "Resolved"
+    static let aniShelfTitle: LocalizedStringResource = "AniShelf Title"
+    static let candidateConfirmationHelp: LocalizedStringResource =
+        "Is this the same anime? AniShelf uses TVMaze to retrieve broadcast times."
+    static let resolvedMatchHelp: LocalizedStringResource =
+        "AniShelf links this entry to this anime on TVMaze to retrieve broadcast times."
+    static let language: LocalizedStringResource = "Language"
+    static let premiered: LocalizedStringResource = "Premiered"
+    static let broadcastSchedule: LocalizedStringResource = "Schedule"
+    static let thisIsTheAnime: LocalizedStringResource = "This Is the Anime"
+    static let notThisAnime: LocalizedStringResource = "Not This Anime"
+    static let notAMatch: LocalizedStringResource = "Not a Match"
+    static let searchTVMaze: LocalizedStringResource = "Search TVMaze"
+    static let searchAnimePrompt: LocalizedStringResource = "Search for an anime..."
+    static let searchTVMazeHelp: LocalizedStringResource = "Enter a title to search TVMaze."
+    static let noResults: LocalizedStringResource = "No Results"
+    static let tryDifferentSearchTerm: LocalizedStringResource = "Try a different search term"
+    static let couldNotFindMatch: LocalizedStringResource = "Couldn’t Find a Match"
+    static let tryAgain: LocalizedStringResource = "Try Again"
+    static let close: LocalizedStringResource = "Close"
+
+    static func airingDateConflictReason(
+        tvMazeDate: String,
+        tmdbDate: String
+    ) -> LocalizedStringResource {
+        "TVMaze’s network-local next-airing date is \(tvMazeDate), while TMDb expects \(tmdbDate)."
+    }
 }
 
 enum EntryDetailScrollTarget: Hashable {

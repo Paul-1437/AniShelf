@@ -1,0 +1,145 @@
+//
+//  LibraryProfileInterfaceSections.swift
+//  MyAnimeList
+//
+//  Created by OpenAI Codex on behalf of Samuel He on 2026/7/31.
+//
+
+import DataProvider
+import SwiftUI
+
+struct LibraryProfileInterfaceSettingsSection: View {
+    @Environment(LibraryStore.self) private var store
+
+    @AppStorage(.libraryOpenDetailWithSingleTap) private var openDetailWithSingleTap = false
+    @AppStorage(.entryDetailCharactersExpandedByDefault)
+    private var entryDetailCharactersExpandedByDefault = true
+    @AppStorage(.entryDetailStaffExpandedByDefault)
+    private var entryDetailStaffExpandedByDefault = false
+    @AppStorage(.libraryScoringEnabled) private var scoringEnabled = true
+    @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
+    @AppStorage(.libraryPosterProgressBarOverlayEnabled)
+    private var posterProgressBarOverlayEnabled = true
+    @AppStorage(.useSoftNavigationBarEdges) private var useSoftNavigationBarEdges = true
+    @AppStorage(.showProductionCompanyInsteadOfRuntime)
+    private var showProductionCompanyInsteadOfRuntime = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LibraryProfileSettingHeader(
+                title: "Interface",
+                systemImage: "rectangle.3.group.fill",
+                tint: .teal
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Open Detail with Single Tap",
+                subtitle: "By default, double tap opens detail. Turn this on to use single tap instead.",
+                isOn: $openDetailWithSingleTap,
+                tint: .teal
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Expand Characters by Default",
+                subtitle: "Open the Characters section automatically in entry detail view.",
+                isOn: $entryDetailCharactersExpandedByDefault,
+                tint: .teal
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Expand Staff by Default",
+                subtitle: "Open the Staff section automatically in entry detail view.",
+                isOn: $entryDetailStaffExpandedByDefault,
+                tint: .teal
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Show production company instead of runtime",
+                subtitle: "Applies to series and seasons when both are available.",
+                isOn: $showProductionCompanyInsteadOfRuntime,
+                tint: .teal
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Enable Scoring",
+                subtitle: "Turning this off does not delete previously saved scores.",
+                isOn: $scoringEnabled,
+                tint: .teal
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Track Episode Progress",
+                subtitle: "Turning this off hides episode progress without deleting saved progress.",
+                isOn: $episodeProgressTrackingEnabled,
+                tint: .teal
+            )
+
+            if episodeProgressTrackingEnabled {
+                LibraryProfileSettingsToggleRow(
+                    title: "Show Poster Progress Bar",
+                    subtitle: "Show episode progress as a poster overlay in the library.",
+                    isOn: $posterProgressBarOverlayEnabled,
+                    tint: .teal
+                )
+            }
+
+            if #available(iOS 27, *) {
+                LibraryProfileSettingsToggleRow(
+                    title: "Use Soft Navigation Bar Edges",
+                    subtitle:
+                        "Available on iOS 27 or later. Turn off to use the system appearance.",
+                    isOn: $useSoftNavigationBarEdges,
+                    tint: .teal
+                )
+            }
+        }
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .teal)
+        .onChange(of: scoringEnabled, handleScoringEnabledChange)
+    }
+
+    private func handleScoringEnabledChange(old: Bool, new: Bool) {
+        guard old != new, !new, store.groupStrategy == .score else { return }
+        store.groupStrategy = .none
+    }
+}
+
+struct LibraryProfileTMDbConnectionSection: View {
+    @AppStorage(.useTMDbRelayServer) private var useTMDbRelayServer = false
+    @State private var showRestartAlert = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LibraryProfileSettingHeader(
+                title: "TMDb Connection",
+                subtitle: "Turn this on if direct TMDb access is unstable on your network.",
+                systemImage: "network",
+                tint: .cyan
+            )
+
+            LibraryProfileSettingsToggleRow(
+                title: "Use TMDb Proxy",
+                subtitle: "Turn this off if you use a VPN or another proxy.",
+                isOn: $useTMDbRelayServer,
+                tint: .cyan
+            )
+        }
+        .padding(14)
+        .libraryProfileInsetPanel(cornerRadius: 22, tint: .cyan)
+        .alert("TMDb Proxy Updated", isPresented: $showRestartAlert) {
+            Button("OK") {}
+        } message: {
+            Text("You might need to restart the app for this change to take effect.")
+        }
+        .onChange(of: useTMDbRelayServer, handleTMDbRelayServerChange)
+    }
+
+    private func handleTMDbRelayServerChange(old: Bool, new: Bool) {
+        guard old != new else { return }
+        NotificationCenter.default.post(
+            name: .tmdbAPIConfigurationDidChange,
+            object: nil
+        )
+        showRestartAlert = true
+    }
+}

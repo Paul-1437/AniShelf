@@ -10,16 +10,25 @@ import Kingfisher
 import SwiftUI
 
 struct PersonCardView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let card: EntryDetailPersonCard
 
+    private let cardWidth: CGFloat = 146
+    private let portraitHeight: CGFloat = 168
+
+    private var backgroundStyle: AnyShapeStyle {
+        colorScheme == .dark
+            ? AnyShapeStyle(Color(uiColor: .quaternarySystemFill))
+            : AnyShapeStyle(.thinMaterial)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             Group {
                 if let profileURL = card.profileURL {
                     KFImageView(url: profileURL, targetWidth: 240, diskCacheExpiration: .shortTerm)
                         .scaledToFill()
-                        .frame(width: 122, height: 156)
-                        .clipped()
                 } else {
                     Rectangle()
                         .fill(Color.secondary.opacity(0.15))
@@ -30,21 +39,25 @@ struct PersonCardView: View {
                         }
                 }
             }
-            .frame(width: 122, height: 156)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .frame(width: cardWidth, height: portraitHeight)
+            .clipped()
 
-            Text(card.primaryText)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(2)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(card.primaryText)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(2)
 
-            Text(card.secondaryText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                Text(card.secondaryText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
         }
-        .frame(width: 138, alignment: .leading)
-        .padding(12)
-        .popupGlassPanel(cornerRadius: 24)
+        .frame(width: cardWidth, alignment: .leading)
+        .background(backgroundStyle)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
@@ -66,7 +79,7 @@ struct EpisodeRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 0) {
             Group {
                 if let imageURL = card.imageURL {
                     KFImageView(url: imageURL, targetWidth: 500, diskCacheExpiration: .transient)
@@ -85,6 +98,7 @@ struct EpisodeRowView: View {
             .frame(width: 126, height: 74)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .accessibilityHidden(true)
+            .padding(.trailing, 12)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(card.title)
@@ -96,12 +110,11 @@ struct EpisodeRowView: View {
                     .lineLimit(2)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 4)
 
             statusAccessory
         }
-        .padding(12)
-        .popupGlassPanel(cornerRadius: 22)
+        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityValue(Text(verbatim: isWatched ? String(localized: EntryDetailL10n.watched) : ""))
         .onLongPressGesture {

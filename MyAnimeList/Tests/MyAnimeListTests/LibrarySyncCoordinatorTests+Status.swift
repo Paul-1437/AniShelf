@@ -14,6 +14,22 @@ import Testing
 @testable import MyAnimeList
 
 extension LibrarySyncCoordinatorTests {
+    @Test @MainActor func syncInProgressIncludesBootstrapBeforeItsFirstPhase() {
+        var status = LibraryCloudSyncStatus.defaultValue
+        status.isEnabled = true
+        status.bootstrapState = .running
+
+        #expect(status.isSyncInProgress)
+
+        status.bootstrapState = .completed
+        status.currentPhase = .syncing
+        #expect(status.isSyncInProgress)
+
+        status.currentPhase = nil
+        status.lastResult = .success
+        #expect(!status.isSyncInProgress)
+    }
+
     @Test @MainActor func disablingLibraryCloudSyncClearsTransientStateAndPersists() {
         let store = makeStore(
             enabled: true,
@@ -34,6 +50,7 @@ extension LibrarySyncCoordinatorTests {
                 automaticRetriesExhausted: true
             )
             status.lastResult = .retryableFailure
+            status.lastFailurePhase = .remoteFetch
             status.lastFailureReason = "Network unavailable."
             status.degradedReason = "Automatic retries are exhausted."
         }
@@ -47,6 +64,7 @@ extension LibrarySyncCoordinatorTests {
         #expect(store.libraryCloudSyncStatus.retryState == .idle)
         #expect(store.libraryCloudSyncStatus.lastResult == .skipped)
         #expect(store.libraryCloudSyncStatus.lastFailureReason == nil)
+        #expect(store.libraryCloudSyncStatus.lastFailurePhase == nil)
         #expect(store.libraryCloudSyncStatus.degradedReason == nil)
         #expect(store.preferences.load().cloudSyncStatus == store.libraryCloudSyncStatus)
     }
@@ -58,6 +76,7 @@ extension LibrarySyncCoordinatorTests {
         let failureDate = referenceDate(year: 2026, month: 6, day: 3)
         store.updateLibraryCloudSyncStatus { status in
             status.lastResult = .retryableFailure
+            status.lastFailurePhase = .remoteFetch
             status.lastFailureReason = "Network unavailable."
             status.degradedReason = "Automatic retries are exhausted."
             status.lastSuccessfulSyncDate = lastSuccessDate
@@ -72,11 +91,12 @@ extension LibrarySyncCoordinatorTests {
         #expect(store.libraryCloudSyncStatus.currentPhase == .exporting)
         #expect(store.libraryCloudSyncStatus.lastResult == nil)
         #expect(store.libraryCloudSyncStatus.lastFailureReason == nil)
+        #expect(store.libraryCloudSyncStatus.lastFailurePhase == nil)
         #expect(store.libraryCloudSyncStatus.degradedReason == nil)
 
         store.recordLibraryCloudSyncFailure(
             trigger: .manualRetry,
-            phase: .exporting,
+            phase: .export,
             result: .retryableFailure,
             reason: "Network unavailable.",
             at: failureDate
@@ -84,6 +104,8 @@ extension LibrarySyncCoordinatorTests {
 
         #expect(store.libraryCloudSyncStatus.currentPhase == nil)
         #expect(store.libraryCloudSyncStatus.lastResult == .retryableFailure)
+        #expect(store.libraryCloudSyncStatus.lastFailurePhase == .export)
+        #expect(!store.libraryCloudSyncStatus.isSyncInProgress)
         #expect(store.libraryCloudSyncStatus.lastAttemptDate == failureDate)
         #expect(store.libraryCloudSyncStatus.lastSuccessfulSyncDate == lastSuccessDate)
         #expect(store.libraryCloudSyncStatus.lastFailureReason == "Network unavailable.")

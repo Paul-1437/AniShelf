@@ -11,12 +11,16 @@ import SwiftUI
 
 struct AnimeEntryListRow: View {
     @AppStorage(.libraryOpenDetailWithSingleTap) private var openDetailWithSingleTap = false
+    @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
     @Environment(\.libraryEntryDetailActivation) private var detailActivation
 
     var entry: AnimeEntry
     var snapshot: LibraryEntrySnapshot
+    var tapGesturesEnabled: Bool = true
+    var favoriteButtonEnabled: Bool = true
     var onTap: (() -> Void)? = nil
     var onOpenDetails: (() -> Void)? = nil
+    var onToggleFavorite: (AnimeEntry) -> Void = { _ in }
 
     private let metadataFont = Font.system(size: 10.5, weight: .medium)
     private let overviewFont = Font.system(size: 11, weight: .regular)
@@ -28,13 +32,19 @@ struct AnimeEntryListRow: View {
     init(
         entry: AnimeEntry,
         snapshot: LibraryEntrySnapshot? = nil,
+        tapGesturesEnabled: Bool = true,
+        favoriteButtonEnabled: Bool = true,
         onTap: (() -> Void)? = nil,
-        onOpenDetails: (() -> Void)? = nil
+        onOpenDetails: (() -> Void)? = nil,
+        onToggleFavorite: @escaping (AnimeEntry) -> Void = { _ in }
     ) {
         self.entry = entry
         self.snapshot = snapshot ?? LibraryEntrySnapshot(entry: entry)
+        self.tapGesturesEnabled = tapGesturesEnabled
+        self.favoriteButtonEnabled = favoriteButtonEnabled
         self.onTap = onTap
         self.onOpenDetails = onOpenDetails
+        self.onToggleFavorite = onToggleFavorite
     }
 
     var body: some View {
@@ -66,25 +76,38 @@ struct AnimeEntryListRow: View {
             if detailActivation.usesSingleTap(userPreference: openDetailWithSingleTap) {
                 Color.clear
                     .contentShape(.rect)
-                    .onTapGesture {
-                        onOpenDetails()
-                    }
+                    .gesture(
+                        TapGesture().onEnded { onOpenDetails() },
+                        including: tapGestureMask
+                    )
             } else {
                 // Keep focus immediate without allowing one tap to open double-tap detail.
                 Color.clear
                     .contentShape(.rect)
                     .simultaneousGesture(
-                        TapGesture().onEnded { onTap?() }
+                        TapGesture().onEnded { onTap?() },
+                        including: tapGestureMask
                     )
                     .simultaneousGesture(
-                        TapGesture(count: 2).onEnded { onOpenDetails() }
+                        TapGesture(count: 2).onEnded { onOpenDetails() },
+                        including: tapGestureMask
                     )
             }
         } else {
             Color.clear
                 .contentShape(.rect)
-                .onTapGesture { onTap?() }
+                .gesture(
+                    TapGesture().onEnded { onTap?() },
+                    including: tapGestureMask
+                )
         }
+    }
+
+    /// Disabling via a mask (instead of swapping tap wrappers) keeps the row's
+    /// recognizer tree stable and lets the List's edit-mode selection receive
+    /// whole-row taps during multi-selection.
+    private var tapGestureMask: GestureMask {
+        tapGesturesEnabled ? .all : .subviews
     }
 
     private var info: some View {
@@ -163,10 +186,16 @@ struct AnimeEntryListRow: View {
     }
 
     private var favoriteButton: some View {
-        LibraryFavoriteToggle(entry: entry, displayedIsFavorite: snapshot.isFavorite) { isFavorite in
+        LibraryFavoriteToggle(
+            entry: entry,
+            displayedIsFavorite: snapshot.isFavorite,
+            onToggleFavorite: onToggleFavorite
+        ) { isFavorite in
             LibraryFavoriteSymbol(
                 isFavorite: isFavorite,
-                font: .footnote.weight(.semibold)
+                font: .footnote.weight(.semibold),
+                shadowColor: isFavorite ? .pink.opacity(0.3) : .clear,
+                shadowRadius: isFavorite ? 5 : 0
             )
             .frame(width: 34, height: 34)
             .background {
@@ -179,6 +208,7 @@ struct AnimeEntryListRow: View {
             }
             .contentShape(.rect)
         }
+        .disabled(!favoriteButtonEnabled)
     }
 
     private var primaryMetadata: [String] {
@@ -194,12 +224,15 @@ struct AnimeEntryListRow: View {
     }
 
     private var statusLabel: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: showsEpisodeProgress ? 6 : 10) {
             statusBadge
             LibraryEpisodeProgressBadge(
                 label: snapshot.episodeProgressLabel,
                 fractionCompleted: snapshot.episodeProgressFraction
             )
+            if !showsEpisodeProgress {
+                LibraryRewatchCountBadge(count: snapshot.rewatchCount, status: snapshot.watchStatus)
+            }
             LibraryScoreBadge(score: snapshot.score)
             Spacer(minLength: 8)
             favoriteButton
@@ -207,6 +240,15 @@ struct AnimeEntryListRow: View {
     }
 
     private var statusBadge: some View {
-        LibraryWatchStatusBadge(status: snapshot.watchStatus)
+        LibraryWatchStatusBadge(
+            status: snapshot.watchStatus,
+            isRewatching: snapshot.isRewatching,
+            rewatchCount: showsEpisodeProgress ? snapshot.rewatchCount : 0
+        )
+        .fixedSize(horizontal: showsEpisodeProgress, vertical: false)
+    }
+
+    private var showsEpisodeProgress: Bool {
+        episodeProgressTrackingEnabled && !(snapshot.episodeProgressLabel ?? "").isEmpty
     }
 }

@@ -48,7 +48,7 @@ struct LibrarySyncRecorderBehaviorTests {
 
         var queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
-        #expect(queue.entries.first?.identity.rawID == entry.syncIdentity.rawID)
+        #expect(queue.entries.first?.identity.rawID == entry.libraryIdentity.rawID)
         #expect(writeCount == 1)
         #expect(dirtyQueueChangeCount == 1)
 
@@ -72,6 +72,42 @@ struct LibrarySyncRecorderBehaviorTests {
         } else {
             #expect(Bool(false))
         }
+    }
+
+    @Test @MainActor func testLibrarySyncRecorderBatchesChangedEntriesFromOneSave() throws {
+        let queueURL = makeTemporaryQueueURL(name: "batch-upsert")
+        defer { try? FileManager.default.removeItem(at: queueURL.deletingLastPathComponent()) }
+        let dataProvider = DataProvider(inMemory: true)
+        let entries = (1...3).map { AnimeEntry(name: "Batch \($0)", type: .movie, tmdbID: 210_000 + $0) }
+        for entry in entries {
+            entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 29))
+            try dataProvider.dataHandler.newEntry(entry)
+        }
+        var writeCount = 0
+        let dirtyQueueStore = LibraryEntrySyncDirtyQueueStore(url: queueURL) { queue in
+            writeCount += 1
+            try persistQueue(queue, to: queueURL)
+        }
+        let recorder = LibrarySyncChangeRecorder(dataProvider: dataProvider, dirtyQueueStore: dirtyQueueStore)
+        var changeCount = 0
+        recorder.onDirtyQueueChanged = { changeCount += 1 }
+        for entry in entries.prefix(2) {
+            entry.updateFavorite(true, at: referenceDate(year: 2026, month: 5, day: 30))
+        }
+        entries[2].name = "Metadata only"
+
+        try dataProvider.dataHandler.modelContext.save()
+
+        #expect(writeCount == 1)
+        #expect(changeCount == 1)
+        #expect(Set(dirtyQueueStore.load().entries.map(\.identity)) == Set(entries.prefix(2).map(\.libraryIdentity)))
+        recorder.processSaveNotification(
+            Notification(
+                name: ModelContext.didSave,
+                userInfo: [ModelContext.NotificationKey.updatedIdentifiers.rawValue: Set(entries.map(\.id))]
+            ))
+        #expect(writeCount == 1)
+        #expect(changeCount == 1)
     }
 
     @Test @MainActor func testLibrarySyncRecorderKeepsBaselineWhenUpsertWriteFails() throws {
@@ -103,11 +139,14 @@ struct LibrarySyncRecorderBehaviorTests {
         entry.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 30))
         try dataProvider.dataHandler.newEntry(entry)
 
+        let second = AnimeEntry(name: "Second Failed Entry", type: .movie, tmdbID: 200_003)
+        second.markCreatedForLibrary(at: referenceDate(year: 2026, month: 5, day: 30))
+        try dataProvider.dataHandler.newEntry(second)
         let notification = Notification(
             name: ModelContext.didSave,
             object: nil,
             userInfo: [
-                ModelContext.NotificationKey.insertedIdentifiers.rawValue: Set([entry.id])
+                ModelContext.NotificationKey.insertedIdentifiers.rawValue: Set([entry.id, second.id])
             ]
         )
 
@@ -119,8 +158,7 @@ struct LibrarySyncRecorderBehaviorTests {
         recorder.processSaveNotification(notification)
 
         let queue = recorder.dirtyQueueStore.load()
-        #expect(queue.entries.count == 1)
-        #expect(queue.entries.first?.identity == entry.syncIdentity)
+        #expect(Set(queue.entries.map(\.identity)) == Set([entry.libraryIdentity, second.libraryIdentity]))
         #expect(dirtyQueueChangeCount == 1)
     }
 
@@ -219,7 +257,7 @@ struct LibrarySyncRecorderBehaviorTests {
 
         let queue = recorder.dirtyQueueStore.load()
         #expect(queue.entries.count == 1)
-        #expect(queue.entries.first?.identity == entry.syncIdentity)
+        #expect(queue.entries.first?.identity == entry.libraryIdentity)
     }
 
     @Test @MainActor func testLibrarySyncRecorderQueuesDeleteTombstonesAndBulkDeletes() throws {
@@ -246,7 +284,7 @@ struct LibrarySyncRecorderBehaviorTests {
         #expect(
             queue.entries.contains { entry in
                 guard case .delete(let pendingDelete) = entry else { return false }
-                return pendingDelete.identity == first.syncIdentity
+                return pendingDelete.identity == first.libraryIdentity
             })
 
         let actions = LibraryProfileSettingsActions(store: store)
@@ -307,13 +345,13 @@ struct LibrarySyncRecorderBehaviorTests {
         #expect(queue.entries.count == 3)
         #expect(queue.entry(for: retainedUpsert.identity) == .upsert(retainedUpsert))
         #expect(
-            queue.entry(for: first.syncIdentity)
+            queue.entry(for: first.libraryIdentity)
                 == .delete(
                     .init(
                         tombstone: .init(entry: first, deletedAt: deletedAt)
                     )))
         #expect(
-            queue.entry(for: second.syncIdentity)
+            queue.entry(for: second.libraryIdentity)
                 == .delete(
                     .init(
                         tombstone: .init(entry: second, deletedAt: deletedAt)
@@ -361,8 +399,8 @@ struct LibrarySyncRecorderBehaviorTests {
         )
 
         try recorder.restoreDeleteRecords([
-            .init(identity: deletedFirst.syncIdentity, previousEntry: .upsert(restoredUpsert)),
-            .init(identity: deletedSecond.syncIdentity, previousEntry: nil)
+            .init(identity: deletedFirst.libraryIdentity, previousEntry: .upsert(restoredUpsert)),
+            .init(identity: deletedSecond.libraryIdentity, previousEntry: nil)
         ])
 
         #expect(writeCount == 1)
@@ -371,7 +409,7 @@ struct LibrarySyncRecorderBehaviorTests {
         #expect(queue.entries.count == 2)
         #expect(queue.entry(for: restoredUpsert.identity) == .upsert(restoredUpsert))
         #expect(queue.entry(for: retainedUpsert.identity) == .upsert(retainedUpsert))
-        #expect(queue.entry(for: deletedSecond.syncIdentity) == nil)
+        #expect(queue.entry(for: deletedSecond.libraryIdentity) == nil)
     }
 }
 

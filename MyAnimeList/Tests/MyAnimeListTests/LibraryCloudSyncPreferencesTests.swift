@@ -13,7 +13,7 @@ import Testing
 @testable import MyAnimeList
 
 struct LibraryCloudSyncPreferencesTests {
-    @Test @MainActor func testLibraryCloudSyncPreferenceDefaultsOff() {
+    @Test @MainActor func testLibraryCloudSyncPreferenceDefaultsOnAndPreservesStoredOptOut() {
         let suiteName = "MyAnimeListTests.LibraryCloudSyncPreference"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
@@ -22,8 +22,12 @@ struct LibraryCloudSyncPreferencesTests {
         let preferences = LibraryPreferences(defaults: defaults)
         let status = preferences.load().cloudSyncStatus
 
-        #expect(!status.isEnabled)
+        #expect(status.isEnabled)
         #expect(status.bootstrapState == .notStarted)
+
+        defaults.set(false, forKey: .libraryCloudSyncEnabled)
+
+        #expect(!preferences.load().cloudSyncStatus.isEnabled)
     }
 
     @Test @MainActor func testLibraryCloudSyncPhasePersistsCoarseStatus() {
@@ -35,11 +39,13 @@ struct LibraryCloudSyncPreferencesTests {
         let preferences = LibraryPreferences(defaults: defaults)
         var status = LibraryCloudSyncStatus.defaultValue
         status.currentPhase = .remoteFetch
+        status.lastCompletedScope = makeSyncScope()
 
         preferences.saveCloudSyncStatus(status)
 
         #expect(defaults.string(forKey: .libraryCloudSyncCurrentPhase) == "syncing")
         #expect(preferences.load().cloudSyncStatus.currentPhase == .syncing)
+        #expect(preferences.load().cloudSyncStatus.lastCompletedScope == makeSyncScope())
 
         defaults.set("prepareZoneSubscription", forKey: .libraryCloudSyncCurrentPhase)
         #expect(preferences.load().cloudSyncStatus.currentPhase == .preparing)
@@ -100,14 +106,18 @@ struct LibraryCloudSyncPreferencesTests {
         defaults.set(true, forKey: .libraryCloudSyncEnabled)
         defaults.set(true, forKey: .libraryLongTermGalleryPosterCachingEnabled)
         defaults.set(Data([0x01]), forKey: "CloudLibrarySyncToken.test")
+        defaults.set(true, forKey: .showProductionCompanyInsteadOfRuntime)
         defaults.set(true, forKey: .useTMDbRelayServer)
+        defaults.set(true, forKey: .broadcastScheduleEnabled)
 
         let preferences = LibraryPreferences(defaults: defaults)
         let snapshot = preferences.loadCloudSyncedSettingsSnapshot()
 
         #expect(snapshot.payload[.preferredAnimeInfoLanguage] == .string("ja"))
         #expect(snapshot.payload[.libraryViewStyle] == nil)
+        #expect(snapshot.payload[.showProductionCompanyInsteadOfRuntime] == .bool(true))
         #expect(snapshot.payload[.useTMDbRelayServer] == .bool(true))
+        #expect(snapshot.payload[.broadcastScheduleEnabled] == .bool(true))
         #expect(snapshot.payload[.searchPageQuery] == nil)
         #expect(snapshot.payload[.persistedScrolledID] == nil)
         #expect(snapshot.payload[.libraryLastInspectorDetailEntryIdentity] == nil)
@@ -115,5 +125,13 @@ struct LibraryCloudSyncPreferencesTests {
         #expect(snapshot.payload[.libraryCloudSyncEnabled] == nil)
         #expect(snapshot.payload[.libraryLongTermGalleryPosterCachingEnabled] == nil)
         #expect(snapshot.payload["CloudLibrarySyncToken.test"] == nil)
+
+        defaults.set(false, forKey: .showProductionCompanyInsteadOfRuntime)
+
+        #expect(
+            preferences.loadCloudSyncedSettingsSnapshot().payload[
+                .showProductionCompanyInsteadOfRuntime
+            ] == .bool(false)
+        )
     }
 }

@@ -40,7 +40,7 @@ private actor TMDbResourceCache {
 final class InfoFetcher: Sendable {
     let tmdbClient: TMDbClient
     private let cache: TMDbResourceCache
-    private let fetchTranslationResponseData: @Sendable (String) async throws -> Data
+    private let fetchTMDbResponseData: @Sendable (String, [URLQueryItem]) async throws -> Data
 
     convenience init(apiKey: String? = nil) {
         self.init(
@@ -54,14 +54,20 @@ final class InfoFetcher: Sendable {
         httpClient: some HTTPClient,
         configuration: TMDbConfiguration = .system
     ) {
-        let key = apiKey ?? TMDbAPIKeyStorage().key
+        #if DEBUG
+            // LOCAL DEBUG ONLY, NEVER COMMIT A KEY
+            let debugKey: String? = nil  // Temporarily replace locally when needed.
+            let key = apiKey ?? debugKey ?? TMDbAPIKeyStorage().key
+        #else
+            let key = apiKey ?? TMDbAPIKeyStorage().key
+        #endif
         let trimmedKey = key?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         tmdbClient = .init(
             apiKey: trimmedKey ?? "",
             httpClient: httpClient,
             configuration: configuration
         )
-        fetchTranslationResponseData = Self.makeTranslationResponseDataFetcher(
+        fetchTMDbResponseData = Self.makeTMDbResponseDataFetcher(
             apiKey: trimmedKey,
             httpClient: httpClient
         )
@@ -70,10 +76,12 @@ final class InfoFetcher: Sendable {
 
     init(
         client: TMDbClient,
-        fetchTranslationResponseData: @escaping @Sendable (String) async throws -> Data
+        fetchTMDbResponseData: @escaping @Sendable (String) async throws -> Data
     ) {
         tmdbClient = client
-        self.fetchTranslationResponseData = fetchTranslationResponseData
+        self.fetchTMDbResponseData = { path, _ in
+            try await fetchTMDbResponseData(path)
+        }
         cache = .init()
     }
 
@@ -220,15 +228,18 @@ final class InfoFetcher: Sendable {
         }
     }
 
-    func translationResponseData(path: String) async throws -> Data {
-        try await fetchTranslationResponseData(path)
+    func tmdbResponseData(
+        path: String,
+        queryItems: [URLQueryItem] = []
+    ) async throws -> Data {
+        try await fetchTMDbResponseData(path, queryItems)
     }
 
-    private static func makeTranslationResponseDataFetcher<HTTPClientType: HTTPClient>(
+    private static func makeTMDbResponseDataFetcher<HTTPClientType: HTTPClient>(
         apiKey: String?,
         httpClient: HTTPClientType
-    ) -> @Sendable (String) async throws -> Data {
-        { path in
+    ) -> @Sendable (String, [URLQueryItem]) async throws -> Data {
+        { path, queryItems in
             guard let apiKey else {
                 throw URLError(.userAuthenticationRequired)
             }
@@ -237,7 +248,7 @@ final class InfoFetcher: Sendable {
             components.scheme = "https"
             components.host = "api.themoviedb.org"
             components.path = "/3\(path)"
-            components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
+            components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)] + queryItems
 
             guard let url = components.url else {
                 throw URLError(.badURL)
@@ -256,5 +267,23 @@ final class InfoFetcher: Sendable {
 
             return data
         }
+    }
+}
+
+extension InfoFetcher {
+    static func runtimeMinutes(from duration: Duration?) -> Int? {
+        duration.map { Int($0.components.seconds / 60) }
+    }
+
+    static func productionCompanyDTOs(
+        from companies: [ProductionCompany]?
+    ) -> [AnimeEntryProductionCompanyDTO] {
+        companies?.map {
+            AnimeEntryProductionCompanyDTO(
+                id: $0.id,
+                name: $0.name,
+                logoPath: TMDbImagePath.storagePath(from: $0.logoPath)
+            )
+        } ?? []
     }
 }

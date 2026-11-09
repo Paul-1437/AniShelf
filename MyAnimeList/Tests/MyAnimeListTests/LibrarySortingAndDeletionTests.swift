@@ -9,9 +9,224 @@ import Foundation
 import Testing
 
 @testable import DataProvider
+@testable import LibrarySync
 @testable import MyAnimeList
 
 struct LibrarySortingAndDeletionTests {
+    @Test @MainActor func testRefreshLibraryCanonicalizesVisibleDuplicateIdentities() throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let olderEntry = AnimeEntry(
+            name: "Duplicate Movie",
+            type: .movie,
+            tmdbID: 500_001,
+            dateSaved: referenceDate(year: 2026, month: 1, day: 1)
+        )
+        let newerEntry = AnimeEntry(
+            name: "Duplicate Movie",
+            type: .movie,
+            tmdbID: 500_001,
+            dateSaved: referenceDate(year: 2026, month: 1, day: 2)
+        )
+
+        try store.repository.newEntry(olderEntry)
+        try store.repository.newEntry(newerEntry)
+        try store.refreshLibrary()
+
+        #expect(store.requiresDuplicateRepair)
+        #expect(store.library.count == 1)
+        #expect(store.library.first === newerEntry)
+        #expect(store.libraryDisplayItems.map(\.id) == [newerEntry.libraryIdentity])
+        #expect(store.duplicateEntryGroups.count == 1)
+        #expect(store.duplicateEntryGroups.first?.entries.count == 2)
+        #expect(store.duplicateEntryGroups.first?.recommendedEntry === newerEntry)
+        #expect(store.libraryCloudSyncPolicyBlockReason() == .duplicateRepairRequired)
+    }
+
+    @Test @MainActor func testDuplicateRepairKeepsSelectedEntryWithoutQueuingTombstone()
+        async throws
+    {
+        let defaults = UserDefaults(suiteName: #function)!
+        defer { defaults.removePersistentDomain(forName: #function) }
+
+        let store = LibraryStore(
+            dataProvider: DataProvider(inMemory: true),
+            preferences: LibraryPreferences(defaults: defaults)
+        )
+        store.updateLibraryCloudSyncStatus { status in
+            status.isEnabled = true
+            status.bootstrapState = .completed
+        }
+
+        let keeper = AnimeEntry(
+            name: "Series to Keep",
+            type: .series,
+            tmdbID: 500_002,
+            dateSaved: referenceDate(year: 2026, month: 1, day: 1)
+        )
+        let discarded = AnimeEntry(
+            name: "Series to Remove",
+            type: .series,
+            tmdbID: 500_002,
+            dateSaved: referenceDate(year: 2026, month: 1, day: 2)
+        )
+        let childSeason = AnimeEntry(
+            name: "Child Season",
+            type: .season(seasonNumber: 1, parentSeriesID: 500_002),
+            tmdbID: 500_003
+        )
+        childSeason.parentSeriesEntry = discarded
+
+        try store.repository.newEntry(keeper)
+        try store.repository.newEntry(discarded)
+        try store.repository.newEntry(childSeason)
+        try store.refreshLibrary()
+
+        let identity = keeper.libraryIdentity
+        try store.syncChangeRecorder.dirtyQueueStore.setPendingDelete(
+            .init(tombstone: .init(entry: discarded))
+        )
+
+        // A resolution already running in another window must block this one, not race it.
+        store.isResolvingDuplicateEntryGroup = true
+        await #expect(throws: LibraryDuplicateRepairError.repairInProgress) {
+            try await store.resolveDuplicateEntryGroup(identity, keeping: discarded)
+        }
+        #expect(
+            try store.dataProvider.getAllModels(ofType: AnimeEntry.self)
+                .filter { $0.libraryIdentity == identity }.count == 2
+        )
+        store.isResolvingDuplicateEntryGroup = false
+
+        try await store.resolveDuplicateEntryGroup(identity, keeping: keeper)
+
+        #expect(!store.isResolvingDuplicateEntryGroup)
+        let storedEntries = try store.dataProvider.getAllModels(ofType: AnimeEntry.self)
+        #expect(storedEntries.filter { $0.libraryIdentity == identity }.count == 1)
+        #expect(storedEntries.contains { $0 === keeper })
+        #expect(childSeason.parentSeriesEntry === keeper)
+        #expect(!store.requiresDuplicateRepair)
+        #expect(store.library.contains { $0 === keeper })
+
+        let queuedEntries = store.syncChangeRecorder.dirtyQueueStore.load().entries
+        let repairedIdentityWork = queuedEntries.filter { $0.identity == identity }
+        #expect(repairedIdentityWork.count == 1)
+        #expect(
+            repairedIdentityWork.allSatisfy {
+                if case .upsert = $0 { return true }
+                return false
+            }
+        )
+    }
+
+    @Test @MainActor func testBatchDeletionRefreshesOnceAndKeepsUnselectedEntries() throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let entries = (1...3).map { AnimeEntry(name: "Entry \($0)", type: .movie, tmdbID: 510_000 + $0) }
+        for entry in entries {
+            try store.repository.newEntry(entry)
+        }
+        let deletedIDs = Set(entries.prefix(2).map(\.libraryIdentity))
+        let revision = store.libraryRevision
+
+        #expect(store.deleteEntries(Array(entries.prefix(2))))
+
+        #expect(store.libraryRevision == revision + 1)
+        #expect(store.library.map(\.libraryIdentity) == [entries[2].libraryIdentity])
+        let tombstoneIDs = Set(
+            store.syncChangeRecorder.dirtyQueueStore.load().entries.compactMap { entry in
+                if case .delete(let pending) = entry { return pending.identity }
+                return nil
+            })
+        #expect(tombstoneIDs == deletedIDs)
+    }
+
+    @Test @MainActor func testDeletingSeriesWithSeasonHidesParentAndPreservesRelationship() throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let parent = AnimeEntry(name: "Frieren", type: .series, tmdbID: 530_001)
+        let season = AnimeEntry(
+            name: "Season 1",
+            type: .season(seasonNumber: 1, parentSeriesID: parent.tmdbID),
+            tmdbID: 530_002
+        )
+        season.parentSeriesEntry = parent
+        try store.repository.newEntry(parent)
+        try store.repository.newEntry(season)
+
+        #expect(store.deleteEntry(parent))
+
+        #expect(!parent.onDisplay)
+        #expect(season.parentSeriesEntry === parent)
+        #expect(season.displayName == "Frieren")
+        #expect(store.repository.existingEntry(identity: parent.libraryIdentity) === parent)
+        #expect(store.library.map(\.libraryIdentity) == [season.libraryIdentity])
+        let parentQueueEntry = store.syncChangeRecorder.dirtyQueueStore.load().entries.first {
+            $0.identity == parent.libraryIdentity
+        }
+        #expect(parentQueueEntry != nil)
+        if case .upsert? = parentQueueEntry {
+        } else {
+            Issue.record("Hiding a parent must queue an upsert, not a delete")
+        }
+    }
+
+    @Test @MainActor func testBatchDeletionKeepsParentOnlyForSurvivingSeason() throws {
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let retainedParent = AnimeEntry(name: "Retained Parent", type: .series, tmdbID: 531_001)
+        let retainedSeason = AnimeEntry(
+            name: "Season 1", type: .season(seasonNumber: 1, parentSeriesID: retainedParent.tmdbID),
+            tmdbID: 531_002
+        )
+        retainedSeason.parentSeriesEntry = retainedParent
+        let deletedParent = AnimeEntry(name: "Deleted Parent", type: .series, tmdbID: 532_001)
+        let deletedSeason = AnimeEntry(
+            name: "Season 1", type: .season(seasonNumber: 1, parentSeriesID: deletedParent.tmdbID),
+            tmdbID: 532_002
+        )
+        deletedSeason.parentSeriesEntry = deletedParent
+        for entry in [retainedParent, retainedSeason, deletedParent, deletedSeason] {
+            try store.repository.newEntry(entry)
+        }
+
+        #expect(store.deleteEntries([retainedParent, deletedParent, deletedSeason]))
+
+        let storedEntries = try store.dataProvider.getAllModels(ofType: AnimeEntry.self)
+        #expect(storedEntries.count == 2)
+        #expect(storedEntries.contains { $0 === retainedParent })
+        #expect(storedEntries.contains { $0 === retainedSeason })
+        #expect(!retainedParent.onDisplay)
+        #expect(retainedSeason.parentSeriesEntry === retainedParent)
+        let tombstoneIDs = Set(
+            store.syncChangeRecorder.dirtyQueueStore.load().entries.compactMap { entry in
+                if case .delete(let pending) = entry { return pending.identity }
+                return nil
+            })
+        #expect(tombstoneIDs == Set([deletedParent.libraryIdentity, deletedSeason.libraryIdentity]))
+    }
+
+    @Test @MainActor func testBatchDeletionRollsBackModelsAndQueueOnSaveFailure() throws {
+        struct SaveFailure: Error {}
+        let store = LibraryStore(dataProvider: DataProvider(inMemory: true))
+        let entries = (1...2).map { AnimeEntry(name: "Entry \($0)", type: .movie, tmdbID: 520_000 + $0) }
+        for entry in entries {
+            try store.repository.newEntry(entry)
+        }
+        let initialQueue = store.syncChangeRecorder.dirtyQueueStore.load()
+        var saves = 0
+        let repository = LibraryRepository(
+            dataProvider: store.dataProvider,
+            syncChangeRecorder: store.syncChangeRecorder,
+            transactionSaver: { _ in
+                saves += 1
+                throw SaveFailure()
+            }
+        )
+
+        #expect(throws: SaveFailure.self) { try repository.deleteEntries(entries) }
+
+        #expect(saves == 1)
+        #expect(try repository.visibleLibraryEntries().count == 2)
+        #expect(store.syncChangeRecorder.dirtyQueueStore.load() == initialQueue)
+    }
+
     @Test @MainActor func testDeletionScrollTargetFallbacks() throws {
         let sortStrategyKey = String.librarySortStrategy
         let sortReversedKey = String.librarySortReversed
@@ -59,10 +274,10 @@ struct LibrarySortingAndDeletionTests {
             let second = makeEntry(name: "Second", tmdbID: 2, day: 2)
             let third = makeEntry(name: "Third", tmdbID: 3, day: 3)
             let store = try makeStore(with: [first, second, third])
-            var scrolledID: Int?
+            var scrolledID: LibraryEntryIdentity?
 
             #expect(store.deleteEntry(second) { scrolledID = $0 })
-            #expect(scrolledID == first.tmdbID)
+            #expect(scrolledID == first.libraryIdentity)
         }
 
         do {
@@ -70,10 +285,10 @@ struct LibrarySortingAndDeletionTests {
             let second = makeEntry(name: "Second", tmdbID: 2, day: 2)
             let third = makeEntry(name: "Third", tmdbID: 3, day: 3)
             let store = try makeStore(with: [first, second, third])
-            var scrolledID: Int?
+            var scrolledID: LibraryEntryIdentity?
 
             #expect(store.deleteEntry(first) { scrolledID = $0 })
-            #expect(scrolledID == second.tmdbID)
+            #expect(scrolledID == second.libraryIdentity)
         }
 
         do {
@@ -81,16 +296,16 @@ struct LibrarySortingAndDeletionTests {
             let second = makeEntry(name: "Second", tmdbID: 2, day: 2)
             let third = makeEntry(name: "Third", tmdbID: 3, day: 3)
             let store = try makeStore(with: [first, second, third])
-            var scrolledID: Int?
+            var scrolledID: LibraryEntryIdentity?
 
             #expect(store.deleteEntry(third) { scrolledID = $0 })
-            #expect(scrolledID == second.tmdbID)
+            #expect(scrolledID == second.libraryIdentity)
         }
 
         do {
             let solo = makeEntry(name: "Solo", tmdbID: 10, day: 10)
             let store = try makeStore(with: [solo])
-            var scrolledID: Int? = solo.tmdbID
+            var scrolledID: LibraryEntryIdentity? = solo.libraryIdentity
 
             #expect(store.deleteEntry(solo) { scrolledID = $0 })
             #expect(scrolledID == nil)

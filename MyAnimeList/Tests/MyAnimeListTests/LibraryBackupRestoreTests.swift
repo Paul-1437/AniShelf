@@ -125,6 +125,7 @@ struct LibraryBackupRestoreTests {
             dataProvider: targetProvider,
             preferences: LibraryPreferences(defaults: defaults)
         )
+        store.disableLibraryCloudSync()
         store.updateLibraryCloudSyncStatus { status in
             status.bootstrapState = .failed
             status.retryState = .init(
@@ -171,13 +172,20 @@ struct LibraryBackupRestoreTests {
         #expect(store.library.map(\.tmdbID) == [700_001])
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
         #expect(tokenDefaults.object(forKey: tokenKey) == nil)
+        #expect(!store.libraryCloudSyncStatus.isEnabled)
+        #expect(!store.preferences.load().cloudSyncStatus.isEnabled)
         #expect(store.libraryCloudSyncStatus == .defaultValue)
         #expect(store.preferences.load().cloudSyncStatus == .defaultValue)
     }
 
     @Test @MainActor func testStartupRecoveryRebootsEnabledCloudSyncWithFreshMetadata() async throws {
         let store = makeSyncReadyStore()
-        let staleDeleteIdentity = LibraryEntrySyncIdentity(entryType: .movie, tmdbID: 910_001)
+        store.preferences.noteCloudSyncedSettingsTypes(.init(
+            updatedAt: referenceDate(year: 2026, month: 6, day: 1),
+            payload: [.useTMDbRelayServer: .unknown(.number(1))]
+        ))
+        #expect(store.preferences.hasUnknownCloudSyncedSettingsValues)
+        let staleDeleteIdentity = LibraryEntryIdentity(entryType: .movie, tmdbID: 910_001)
         try store.syncChangeRecorder.dirtyQueueStore.replaceEntries([
             .delete(
                 .init(
@@ -209,7 +217,7 @@ struct LibraryBackupRestoreTests {
         tokenDefaults.set(Data([0x01, 0x02, 0x03]), forKey: tokenKey)
 
         let client = CloudLibrarySyncClient()
-        let remoteIdentity = LibraryEntrySyncIdentity(entryType: .movie, tmdbID: 910_002)
+        let remoteIdentity = LibraryEntryIdentity(entryType: .movie, tmdbID: 910_002)
         let remoteSnapshot = makeSnapshot(
             identity: remoteIdentity,
             tmdbID: 910_002,
@@ -223,19 +231,18 @@ struct LibraryBackupRestoreTests {
             database: database,
             changeTokenStore: tokenStore,
             namespaceProvider: { namespace },
-            hydrateMissingEntry: { snapshot, store in
-                let entry = AnimeEntry(
+            hydrateMissingEntry: { snapshot, _ in
+                AnimeEntry(
                     name: "Recovered Placeholder",
                     type: snapshot.entryType,
                     tmdbID: snapshot.tmdbID
                 )
-                store.repository.insert(entry)
-                return entry
             }
         )
 
         store.prepareLibraryCloudSyncAfterPersistentStoreRecovery()
 
+        #expect(!store.preferences.hasUnknownCloudSyncedSettingsValues)
         #expect(store.syncChangeRecorder.dirtyQueueStore.load().entries.isEmpty)
         #expect(tokenDefaults.object(forKey: tokenKey) == nil)
         #expect(store.libraryCloudSyncStatus.isEnabled)

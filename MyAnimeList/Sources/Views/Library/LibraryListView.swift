@@ -11,22 +11,29 @@ import SwiftUI
 struct LibraryListView: View {
     @Environment(LibraryStore.self) private var store
     @Environment(LibraryEntryInteractionState.self) var interaction
-    @Environment(\.toggleFavorite) var toggleFavorite
-    @Environment(\.libraryEntryOpenDetailAction) private var openDetailAction
-    @Environment(\.libraryEntryEditAction) private var editAction
 
     @State private var listEditMode: EditMode = .inactive
 
+    let detailActions: LibraryEntryDetailActions
     let displayItems: [LibraryEntryDisplayItem]
-    @Binding var scrolledID: Int?
-    @Binding var highlightedEntryID: Int?
+    @Binding var scrolledID: LibraryEntryIdentity?
+    let scrollRequest: LibraryScrollRequest?
+    @Binding var highlightedEntryID: LibraryEntryIdentity?
 
     var body: some View {
+        @Bindable var interaction = interaction
+
         ScrollViewReader { proxy in
-            List(displayItems, selection: listSelection) { item in
+            List(
+                displayItems,
+                selection: interaction.isMultiSelecting
+                    ? $interaction.selectedEntryIDs
+                    : nil
+            ) { item in
                 rowContent(for: item)
             }
             .listStyle(.plain)
+            .preferredNavigationBarScrollEdgeEffect()
             .environment(\.editMode, $listEditMode)
             .animation(.default, value: store.groupStrategy)
             .animation(.default, value: store.sortReversed)
@@ -36,14 +43,16 @@ struct LibraryListView: View {
                 if let scrolledID { proxy.scrollTo(scrolledID) }
             }
             .onChange(of: interaction.isMultiSelecting, initial: true) { _, isMultiSelecting in
-                withAnimation {
+                // Match the selection-mode curve so the edit-mode transition
+                // doesn't race the row and toolbar animations on dismiss.
+                withAnimation(LibraryViewTransitions.selectionModeAnimation()) {
                     listEditMode = isMultiSelecting ? .active : .inactive
                 }
             }
-            .onChange(of: scrolledID) {
-                if let scrolledID {
+            .onChange(of: scrollRequest) {
+                if let entryID = scrollRequest?.entryID {
                     withAnimation(.bouncy) {
-                        proxy.scrollTo(scrolledID)
+                        proxy.scrollTo(entryID)
                     }
                 }
             }
@@ -55,6 +64,7 @@ struct LibraryListView: View {
         AnimeEntryListRow(
             entry: item.entry,
             snapshot: item.snapshot,
+            tapGesturesEnabled: !interaction.isMultiSelecting,
             onTap: {
                 scrolledID = item.id
                 interaction.focus(item.entry)
@@ -63,7 +73,8 @@ struct LibraryListView: View {
                 guard !interaction.isMultiSelecting else { return }
                 scrolledID = item.id
                 openDetails(for: item.entry)
-            }
+            },
+            onToggleFavorite: toggleFavorite
         )
         .opacity(
             !interaction.isMultiSelecting || interaction.isSelected(item.id) ? 1 : 0.48
@@ -112,33 +123,23 @@ struct LibraryListView: View {
                     editEntry(item.entry)
                 }
                 .tint(.blue)
+
+                interaction.shareButton(for: item.entry)
+                    .tint(.indigo)
             }
         }
     }
 
-    private var listSelection: Binding<Set<Int>>? {
-        guard interaction.isMultiSelecting else { return nil }
-
-        return Binding(
-            get: { interaction.selectedEntryIDs },
-            set: { interaction.selectedEntryIDs = $0 }
-        )
-    }
-
     private func openDetails(for entry: AnimeEntry) {
-        if let openDetailAction {
-            openDetailAction(entry)
-        } else {
-            interaction.openDetails(for: entry)
-        }
+        detailActions.open(entry)
     }
 
     private func editEntry(_ entry: AnimeEntry) {
-        if let editAction {
-            editAction(entry)
-        } else {
-            interaction.setEditingEntry(entry)
-        }
+        detailActions.edit(entry)
+    }
+
+    private func toggleFavorite(_ entry: AnimeEntry) {
+        store.repository.toggleFavorite(entry)
     }
 
 }

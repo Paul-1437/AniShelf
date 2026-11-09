@@ -12,17 +12,21 @@ import SwiftUI
 
 struct EntryDetailView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppReviewPromptController.self) private var appReview
-    @Environment(\.libraryEntryDetailHost) private var detailHost
+    private let airingReminders = AiringReminderCoordinator.shared
+
     @AppStorage(.preferredAnimeInfoLanguage) private var preferredLanguage: Language = .english
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) private var followsSystemLanguage: Bool =
         Language.followsSystemPreference()
     @AppStorage(.libraryScoringEnabled) private var scoringEnabled = true
     @AppStorage(.episodeProgressTrackingEnabled) private var episodeProgressTrackingEnabled = false
+    @AppStorage(.broadcastScheduleEnabled) private var broadcastScheduleEnabled = true
+    @AppStorage(.showProductionCompanyInsteadOfRuntime)
+    private var showProductionCompanyInsteadOfRuntime = false
 
-    private let session: EntryDetailSession
-    private let onClose: ((LibraryEntrySyncIdentity) -> Void)?
+    @Bindable private var session: EntryDetailSession
+    private let detailHost: LibraryEntryDetailHost
+    private let onClose: ((LibraryEntryIdentity) -> Void)?
     private let editingRequestID: UUID?
     private let onEditingRequestHandled: ((UUID) -> Void)?
     private let hostPresentationID: UUID?
@@ -31,20 +35,28 @@ struct EntryDetailView: View {
     @State private var conversionTask: Task<Void, Never>?
     @State private var conversionTaskID: UUID?
 
-    private var accentColor: Color { session.entry.favorite ? .orange : .blue }
     private var currentLanguage: Language { followsSystemLanguage ? .current : preferredLanguage }
+    private var hasEpisodesSection: Bool {
+        switch session.entry.type {
+        case .series: !session.model.seasonCards.isEmpty
+        case .season: !session.model.episodeCards.isEmpty
+        case .movie: false
+        }
+    }
     private let scrollCoordinateSpaceName = "EntryDetailScroll"
     private let heroHeight: CGFloat = 420
 
     init(
         session: EntryDetailSession,
-        onClose: ((LibraryEntrySyncIdentity) -> Void)? = nil,
+        detailHost: LibraryEntryDetailHost,
+        onClose: ((LibraryEntryIdentity) -> Void)? = nil,
         editingRequestID: UUID? = nil,
         onEditingRequestHandled: ((UUID) -> Void)? = nil,
         hostPresentationID: UUID? = nil,
         isCurrentHostPresentation: ((UUID) -> Bool)? = nil
     ) {
         self.session = session
+        self.detailHost = detailHost
         self.onClose = onClose
         self.editingRequestID = editingRequestID
         self.onEditingRequestHandled = onEditingRequestHandled
@@ -53,13 +65,24 @@ struct EntryDetailView: View {
     }
 
     var body: some View {
-        @Bindable var bindableSession = session
-
         ZStack {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        stretchyHeroSection(heroHeight: heroHeight)
+                        EntryDetailHeroSection(
+                            imageURL: session.model.heroImageURL
+                                ?? session.entry.backdropURL
+                                ?? session.entry.posterURL,
+                            logoImageURL: session.model.logoImageURL,
+                            displayTitle: session.model.displayTitle,
+                            subtitleText: session.model.subtitleText,
+                            metadataLineItems: session.model.metadataLineItems,
+                            genreNames: session.model.genreNames,
+                            accentColor: session.entry.favorite ? .orange : .blue,
+                            pageBackground: detailHost.pageBackground,
+                            scrollCoordinateSpaceName: scrollCoordinateSpaceName,
+                            height: heroHeight
+                        )
 
                         VStack(alignment: .leading, spacing: 20) {
                             quickActionsRow
@@ -74,8 +97,9 @@ struct EntryDetailView: View {
                         .frame(maxWidth: .infinity)
                     }
                 }
-                .scrollPosition($bindableSession.scrollPosition)
+                .scrollPosition($session.scrollPosition)
                 .coordinateSpace(name: scrollCoordinateSpaceName)
+                .preferredNavigationBarScrollEdgeEffect()
                 .task(id: editingRequestID) {
                     let requestID = editingRequestID
                     guard let requestID else { return }
@@ -90,13 +114,19 @@ struct EntryDetailView: View {
         .ignoresSafeArea(edges: .top)
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar { toolbarContent }
-        .presentationBackground(pageBackground)
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(
             session.entry.userInfoHasChanges(comparedTo: session.originalUserInfo)
         )
         .sheet(item: activeSheetBinding, onDismiss: session.activeSheetDidDismiss) { activeSheet in
             switch activeSheet {
+            case .broadcastValidation:
+                EntryDetailBroadcastValidationSheet(
+                    model: session.broadcast,
+                    searchTitle: broadcastTitleFallbackName,
+                    displayTitle: session.model.displayTitle
+                )
+                .presentationBackground(Color(.systemGroupedBackground))
             case .changePoster:
                 NavigationStack {
                     PosterSelectionView(
@@ -182,11 +212,28 @@ struct EntryDetailView: View {
         } message: { suggestion in
             Text(EntryDetailL10n.dateSuggestionMessage(for: suggestion))
         }
+        .alert(
+            EntryDetailL10n.rewatchPromptTitle,
+            isPresented: showRewatchPromptBinding
+        ) {
+            Button(EntryDetailL10n.startRewatch) {
+                resolveRewatchPrompt(isRewatching: true)
+            }
+            Button(EntryDetailL10n.notARewatch, role: .cancel) {
+                resolveRewatchPrompt(isRewatching: false)
+            }
+        } message: {
+            Text(rewatchPromptMessage)
+        }
         .task(id: "\(session.instanceID)-\(currentLanguage.rawValue)") {
             await session.model.load(
                 for: session.entry,
                 language: currentLanguage
             )
+            await session.refreshEpisodeCountsIfEligible(language: currentLanguage)
+        }
+        .task(id: broadcastActivationTaskID) {
+            session.broadcast.update(broadcastActivationTaskID.activation)
         }
         .onChange(of: session.instanceID) {
             cancelConversionTask()
@@ -196,19 +243,33 @@ struct EntryDetailView: View {
         }
     }
 
+    private var broadcastActivation: EntryDetailBroadcastModel.Activation {
+        EntryDetailBroadcastModel.Activation(
+            isEnabled: broadcastScheduleEnabled,
+            entryType: session.entry.type,
+            seriesStatus: session.entry.detail?.status
+        )
+    }
+
+    private var broadcastActivationTaskID: BroadcastActivationTaskID {
+        BroadcastActivationTaskID(
+            sessionInstanceID: session.instanceID,
+            activation: broadcastActivation
+        )
+    }
+
+    private struct BroadcastActivationTaskID: Equatable {
+        let sessionInstanceID: UUID
+        let activation: EntryDetailBroadcastModel.Activation
+    }
+
     // MARK: - Hero
 
-    private var pageBackground: Color {
-        detailHost == .sheet ? Color(.systemGroupedBackground) : Color(.systemBackground)
+    private var entryReplacementAnimation: Animation {
+        .easeInOut(duration: 0.18)
     }
 
-    private var entryReplacementAnimation: Animation? {
-        reduceMotion ? nil : .easeInOut(duration: 0.18)
-    }
-
-    private var editingSectionRevealDelay: Duration {
-        detailHost == .inspector ? .milliseconds(250) : .milliseconds(150)
-    }
+    private let editingSectionRevealDelay: Duration = .milliseconds(150)
 
     @discardableResult
     @MainActor
@@ -221,143 +282,13 @@ struct EntryDetailView: View {
         }
         guard !Task.isCancelled else { return false }
 
-        if reduceMotion {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
             proxy.scrollTo(
                 EntryDetailScrollTarget.editingSection,
                 anchor: .center
             )
-        } else {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
-                proxy.scrollTo(
-                    EntryDetailScrollTarget.editingSection,
-                    anchor: .center
-                )
-            }
         }
         return true
-    }
-
-    private func stretchyHeroSection(heroHeight: CGFloat) -> some View {
-        GeometryReader { proxy in
-            let overscroll = max(proxy.frame(in: .named(scrollCoordinateSpaceName)).minY, 0)
-            let stretchedHeight = heroHeight + overscroll
-
-            heroSection(height: stretchedHeight)
-                .offset(y: -overscroll)
-        }
-        .frame(height: heroHeight)
-    }
-
-    private func heroSection(height: CGFloat) -> some View {
-        ZStack(alignment: .bottom) {
-            heroArtwork
-
-            // Top scrim — keeps toolbar buttons legible
-            LinearGradient(
-                colors: [.black.opacity(0.42), .clear],
-                startPoint: .top,
-                endPoint: UnitPoint(x: 0.5, y: 0.22)
-            )
-
-            // Gradient scrim for text legibility
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.78)],
-                startPoint: UnitPoint(x: 0.5, y: 0.35),
-                endPoint: .bottom
-            )
-
-            // Fade bottom edge into page background
-            VStack(spacing: 0) {
-                Spacer()
-                LinearGradient(
-                    colors: [.clear, pageBackground],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 120)
-            }
-
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-
-                VStack(alignment: .center, spacing: 6) {
-                    if let logoImageURL = session.model.logoImageURL {
-                        KFImageView(
-                            url: logoImageURL,
-                            targetSize: CGSize(width: 500, height: 500),
-                            diskCacheExpiration: .longTerm
-                        )
-                        .scaledToFit()
-                        .frame(maxWidth: 280)
-                        .frame(height: 78)
-                        .shadow(color: .black.opacity(0.28), radius: 10, y: 6)
-                    } else {
-                        Text(session.model.displayTitle)
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(.white)
-                            .lineLimit(3)
-                            .minimumScaleFactor(0.78)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    if let subtitle = session.model.subtitleText {
-                        Text(subtitle)
-                            .font(.subheadline.weight(.regular))
-                            .foregroundStyle(.white.opacity(0.82))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    if !session.model.metadataLineItems.isEmpty {
-                        Text(session.model.metadataLineItems.joined(separator: "  ·  "))
-                            .font(.footnote)
-                            .foregroundStyle(.white.opacity(0.68))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                    }
-
-                    if !session.model.genreNames.isEmpty {
-                        Text(session.model.genreNames.joined(separator: ", "))
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.56))
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: 360)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 36)
-                .frame(maxWidth: .infinity)
-            }
-        }
-        .containerRelativeFrame(.horizontal)
-        .frame(height: height)
-        .clipped()
-    }
-
-    @ViewBuilder
-    private var heroArtwork: some View {
-        let url = session.model.heroImageURL ?? session.entry.backdropURL ?? session.entry.posterURL
-        if let url {
-            KFImageView(
-                url: url,
-                targetSize: CGSize(width: 1_200, height: 675),
-                diskCacheExpiration: .longTerm
-            )
-            .scaledToFill()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            LinearGradient(
-                colors: [accentColor.opacity(0.45), Color.blue.opacity(0.25)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay {
-                Image(systemName: "sparkles.tv")
-                    .font(.system(size: 52))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-        }
     }
 
     // MARK: - Quick Actions
@@ -372,9 +303,21 @@ struct EntryDetailView: View {
             dropActionTitle: dropActionTitle,
             dropActionSystemImage: dropActionSystemImage,
             dropActionIsDestructive: session.entry.watchStatus != .dropped,
+            broadcastPhase: session.broadcast.phase,
+            airingReminderContext: EntryDetailAiringReminderContext(
+                entryIdentity: session.entryIdentity,
+                displayTitle: session.model.displayTitle,
+                seasonNumber: session.entry.type.seasonNumber,
+                resolvedShow: session.broadcast.resolvedShow
+            ),
+            hasAiringReminder: airingReminders.snapshot.subscription(
+                for: session.entryIdentity.rawID
+            ) != nil,
             onShare: { updatePresentation { $0.activeSheet = .sharing } },
             onToggleFavorite: toggleFavorite,
             onChangePoster: { updatePresentation { $0.activeSheet = .changePoster } },
+            onPresentBroadcastValidation: presentBroadcastValidation,
+            onRetryBroadcast: session.broadcast.retryAutomaticResolution,
             onConvert: {
                 startConversionTask {
                     await handleConvertTap()
@@ -389,31 +332,18 @@ struct EntryDetailView: View {
     @ViewBuilder
     private func detailsContent(_ proxy: ScrollViewProxy) -> some View {
         if !session.model.statCards.isEmpty {
-            LazyVGrid(columns: statColumns, spacing: 12) {
-                ForEach(session.model.statCards) { card in
-                    if card.id == "episodes" {
-                        Button {
-                            withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
-                                proxy.scrollTo(
-                                    EntryDetailScrollTarget.episodesSection,
-                                    anchor: .top
-                                )
-                            }
-                        } label: {
-                            DetailStatCard(card: card)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(
-                            Text(
-                                verbatim: "\(card.value), \(String(localized: card.title))"
-                            )
-                        )
-                        .accessibilityHint(Text(EntryDetailL10n.jumpsToEpisodesSection))
-                    } else {
-                        DetailStatCard(card: card)
+            EntryDetailStatGrid(
+                availableCards: session.model.statCards,
+                productionCompanies: session.model.productionCompanies,
+                entryType: session.entry.type,
+                showProductionCompanyInsteadOfRuntime: showProductionCompanyInsteadOfRuntime,
+                canJumpToEpisodes: hasEpisodesSection,
+                onJumpToEpisodes: {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) {
+                        proxy.scrollTo(EntryDetailScrollTarget.episodesSection, anchor: .top)
                     }
                 }
-            }
+            )
         }
 
         editingSection
@@ -430,7 +360,7 @@ struct EntryDetailView: View {
             PopupDisclosureCard(
                 session.model.characterSectionTitle,
                 systemImage: "person.2.fill",
-                isExpanded: characterExpandedBinding
+                isExpanded: $session.isCharacterExpanded
             ) {
                 horizontalCards(session.model.characterCards) { card in
                     PersonCardView(card: card)
@@ -442,7 +372,7 @@ struct EntryDetailView: View {
             PopupDisclosureCard(
                 EntryDetailL10n.staff,
                 systemImage: "person.2.fill",
-                isExpanded: staffExpandedBinding
+                isExpanded: $session.isStaffExpanded
             ) {
                 horizontalCards(session.model.staffCards) { card in
                     PersonCardView(card: card)
@@ -460,9 +390,10 @@ struct EntryDetailView: View {
                             seriesTMDbID: session.entry.tmdbID,
                             language: currentLanguage,
                             watchStatus: session.entry.watchStatus,
-                            episodeProgressSummary: session.entry.episodeProgressSummary(
-                                forSeason: season.seasonNumber
-                            ),
+                            episodeProgressSummary: episodeProgressTrackingEnabled
+                                ? session.entry.episodeProgressSummary(
+                                    forSeason: season.seasonNumber
+                                ) : nil,
                             collapseByDefault: session.model.collapseSeriesSeasonsByDefault,
                             sectionTitle: season.id == session.model.seasonCards.first?.id
                                 ? EntryDetailL10n.episodes
@@ -489,14 +420,15 @@ struct EntryDetailView: View {
                                     seasonNumber: session.entry.type.seasonNumber ?? 0,
                                     language: currentLanguage
                                 ),
-                                isWatched: EntryDetailEpisodePresentation.isEpisodeWatched(
-                                    episode.episodeNumber,
-                                    inSeason: session.entry.type.seasonNumber ?? 0,
-                                    watchStatus: session.entry.watchStatus,
-                                    summary: session.entry.episodeProgressSummary(
-                                        forSeason: session.entry.type.seasonNumber ?? 0
+                                isWatched: episodeProgressTrackingEnabled
+                                    && EntryDetailEpisodePresentation.isEpisodeWatched(
+                                        episode.episodeNumber,
+                                        inSeason: session.entry.type.seasonNumber ?? 0,
+                                        watchStatus: session.entry.watchStatus,
+                                        summary: session.entry.episodeProgressSummary(
+                                            forSeason: session.entry.type.seasonNumber ?? 0
+                                        )
                                     )
-                                )
                             )
                         }
                     }
@@ -527,16 +459,9 @@ struct EntryDetailView: View {
             episodeProgressTrackingEnabled: episodeProgressTrackingEnabled,
             onWatchStatusSelected: requestWatchStatusChange,
             onEpisodeProgressCompletionSuggested: handleEpisodeProgressCompletionSuggestion,
-            isEditingDetails: editingDetailsBinding
+            isEditingDetails: $session.isEditingDetails
         )
         .id(EntryDetailScrollTarget.editingSection)
-    }
-
-    private var statColumns: [GridItem] {
-        Array(
-            repeating: GridItem(.flexible(), spacing: 12, alignment: .top),
-            count: min(max(session.model.statCards.count, 1), 3)
-        )
     }
 
     @ViewBuilder
@@ -584,6 +509,23 @@ struct EntryDetailView: View {
         requestWatchStatusChange(session.entry.watchStatus == .dropped ? .watching : .dropped)
     }
 
+    private func presentBroadcastValidation() {
+        updatePresentation { $0.activeSheet = .broadcastValidation }
+        session.broadcast.startTitleFallback(named: broadcastTitleFallbackName)
+    }
+
+    private var broadcastTitleFallbackName: String {
+        let seriesEntry = session.entry.parentSeriesEntry ?? session.entry
+        let englishTitle = seriesEntry.nameTranslations
+            .sorted { $0.key < $1.key }
+            .first { key, value in
+                key.lowercased().hasPrefix("en-")
+                    && !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }?
+            .value
+        return englishTitle ?? seriesEntry.name
+    }
+
     private var dropActionTitle: LocalizedStringResource {
         session.entry.watchStatus == .dropped
             ? EntryDetailL10n.undrop : EntryDetailL10n.markAsDropped
@@ -629,6 +571,19 @@ struct EntryDetailView: View {
                 if !isPresented {
                     updatePresentation { presentation in
                         presentation.episodeProgressCompletionPrompt = nil
+                    }
+                }
+            }
+        )
+    }
+
+    private var showRewatchPromptBinding: Binding<Bool> {
+        Binding(
+            get: { session.presentation.showRewatchPrompt },
+            set: { isPresented in
+                if !isPresented {
+                    updatePresentation { presentation in
+                        presentation.showRewatchPrompt = false
                     }
                 }
             }
@@ -691,27 +646,6 @@ struct EntryDetailView: View {
         )
     }
 
-    private var editingDetailsBinding: Binding<Bool> {
-        Binding(
-            get: { session.isEditingDetails },
-            set: { session.isEditingDetails = $0 }
-        )
-    }
-
-    private var characterExpandedBinding: Binding<Bool> {
-        Binding(
-            get: { session.isCharacterExpanded },
-            set: { session.isCharacterExpanded = $0 }
-        )
-    }
-
-    private var staffExpandedBinding: Binding<Bool> {
-        Binding(
-            get: { session.isStaffExpanded },
-            set: { session.isStaffExpanded = $0 }
-        )
-    }
-
     private var shouldConfirmBeforeSaving: Bool {
         // Only non-incremental note changes require confirmation.
         !session.entry.notes.hasPrefix(session.originalUserInfo.notes)
@@ -727,6 +661,7 @@ struct EntryDetailView: View {
     private func requestWatchStatusChange(_ status: AnimeEntry.WatchStatus) {
         guard session.entry.watchStatus != status else { return }
 
+        let mayBeRewatch = session.entry.watchStatus == .watched && status == .watching
         let creditsCompletion =
             status == .watched
             && (session.entry.type == .series || session.entry.type == .movie)
@@ -734,16 +669,39 @@ struct EntryDetailView: View {
         withAnimation(.default) {
             _ = session.entry.updateWatchStatus(status)
         }
+        if mayBeRewatch {
+            // The date suggestion follows once the user answers the rewatch prompt.
+            updatePresentation { $0.showRewatchPrompt = true }
+            return
+        }
         updatePresentation {
             $0.dateUpdateSuggestion = session.entry.dateUpdateSuggestion(forTargetStatus: status)
         }
         if creditsCompletion {
-            appReview.record(.entryWatched(entryID: session.entry.tmdbID), scheduleRequest: false)
+            appReview.record(.entryWatched(entryID: session.entry.libraryIdentity), scheduleRequest: false)
             session.hasPendingWatchedReviewOpportunity = true
             if session.presentation.dateUpdateSuggestion == nil {
                 schedulePendingWatchedReviewOpportunity()
             }
         }
+    }
+
+    private func resolveRewatchPrompt(isRewatching: Bool) {
+        if isRewatching {
+            withAnimation(.default) {
+                _ = session.entry.startRewatch()
+            }
+        }
+        updatePresentation {
+            $0.showRewatchPrompt = false
+            $0.dateUpdateSuggestion = session.entry.dateUpdateSuggestion(forTargetStatus: .watching)
+        }
+    }
+
+    private var rewatchPromptMessage: LocalizedStringResource {
+        session.entry.type == .movie
+            ? EntryDetailL10n.rewatchPromptMovieMessage
+            : EntryDetailL10n.rewatchPromptEpisodeMessage
     }
 
     private func schedulePendingWatchedReviewOpportunity() {
@@ -911,43 +869,4 @@ struct EntryDetailView: View {
     private static func isCancellation(_ error: Error) -> Bool {
         error is CancellationError || (error as? URLError)?.code == .cancelled
     }
-}
-
-fileprivate struct EntryDetailPreviewHost: View {
-    @State private var showDetail = false
-    @State private var session: EntryDetailSession
-
-    init() {
-        let dataProvider = DataProvider.forPreview
-        _session = State(
-            initialValue: EntryDetailSession(
-                entry: .yourName,
-                repository: LibraryRepository(dataProvider: dataProvider)
-            )
-        )
-    }
-
-    var body: some View {
-        NavigationStack {
-            VStack {
-                Button(String(localized: EntryDetailL10n.showDetail)) {
-                    showDetail = true
-                }
-            }
-            .sheet(isPresented: $showDetail) {
-                NavigationStack {
-                    EntryDetailView(
-                        session: session
-                    )
-                }
-            }
-            .onAppear {
-                showDetail = true
-            }
-        }
-    }
-}
-
-#Preview {
-    EntryDetailPreviewHost()
 }

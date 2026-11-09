@@ -6,11 +6,146 @@
 //
 
 import DataProvider
+import Foundation
 import Testing
 
 @testable import MyAnimeList
 
 struct EntryDetailSessionTests {
+    @Test @MainActor func airingSeriesRefreshesPersistedSeasonCountWithoutRepeatingTheRequest()
+        async throws
+    {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let entry = AnimeEntry(
+            name: "Series",
+            type: .series,
+            tmdbID: 42,
+            detail: AnimeEntryDetail(
+                language: Language.english.rawValue,
+                title: "Series",
+                status: "Planned",
+                episodeCount: 1,
+                seasons: [AnimeEntrySeasonSummary(id: 43, seasonNumber: 3, title: "Season 3", episodeCount: 1)]
+            )
+        )
+        try repository.newEntry(entry)
+        let requests = BroadcastDetailRequestCounter()
+        let checker = TMDbBroadcastEligibilityChecker { _ in
+            await requests.record()
+            return TMDbSeriesBroadcastDetails(
+                schedule: .init(
+                    firstAirDate: TMDbCalendarDate(year: 2020, month: 1, day: 1),
+                    nextEpisode: .init(
+                        seasonNumber: 3,
+                        airDate: TMDbCalendarDate(year: 2999, month: 1, day: 1)
+                    ),
+                    seasonAirDates: [:]
+                ),
+                externalIDs: .init(tvdbID: nil, imdbID: nil),
+                episodeCount: 24,
+                seasonEpisodeCounts: [3: 24]
+            )
+        }
+        let resolver = TVMazeResolver(
+            loadMappedShowID: { _ in nil },
+            saveMappedShowID: { _, _ in .rejected },
+            lookupTVDBShowID: { _ in nil },
+            lookupIMDbShowID: { _ in nil },
+            searchShows: { _ in [] },
+            fetchShow: { _ in nil }
+        )
+        let session = EntryDetailSession(
+            entry: entry,
+            repository: repository,
+            broadcastEligibilityChecker: checker,
+            broadcastResolver: resolver
+        )
+
+        session.broadcast.update(
+            .init(isEnabled: true, entryType: entry.type, seriesStatus: entry.detail?.status)
+        )
+        await session.refreshEpisodeCountsIfEligible(language: .english)
+        await session.refreshEpisodeCountsIfEligible(language: .english)
+
+        #expect(entry.episodeProgressSummary(forSeason: 3).episodeCount == 24)
+        #expect(entry.detail?.episodeCount == 24)
+        #expect(session.model.statCards.first(where: { $0.kind == .episodes })?.value == "24")
+        #expect(await requests.count == 1)
+    }
+
+    @Test @MainActor func airingSeasonRefreshesItsProgressLimit() async throws {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let entry = AnimeEntry(
+            name: "Season 3",
+            type: .season(seasonNumber: 3, parentSeriesID: 42),
+            tmdbID: 43,
+            detail: AnimeEntryDetail(
+                language: Language.english.rawValue,
+                title: "Season 3",
+                status: "Planned",
+                episodeCount: 1
+            )
+        )
+        try repository.newEntry(entry)
+        let checker = TMDbBroadcastEligibilityChecker { _ in
+            TMDbSeriesBroadcastDetails(
+                schedule: .init(
+                    firstAirDate: TMDbCalendarDate(year: 2020, month: 1, day: 1),
+                    nextEpisode: nil,
+                    seasonAirDates: [3: TMDbCalendarDate(year: 2999, month: 1, day: 1)]
+                ),
+                externalIDs: .init(tvdbID: nil, imdbID: nil),
+                seasonEpisodeCounts: [3: 24]
+            )
+        }
+        let session = EntryDetailSession(
+            entry: entry,
+            repository: repository,
+            broadcastEligibilityChecker: checker
+        )
+
+        await session.refreshEpisodeCountsIfEligible(language: .english)
+
+        #expect(entry.episodeProgressSummary(forSeason: 3).episodeCount == 24)
+        #expect(session.model.statCards.first(where: { $0.kind == .episodes })?.value == "24")
+    }
+
+    @Test @MainActor func ineligibleStatusSkipsTheRequestAndNetworkFailurePreservesCount()
+        async throws
+    {
+        let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
+        let entry = AnimeEntry(
+            name: "Season",
+            type: .season(seasonNumber: 3, parentSeriesID: 42),
+            tmdbID: 43,
+            detail: AnimeEntryDetail(
+                language: Language.english.rawValue,
+                title: "Season",
+                status: "Ended",
+                episodeCount: 1
+            )
+        )
+        try repository.newEntry(entry)
+        let requests = BroadcastDetailRequestCounter()
+        let checker = TMDbBroadcastEligibilityChecker { _ in
+            await requests.record()
+            throw URLError(.notConnectedToInternet)
+        }
+        let session = EntryDetailSession(
+            entry: entry,
+            repository: repository,
+            broadcastEligibilityChecker: checker
+        )
+
+        await session.refreshEpisodeCountsIfEligible(language: .english)
+        #expect(await requests.count == 0)
+
+        entry.detail?.status = "Returning Series"
+        await session.refreshEpisodeCountsIfEligible(language: .english)
+        #expect(await requests.count == 1)
+        #expect(entry.episodeProgressSummary(forSeason: 3).episodeCount == 1)
+    }
+
     @Test @MainActor func detailHostMigratesAfterNestedSheetDismissesWithoutRestoringIt() throws {
         let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
         let entry = AnimeEntry.template(id: 42)
@@ -48,9 +183,9 @@ struct EntryDetailSessionTests {
         let store = EntryDetailSessionStore()
 
         store.synchronizePresentedDetail(
-            identity: entry.syncIdentity,
+            identity: entry.libraryIdentity,
             repository: repository,
-            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+            resolveEntry: { $0 == entry.libraryIdentity ? entry : nil }
         )
         let originalSession = try #require(store.presentedSession)
         originalSession.scrollPosition.scrollTo(y: 312)
@@ -60,9 +195,9 @@ struct EntryDetailSessionTests {
         entry.notes = "Unsaved replacement"
 
         store.synchronizePresentedDetail(
-            identity: entry.syncIdentity,
+            identity: entry.libraryIdentity,
             repository: repository,
-            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+            resolveEntry: { $0 == entry.libraryIdentity ? entry : nil }
         )
         let reusedSession = try #require(store.presentedSession)
 
@@ -88,7 +223,7 @@ struct EntryDetailSessionTests {
         store.synchronizePresentedDetail(
             identity: state.presentedDetailEntryID,
             repository: repository,
-            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+            resolveEntry: { $0 == entry.libraryIdentity ? entry : nil }
         )
         let originalSession = try #require(store.presentedSession)
         originalSession.scrollPosition.scrollTo(y: 312)
@@ -104,7 +239,7 @@ struct EntryDetailSessionTests {
         store.synchronizePresentedDetail(
             identity: state.presentedDetailEntryID,
             repository: repository,
-            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+            resolveEntry: { $0 == entry.libraryIdentity ? entry : nil }
         )
 
         let sheetPresentation = try #require(state.detailSheetPresentation)
@@ -120,7 +255,7 @@ struct EntryDetailSessionTests {
         store.synchronizePresentedDetail(
             identity: state.presentedDetailEntryID,
             repository: repository,
-            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+            resolveEntry: { $0 == entry.libraryIdentity ? entry : nil }
         )
 
         let representedInspector = try #require(state.inspectorPresentation)
@@ -181,25 +316,25 @@ struct EntryDetailSessionTests {
         let repository = LibraryRepository(dataProvider: DataProvider(inMemory: true))
         let firstEntry = AnimeEntry.template(id: 1)
         let secondEntry = AnimeEntry.template(id: 2)
-        let entries = [firstEntry.syncIdentity: firstEntry, secondEntry.syncIdentity: secondEntry]
+        let entries = [firstEntry.libraryIdentity: firstEntry, secondEntry.libraryIdentity: secondEntry]
         let store = EntryDetailSessionStore()
 
         store.synchronizePresentedDetail(
-            identity: firstEntry.syncIdentity,
+            identity: firstEntry.libraryIdentity,
             repository: repository,
             resolveEntry: { entries[$0] }
         )
         let firstSession = try #require(store.presentedSession)
 
         store.synchronizePresentedDetail(
-            identity: secondEntry.syncIdentity,
+            identity: secondEntry.libraryIdentity,
             repository: repository,
             resolveEntry: { entries[$0] }
         )
         let secondSession = try #require(store.presentedSession)
 
         #expect(secondSession !== firstSession)
-        #expect(secondSession.entryIdentity == secondEntry.syncIdentity)
+        #expect(secondSession.entryIdentity == secondEntry.libraryIdentity)
 
         store.synchronizePresentedDetail(
             identity: nil,
@@ -216,16 +351,16 @@ struct EntryDetailSessionTests {
         let store = EntryDetailSessionStore()
 
         store.synchronizePresentedDetail(
-            identity: originalEntry.syncIdentity,
+            identity: originalEntry.libraryIdentity,
             repository: repository,
-            resolveEntry: { $0 == originalEntry.syncIdentity ? originalEntry : nil }
+            resolveEntry: { $0 == originalEntry.libraryIdentity ? originalEntry : nil }
         )
         let originalSession = try #require(store.presentedSession)
 
         store.synchronizePresentedDetail(
-            identity: replacementEntry.syncIdentity,
+            identity: replacementEntry.libraryIdentity,
             repository: repository,
-            resolveEntry: { $0 == replacementEntry.syncIdentity ? replacementEntry : nil }
+            resolveEntry: { $0 == replacementEntry.libraryIdentity ? replacementEntry : nil }
         )
         let replacementSession = try #require(store.presentedSession)
 
@@ -240,13 +375,13 @@ struct EntryDetailSessionTests {
         let store = EntryDetailSessionStore()
 
         store.synchronizePresentedDetail(
-            identity: entry.syncIdentity,
+            identity: entry.libraryIdentity,
             repository: repository,
-            resolveEntry: { $0 == entry.syncIdentity ? entry : nil }
+            resolveEntry: { $0 == entry.libraryIdentity ? entry : nil }
         )
 
         let didResolve = store.synchronizePresentedDetail(
-            identity: entry.syncIdentity,
+            identity: entry.libraryIdentity,
             repository: repository,
             resolveEntry: { _ in nil }
         )
@@ -272,4 +407,10 @@ struct EntryDetailSessionTests {
         #expect(presentation.episodeProgressCompletionPrompt == .seriesWatched)
         #expect(presentation.dateUpdateSuggestion == .setFinishDateToNow)
     }
+}
+
+private actor BroadcastDetailRequestCounter {
+    private(set) var count = 0
+
+    func record() { count += 1 }
 }

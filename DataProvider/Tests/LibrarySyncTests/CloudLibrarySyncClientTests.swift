@@ -17,9 +17,9 @@ struct CloudLibrarySyncClientTests {
     private let client = CloudLibrarySyncClient()
 
     @Test func deterministicRecordIDsUseStableZoneAndIdentityNames() {
-        let movie = LibraryEntrySyncIdentity(entryType: .movie, tmdbID: 11)
-        let series = LibraryEntrySyncIdentity(entryType: .series, tmdbID: 22)
-        let season = LibraryEntrySyncIdentity(
+        let movie = LibraryEntryIdentity(entryType: .movie, tmdbID: 11)
+        let series = LibraryEntryIdentity(entryType: .series, tmdbID: 22)
+        let season = LibraryEntryIdentity(
             entryType: .season(seasonNumber: 3, parentSeriesID: 22),
             tmdbID: 33
         )
@@ -32,7 +32,7 @@ struct CloudLibrarySyncClientTests {
 
     @Test func snapshotRoundTripsThroughCloudKitRecord() throws {
         let snapshot = LibraryEntrySyncSnapshot(
-            identity: LibraryEntrySyncIdentity(
+            identity: LibraryEntryIdentity(
                 entryType: .season(seasonNumber: 2, parentSeriesID: 44),
                 tmdbID: 55
             ),
@@ -58,6 +58,7 @@ struct CloudLibrarySyncClientTests {
                     updatedAt: referenceDate(year: 2026, month: 5, day: 8)
                 )
             ],
+            rewatchCount: 3,
             libraryUpdatedAt: referenceDate(year: 2026, month: 5, day: 10),
             trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 11)
         )
@@ -72,6 +73,20 @@ struct CloudLibrarySyncClientTests {
         // it. It must mirror the path. Drop this expectation once the old build is retired.
         #expect(record["customPosterURL"] as? String == "https://image.tmdb.org/t/p/original/custom.jpg")
         #expect(decoded == snapshot)
+    }
+
+    @Test func recordWithoutRewatchFieldsDecodesDefaults() throws {
+        var snapshot = makeSnapshot()
+        snapshot.isRewatching = true
+        snapshot.rewatchCount = 2
+        let record = try client.record(from: snapshot)
+        record["isRewatching"] = nil
+        record["rewatchCount"] = nil
+
+        let decoded = try client.snapshot(from: record)
+
+        #expect(!decoded.isRewatching)
+        #expect(decoded.rewatchCount == 0)
     }
 
     @Test func legacyCustomPosterURLDecodesToPathWhenPathFieldIsAbsent() throws {
@@ -262,7 +277,7 @@ struct CloudLibrarySyncClientTests {
         entryType: AnimeType = .series,
         tmdbID: Int = 101
     ) -> LibraryEntrySyncSnapshot {
-        let identity = LibraryEntrySyncIdentity(entryType: entryType, tmdbID: tmdbID)
+        let identity = LibraryEntryIdentity(entryType: entryType, tmdbID: tmdbID)
         return LibraryEntrySyncSnapshot(
             identity: identity,
             tmdbID: tmdbID,

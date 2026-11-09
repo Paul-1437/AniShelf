@@ -24,7 +24,7 @@ class LibraryStore {
     @ObservationIgnored let syncChangeRecorder: LibrarySyncChangeRecorder
     @ObservationIgnored private(set) var syncCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored private var syncScheduler: LibrarySyncScheduler?
-    @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncResult, Never>] =
+    @ObservationIgnored private var ordinarySyncTasks: [UUID: Task<LibrarySyncCoordinator.SyncOutcome, Never>] =
         [:]
     @ObservationIgnored private var shouldResumeInterruptedCloudSyncBootstrap = false
     @ObservationIgnored let preferences: LibraryPreferences
@@ -35,11 +35,17 @@ class LibraryStore {
     @ObservationIgnored private var saveObserver: ModelContextSaveObserver?
     @ObservationIgnored private var deferredLibraryRefreshDepth = 0
     @ObservationIgnored private var needsDeferredLibraryRefresh = false
+    @ObservationIgnored private var airingReminderPruningEnabled: Bool
     private(set) var libraryRevision = 0
 
     // MARK: - State
 
     private(set) var library: [AnimeEntry]
+    private(set) var duplicateEntryGroups: [LibraryDuplicateEntryGroup] = []
+    /// Store-wide so duplicate repair sheets in every window share one in-flight resolution.
+    ///
+    /// Only `resolveDuplicateEntryGroup` should write this.
+    var isResolvingDuplicateEntryGroup = false
     @ObservationIgnored var infoFetcher: InfoFetcher
     var language: Language = .resolvedAnimeInfoLanguage()
     private(set) var libraryCloudSyncStatus: LibraryCloudSyncStatus
@@ -108,13 +114,18 @@ class LibraryStore {
         libraryOnDisplay.map(LibraryEntryDisplayItem.init)
     }
 
+    var requiresDuplicateRepair: Bool {
+        !duplicateEntryGroups.isEmpty
+    }
+
     init(
         dataProvider: DataProvider,
         preferences: LibraryPreferences = .init(),
         hasTMDbAPIKey: @escaping @MainActor () -> Bool = {
             guard let key = TMDbAPIKeyStorage().retrieveKey() else { return false }
             return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        },
+        airingReminderPruningEnabled: Bool = false
     ) {
         self.dataProvider = dataProvider
         let syncChangeRecorder = LibrarySyncChangeRecorder(dataProvider: dataProvider)
@@ -133,6 +144,7 @@ class LibraryStore {
         self.infoFetcher = .init()
         self.library = []
         self.libraryCloudSyncStatus = snapshot.cloudSyncStatus
+        self.airingReminderPruningEnabled = airingReminderPruningEnabled
         self.shouldResumeInterruptedCloudSyncBootstrap =
             snapshot.cloudSyncStatus.isEnabled && snapshot.cloudSyncStatus.bootstrapState == .running
         reloadPersistedPreferences()
@@ -142,7 +154,13 @@ class LibraryStore {
         if !dataProvider.inMemory {
             setupCloudSyncedPreferencesMonitor()
         }
-        try? refreshLibrary()
+        do {
+            try refreshLibrary()
+        } catch {
+            libraryStoreLogger.fault(
+                "Initial library fetch failed: \(String(describing: error), privacy: .public)"
+            )
+        }
         self.syncCoordinator = LibrarySyncCoordinator(store: self)
         setupLibrarySyncScheduling()
     }
@@ -198,9 +216,39 @@ class LibraryStore {
 
     func refreshLibrary() throws {
         libraryStoreLogger.debug("[\(Date().debugDescription)] Refreshing library...")
-        let entries = try repository.visibleLibraryEntries()
-        library = entries
+        let visibleEntries = try repository.visibleLibraryEntries()
+        let entriesByIdentity = Dictionary(grouping: visibleEntries, by: \.libraryIdentity)
+        let previouslyRequiredDuplicateRepair = requiresDuplicateRepair
+
+        duplicateEntryGroups = entriesByIdentity.values.compactMap { entries in
+            guard entries.count > 1 else { return nil }
+            return LibraryDuplicateEntryGroup(entries: entries)
+        }
+        .sorted { $0.identity.rawID < $1.identity.rawID }
+
+        library = entriesByIdentity.values.compactMap {
+            AnimeEntryDuplicateResolver.preferredEntry(from: $0)
+        }
         libraryRevision &+= 1
+
+        if requiresDuplicateRepair {
+            for group in duplicateEntryGroups {
+                libraryStoreLogger.fault(
+                    "Found \(group.entries.count, privacy: .public) visible library rows for identity \(group.identity.rawID, privacy: .private); showing the preferred row until repair completes."
+                )
+            }
+            if !previouslyRequiredDuplicateRepair {
+                cancelAllLibraryCloudSyncWork()
+            }
+        }
+        pruneAiringReminderSubscriptions()
+    }
+
+    func enableAiringReminderPruning() {
+        guard !airingReminderPruningEnabled else { return }
+        airingReminderPruningEnabled = true
+        libraryStoreLogger.info("Enabled airing reminder subscription pruning.")
+        pruneAiringReminderSubscriptions()
     }
 
     func setupUpdateLibrary() {
@@ -219,6 +267,34 @@ class LibraryStore {
             try refreshLibrary()
         } catch {
             libraryStoreLogger.error("Error refreshing library: \(error)")
+        }
+    }
+
+    private func pruneAiringReminderSubscriptions() {
+        guard airingReminderPruningEnabled else {
+            libraryStoreLogger.debug(
+                "Skipped airing reminder subscription pruning while library activity is blocked."
+            )
+            return
+        }
+        let validEntryIdentityRawIDs = Set(
+            library.lazy
+                .map { $0.libraryIdentity.rawID }
+        )
+        let pruningRevision = libraryRevision
+        libraryStoreLogger.debug(
+            "Requesting airing reminder subscription reconciliation against \(validEntryIdentityRawIDs.count, privacy: .public) visible library entries at revision \(pruningRevision, privacy: .public)."
+        )
+        Task { @MainActor [weak self] in
+            guard let self, self.libraryRevision == pruningRevision else {
+                libraryStoreLogger.debug(
+                    "Skipped superseded airing reminder subscription reconciliation for library revision \(pruningRevision, privacy: .public)."
+                )
+                return
+            }
+            await AiringReminderCoordinator.shared.pruneSubscriptions(
+                validEntryIdentityRawIDs: validEntryIdentityRawIDs
+            )
         }
     }
 
@@ -261,6 +337,11 @@ class LibraryStore {
         syncChangeRecorder.rebuildBaseline()
     }
 
+    func cancelLibrarySyncAndWaitForDuplicateRepair() async {
+        cancelAllLibraryCloudSyncWork()
+        await syncCoordinator?.waitUntilAllSyncFinishes()
+    }
+
     /// Runs an async write scope without treating its SwiftData saves as local sync edits.
     ///
     /// Callers can wrap arbitrary async store mutations here, including work that saves through
@@ -280,8 +361,22 @@ class LibraryStore {
         }
     }
 
-    func flushPendingLocalLibrarySync() {
-        syncScheduler?.flushPendingLocalSync()
+    func flushPendingLocalLibrarySyncAndWait() async -> LibrarySyncScheduler.FlushOutcome {
+        let outcome = await syncScheduler?.flushPendingLocalSyncAndWait() ?? .noPendingWork
+        await syncCoordinator?.waitUntilAllSyncFinishes()
+        return outcome
+    }
+
+    var needsBackgroundLibrarySyncProtection: Bool {
+        hasPendingLocalLibrarySyncWork()
+            || syncCoordinator?.hasActiveSyncRequest == true
+            || libraryCloudSyncStatus.isSyncInProgress
+    }
+
+    func cancelLibrarySyncForBackgroundExpiration() {
+        cancelOrdinaryLibrarySyncTasks()
+        syncCoordinator?.cancelAllSync()
+        recordLibraryCloudSyncCancellation()
     }
 
     @discardableResult
@@ -292,44 +387,77 @@ class LibraryStore {
     func performLibrarySyncResult(trigger: LibrarySyncCoordinator.Trigger) async
         -> LibrarySyncCoordinator.SyncResult
     {
+        guard !requiresDuplicateRepair else {
+            return .skipped(.duplicateRepairRequired)
+        }
         guard let syncCoordinator else { return .permanentFailure }
         guard !Task.isCancelled else { return .skipped(.disabled) }
-        if shouldResumeInterruptedCloudSyncBootstrap {
+        let shouldBootstrapDefaultEnablement =
+            libraryCloudSyncStatus.isEnabled
+            && libraryCloudSyncStatus.bootstrapState == .notStarted
+        if shouldResumeInterruptedCloudSyncBootstrap || shouldBootstrapDefaultEnablement {
+            guard cloudSyncStateController.hasRequiredBootstrapInputs() else {
+                recordLibraryCloudSyncSkipped(
+                    trigger: trigger,
+                    reason: .missingTMDbAPIKey
+                )
+                return .skipped(.missingTMDbAPIKey)
+            }
             shouldResumeInterruptedCloudSyncBootstrap = false
             return await bootstrapLibraryCloudSyncEnablement()
         }
 
         let taskID = UUID()
         let syncTask = Task {
-            await syncCoordinator.syncResult(trigger: trigger)
+            await syncCoordinator.syncOutcome(trigger: trigger)
         }
         ordinarySyncTasks[taskID] = syncTask
 
-        let result = await withTaskCancellationHandler {
+        let outcome = await withTaskCancellationHandler {
             await syncTask.value
         } onCancel: {
             syncTask.cancel()
         }
         ordinarySyncTasks[taskID] = nil
         guard libraryCloudSyncStatus.isEnabled else { return .skipped(.disabled) }
-        if result == .success {
+        if outcome.shouldHandleResult, let syncScheduler {
+            syncScheduler.recordExternalSyncResult(outcome.result)
+        } else if outcome.shouldHandleResult, outcome.result == .success {
             resetOrdinaryLibrarySyncRetryBackoff()
         }
-        return result
+        return outcome.result
     }
 
     @discardableResult
     func enableLibraryCloudSync() async -> Bool {
-        await bootstrapLibraryCloudSyncEnablement().succeeded
+        // Re-enable must not inherit the result of the pass just canceled by
+        // the off toggle. Preserve the enabled intent while waiting for cleanup.
+        updateLibraryCloudSyncStatus {
+            $0.isEnabled = true
+            $0.bootstrapState = .running
+        }
+        await syncCoordinator?.waitUntilCanceledSyncFinishes()
+        guard libraryCloudSyncStatus.isEnabled, !Task.isCancelled else { return false }
+        return await bootstrapLibraryCloudSyncEnablement().succeeded
     }
 
-    private func bootstrapLibraryCloudSyncEnablement() async -> LibrarySyncCoordinator.SyncResult {
+    func bootstrapLibraryCloudSyncEnablement(isUserRetry: Bool = false) async -> LibrarySyncCoordinator.SyncResult {
+        await bootstrapLibraryCloudSyncEnablementOutcome(isUserRetry: isUserRetry).result
+    }
+
+    func bootstrapLibraryCloudSyncEnablementOutcome(
+        isUserRetry: Bool = false,
+        canHandleResult: Bool = false
+    ) async -> LibrarySyncCoordinator.SyncOutcome {
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = true
             status.bootstrapState = .running
+            status.lastCompletedScope = nil
             status.pendingConflictSummary = nil
             status.currentPhase = nil
+            status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.lastResult = nil
         }
@@ -344,7 +472,7 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return .permanentFailure
+            return .init(.permanentFailure, shouldHandleResult: canHandleResult)
         }
         guard let syncCoordinator else {
             recordLibraryCloudSyncFailure(
@@ -357,9 +485,12 @@ class LibraryStore {
             updateLibraryCloudSyncStatus { status in
                 status.bootstrapState = .failed
             }
-            return .permanentFailure
+            return .init(.permanentFailure, shouldHandleResult: canHandleResult)
         }
-        return await syncCoordinator.bootstrapFirstEnablement(preference: nil)
+        return await syncCoordinator.bootstrapFirstEnablementOutcome(
+            preference: nil, isUserRetry: isUserRetry,
+            canHandleResult: canHandleResult
+        )
     }
 
     @discardableResult
@@ -375,35 +506,59 @@ class LibraryStore {
         guard cloudSyncStateController.canCancelFirstEnablement(libraryCloudSyncStatus) else {
             return
         }
-        cancelOrdinaryLibrarySyncTasks()
-        syncCoordinator?.cancelOrdinarySync()
-        syncCoordinator?.cancelFirstEnableBootstrap()
+        cancelAllLibraryCloudSyncWork()
         resetLibraryCloudSyncDisabledState(resetRetryState: false)
     }
 
     func disableLibraryCloudSync() {
-        cancelOrdinaryLibrarySyncTasks()
-        syncCoordinator?.cancelOrdinarySync()
-        syncCoordinator?.cancelFirstEnableBootstrap()
+        cancelAllLibraryCloudSyncWork()
         resetLibraryCloudSyncDisabledState(resetRetryState: true)
     }
 
     func resetLibraryCloudSyncAfterBackupRestore() {
-        cancelOrdinaryLibrarySyncTasks()
-        syncCoordinator?.cancelOrdinarySync()
-        syncCoordinator?.cancelFirstEnableBootstrap()
+        cancelAllLibraryCloudSyncWork()
         syncScheduler?.resetRetryBackoff()
+        preferences.clearUnknownCloudSyncedSettingsTypes()
         updateLibraryCloudSyncStatus { status in
             status = .defaultValue
         }
     }
 
     func resetLibraryCloudSyncChangeTokens() {
+        preferences.clearUnknownCloudSyncedSettingsTypes()
         guard let syncCoordinator else {
             CloudLibrarySyncChangeTokenStore().removeAllTokens()
             return
         }
         syncCoordinator.removeAllChangeTokens()
+    }
+
+    @discardableResult
+    func rebuildLibraryCloudSync() async -> Bool {
+        cancelAllLibraryCloudSyncWork()
+        syncScheduler?.resetRetryBackoff()
+        await syncCoordinator?.waitUntilAllSyncFinishes()
+        resetLibraryCloudSyncChangeTokens()
+        shouldResumeInterruptedCloudSyncBootstrap = false
+        updateLibraryCloudSyncStatus { status in
+            status.isEnabled = true
+            status.bootstrapState = .notStarted
+            status.cloudKitAvailability = .unknown
+            status.pendingConflictSummary = nil
+            status.retryState = .idle
+            status.currentPhase = nil
+            status.lastResult = nil
+            status.lastTrigger = nil
+            status.lastAttemptDate = nil
+            status.lastSuccessfulSyncDate = nil
+            status.lastReconciledCloudSyncedSettingsUpdatedAt = nil
+            status.lastFailurePhase = nil
+            status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
+            status.degradedReason = nil
+            status.lastCompletedScope = nil
+        }
+        return await bootstrapLibraryCloudSyncEnablement(isUserRetry: true).succeeded
     }
 
     /// Resets persisted sync metadata that belonged to a replaced local store.
@@ -414,9 +569,7 @@ class LibraryStore {
     /// resume through first-enable bootstrap so CloudKit can repopulate the
     /// replacement store from scratch.
     func prepareLibraryCloudSyncAfterPersistentStoreRecovery() {
-        cancelOrdinaryLibrarySyncTasks()
-        syncCoordinator?.cancelOrdinarySync()
-        syncCoordinator?.cancelFirstEnableBootstrap()
+        cancelAllLibraryCloudSyncWork()
         syncScheduler?.resetRetryBackoff()
 
         do {
@@ -434,6 +587,7 @@ class LibraryStore {
             return
         }
 
+        updateLibraryCloudSyncStatus { $0.restoration = nil }
         shouldResumeInterruptedCloudSyncBootstrap = true
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = true
@@ -442,8 +596,10 @@ class LibraryStore {
             status.retryState = .idle
             status.currentPhase = nil
             status.lastResult = nil
+            status.lastFailurePhase = nil
             status.lastFailureReason = nil
             status.degradedReason = nil
+            status.lastCompletedScope = nil
         }
     }
 
@@ -453,12 +609,15 @@ class LibraryStore {
         }
         updateLibraryCloudSyncStatus { status in
             status.isEnabled = false
+            status.restoration = nil
             status.bootstrapState = .notStarted
             status.pendingConflictSummary = nil
             status.currentPhase = nil
             status.lastResult = .skipped
+            status.lastFailurePhase = nil
             status.lastFailureReason = nil
             status.degradedReason = nil
+            status.lastCompletedScope = nil
             if resetRetryState {
                 status.retryState = .idle
             }
@@ -472,19 +631,27 @@ class LibraryStore {
         ordinarySyncTasks.removeAll()
     }
 
+    private func cancelAllLibraryCloudSyncWork() {
+        cancelOrdinaryLibrarySyncTasks()
+        syncCoordinator?.cancelAllSync()
+    }
+
     @discardableResult
     func retryLibraryCloudSync() async -> Bool {
         if libraryCloudSyncStatus.isEnabled,
             libraryCloudSyncStatus.bootstrapState == .failed
                 || libraryCloudSyncStatus.bootstrapState == .notStarted
         {
-            return await enableLibraryCloudSync()
+            return await bootstrapLibraryCloudSyncEnablement(isUserRetry: true).succeeded
         }
         return await performLibrarySync(trigger: .manualRetry)
     }
 
     func libraryCloudSyncPolicyBlockReason() -> LibraryCloudSyncPolicyBlockReason? {
-        cloudSyncStateController.policyBlockReason(for: libraryCloudSyncStatus)
+        guard !requiresDuplicateRepair else {
+            return .duplicateRepairRequired
+        }
+        return cloudSyncStateController.policyBlockReason(for: libraryCloudSyncStatus)
     }
 
     func updateLibraryCloudSyncStatus(_ update: (inout LibraryCloudSyncStatus) -> Void) {
@@ -504,6 +671,7 @@ class LibraryStore {
             status.lastResult = nil
             status.lastTrigger = trigger.rawValue
             status.lastAttemptDate = date
+            status.lastFailurePhase = nil
             status.lastFailureReason = nil
             status.degradedReason = nil
         }
@@ -514,8 +682,12 @@ class LibraryStore {
         reason: LibraryCloudSyncPolicyBlockReason,
         at date: Date = .now
     ) {
+        // A blocked retry is not a new bootstrap attempt. Keep the original
+        // failure, operation, and timestamp available for diagnosis.
+        guard libraryCloudSyncStatus.bootstrapState != .failed else { return }
         updateLibraryCloudSyncStatus { status in
             status.currentPhase = nil
+            status.lastFailurePhase = nil
             status.lastResult = .skipped
             status.lastTrigger = trigger.rawValue
             status.lastAttemptDate = date
@@ -523,15 +695,28 @@ class LibraryStore {
         }
     }
 
+    func recordLibraryCloudSyncCancellation() {
+        shouldResumeInterruptedCloudSyncBootstrap = false
+        updateLibraryCloudSyncStatus { status in
+            if status.bootstrapState == .running {
+                status.bootstrapState = .notStarted
+            }
+            status.currentPhase = nil
+        }
+    }
+
     func recordLibraryCloudSyncSuccess(
         trigger: LibrarySyncCoordinator.Trigger,
         completedBootstrap: Bool,
+        completedScope: LibraryCloudSyncScope?,
         reconciledCloudSyncedSettingsUpdatedAt: Date?,
         at date: Date = .now
     ) {
         updateLibraryCloudSyncStatus { status in
             if completedBootstrap {
+                status.restoration = nil
                 status.bootstrapState = .completed
+                status.lastCompletedScope = completedScope
             }
             status.currentPhase = nil
             status.lastResult = .success
@@ -540,7 +725,9 @@ class LibraryStore {
             status.lastSuccessfulSyncDate = date
             status.lastReconciledCloudSyncedSettingsUpdatedAt =
                 reconciledCloudSyncedSettingsUpdatedAt
+            status.lastFailurePhase = nil
             status.lastFailureReason = nil
+            status.lastRetryAfterSeconds = nil
             status.degradedReason = nil
             status.pendingConflictSummary = nil
         }
@@ -548,10 +735,11 @@ class LibraryStore {
 
     func recordLibraryCloudSyncFailure(
         trigger: LibrarySyncCoordinator.Trigger,
-        phase _: LibraryCloudSyncPhase?,
+        phase: LibraryCloudSyncOperation?,
         result: LibraryCloudSyncResultClass,
         reason: String,
         degradedReason: String? = nil,
+        retryAfterSeconds: TimeInterval? = nil,
         at date: Date = .now
     ) {
         updateLibraryCloudSyncStatus { status in
@@ -559,7 +747,9 @@ class LibraryStore {
             status.lastResult = result
             status.lastTrigger = trigger.rawValue
             status.lastAttemptDate = date
+            status.lastFailurePhase = phase
             status.lastFailureReason = reason
+            status.lastRetryAfterSeconds = retryAfterSeconds
             if let degradedReason {
                 status.degradedReason = degradedReason
             }
@@ -577,6 +767,7 @@ class LibraryStore {
             status.lastResult = .conflictChoiceRequired
             status.lastTrigger = LibrarySyncCoordinator.Trigger.firstEnableBootstrap.rawValue
             status.lastAttemptDate = date
+            status.lastFailurePhase = nil
             status.lastFailureReason = nil
         }
     }
@@ -635,10 +826,16 @@ class LibraryStore {
             hasPendingLocalWork: { [weak self] in
                 self?.hasPendingLocalLibrarySyncWork() ?? false
             },
-            sync: { [weak self] trigger in
-                guard let self else { return .permanentFailure }
-                guard let syncCoordinator else { return .permanentFailure }
-                return await syncCoordinator.syncResult(trigger: trigger)
+            hasPendingItemRetryWork: { [weak self] in
+                self?.hasPendingLibrarySyncItemRetryWork() ?? false
+            },
+            minimumRetryDelay: { [weak self] in
+                self?.libraryCloudSyncStatus.lastRetryAfterSeconds
+            },
+            syncOutcome: { [weak self] trigger in
+                guard let self else { return .init(.permanentFailure) }
+                guard let syncCoordinator else { return .init(.permanentFailure) }
+                return await syncCoordinator.syncOutcome(trigger: trigger)
             },
             retryStateDidChange: { [weak self] retryState in
                 self?.updateLibraryCloudSyncRetryState(retryState)
@@ -655,6 +852,17 @@ class LibraryStore {
 
     func hasPendingLocalLibrarySyncWork() -> Bool {
         hasPendingLibraryEntrySyncWork() || hasPendingCloudSyncedSettingsSyncWork()
+    }
+
+    /// Whether a successful sync left entries that an automatic retry may fix:
+    /// uploads CloudKit rejected, or reconstructions that failed for a
+    /// retryable reason.
+    func hasPendingLibrarySyncItemRetryWork() -> Bool {
+        guard libraryCloudSyncStatus.isEnabled else { return false }
+        return libraryCloudSyncStatus.rejectedUploadCount > 0
+            || libraryCloudSyncStatus.currentPendingReconstructionFailures.contains {
+                $0.isPermanent != true && $0.discardDate == nil
+            }
     }
 
     private func hasPendingLibraryEntrySyncWork() -> Bool {
@@ -677,6 +885,7 @@ class LibraryStore {
     func setupTMDbAPIConfigurationChangeMonitor() {
         NotificationCenter.default
             .publisher(for: .tmdbAPIConfigurationDidChange)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.infoFetcher = .init()
             }
@@ -725,10 +934,6 @@ class LibraryStore {
     }
 
     // MARK: - Shared Helpers
-
-    func existingEntry(tmdbID: Int) -> AnimeEntry? {
-        repository.existingEntry(tmdbID: tmdbID)
-    }
 
     func applyNewEntryDefaults(to entry: AnimeEntry) {
         let now = Date.now

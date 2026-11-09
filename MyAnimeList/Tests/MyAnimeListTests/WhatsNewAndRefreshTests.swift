@@ -47,6 +47,7 @@ struct WhatsNewAndRefreshTests {
 
         #expect(controller.currentEntry?.version == entry.version)
         #expect(controller.presentedEntry?.version == entry.version)
+        #expect(controller.presentationSource == .automatic)
     }
 
     @Test @MainActor func testWhatsNewDismissalMarksSeenAndSuppressesRepeatAutoPresentation() {
@@ -66,6 +67,7 @@ struct WhatsNewAndRefreshTests {
 
         #expect(defaults.string(forKey: .lastSeenWhatsNewVersion) == entry.version)
         #expect(firstController.presentedEntry == nil)
+        #expect(firstController.presentationSource == nil)
 
         let secondController = makeWhatsNewController(
             defaults: defaults,
@@ -118,11 +120,32 @@ struct WhatsNewAndRefreshTests {
         )
 
         controller.presentIfNeeded(allowsAutoPresentation: true)
+        // An automatic presentation shows only in the first window that claims it.
+        #expect(controller.presentedEntry(forSceneIdentifier: "window-a") == nil)
+        controller.claimPresentation(forSceneIdentifier: "window-a")
+        controller.claimPresentation(forSceneIdentifier: "window-b")
+        #expect(controller.presentedEntry(forSceneIdentifier: "window-a")?.version == entry.version)
+        #expect(controller.presentedEntry(forSceneIdentifier: "window-b") == nil)
         controller.dismissPresentedEntry()
-        controller.presentCurrentEntry()
+        controller.presentCurrentEntry(inSceneIdentifier: "window-b")
 
         #expect(controller.currentEntry?.version == entry.version)
-        #expect(controller.presentedEntry?.version == entry.version)
+        #expect(controller.presentedEntry(forSceneIdentifier: "window-b")?.version == entry.version)
+        #expect(controller.presentedEntry(forSceneIdentifier: "window-a") == nil)
+        #expect(controller.presentationSource == .settings)
+    }
+
+    @Test func testWhatsNewPastEntriesAreNewestFirstAndExcludeCurrentVersion() {
+        let entries = WhatsNewRegistry.pastEntries(before: "1.97")
+
+        #expect(entries.first?.version == "1.96")
+        #expect(entries.last?.version == "1.54")
+        #expect(!entries.contains { $0.version == "1.97" })
+        #expect(
+            zip(entries, entries.dropFirst()).allSatisfy { current, next in
+                current.version.compare(next.version, options: .numeric) == .orderedDescending
+            }
+        )
     }
 
     @Test @MainActor func testWhatsNewRefreshMetadataActionUsesSettingsRefreshPath() {

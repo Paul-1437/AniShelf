@@ -242,7 +242,8 @@ extension InfoFetcher {
             ),
             genreIDs: movie.genres?.map(\.id) ?? [],
             voteAverage: movie.voteAverage,
-            runtimeMinutes: movie.runtime,
+            runtimeMinutes: Self.runtimeMinutes(from: movie.runtime),
+            productionCompanies: Self.productionCompanyDTOs(from: movie.productionCompanies),
             characters: credits.cast.prefix(12).map {
                 AnimeEntryCharacterDTO(
                     id: $0.id,

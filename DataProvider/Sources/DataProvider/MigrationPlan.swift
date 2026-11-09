@@ -35,7 +35,9 @@ enum MigrationPlan: SchemaMigrationPlan {
             SchemaV2_7_7.self,
             SchemaV2_7_8.self,
             SchemaV2_7_9.self,
-            SchemaV2_8_0.self
+            SchemaV2_8_0.self,
+            SchemaV2_8_1.self,
+            SchemaV2_8_2.self
         ]
     }
 
@@ -64,7 +66,9 @@ enum MigrationPlan: SchemaMigrationPlan {
             .lightweight(fromVersion: SchemaV2_7_6.self, toVersion: SchemaV2_7_7.self),
             .lightweight(fromVersion: SchemaV2_7_7.self, toVersion: SchemaV2_7_8.self),
             .lightweight(fromVersion: SchemaV2_7_8.self, toVersion: SchemaV2_7_9.self),
-            .migrateV279ToV280()
+            .migrateV279ToV280(),
+            .lightweight(fromVersion: SchemaV2_8_0.self, toVersion: SchemaV2_8_1.self),
+            .lightweight(fromVersion: SchemaV2_8_1.self, toVersion: SchemaV2_8_2.self)
         ]
     }
 }
@@ -90,7 +94,7 @@ extension MigrationStage {
         let dateFinished: Date?
     }
 
-    private final class MigrationState<Value: Sendable>: @unchecked Sendable {
+    final class MigrationState<Value: Sendable>: @unchecked Sendable {
         private let lock = NSLock()
         private var value: Value
 
@@ -238,78 +242,64 @@ extension MigrationStage {
     }
 
     static func migrateV273ToV274() -> MigrationStage {
-        let snapshots = MigrationState<[AnimeEntryMigrationDTO]>([])
-
-        return MigrationStage.custom(
+        MigrationStage.custom(
             fromVersion: SchemaV2_7_3.self,
             toVersion: SchemaV2_7_4.self,
             willMigrate: { context in
-                snapshots.set(
-                    try Self.captureAndDeleteEntries(in: context) {
-                        (index: Int, entry: SchemaV2_7_3.AnimeEntry) in
-                        entry.migrationDTO(index: index)
-                    })
-            },
-            didMigrate: { context in
-                let migratedSnapshots = snapshots.get()
-                let cleanupPlan = Self.parentSeriesCleanupPlan(from: migratedSnapshots)
-                try Self.rebuildEntries(
-                    from: migratedSnapshots,
-                    in: context,
-                    include: { snapshot in
-                        cleanupPlan.discardedParentOldIDs.contains(snapshot.oldID) == false
-                    },
-                    makeEntry: { snapshot in
-                        SchemaV2_7_4.AnimeEntry(
-                            migrationDTO: snapshot,
-                            detail: snapshot.detail.map(SchemaV2_7_4.AnimeEntryDetail.init(from:)),
-                            watchStatus: .init(snapshot.watchStatus)
-                        )
-                    },
-                    setParent: { entry, parentEntry in
-                        entry.parentSeriesEntry = parentEntry
-                    },
-                    resolveParentOldID: { snapshot in
-                        Self.resolvedParentOldID(for: snapshot, cleanupPlan: cleanupPlan)
-                    }
+                let entries = try context.fetch(FetchDescriptor<SchemaV2_7_3.AnimeEntry>())
+                let snapshots = entries.enumerated().map {
+                    $0.element.parentSeriesCleanupSnapshot(index: $0.offset)
+                }
+                let cleanupPlan = Self.parentSeriesCleanupPlan(from: snapshots)
+                let entriesByID = Dictionary(
+                    uniqueKeysWithValues:
+                        entries
+                        .filter { !cleanupPlan.discardedParentOldIDs.contains($0.persistentModelID) }
+                        .map { ($0.persistentModelID, $0) }
                 )
-            }
+
+                // Relink survivors before deleting parents. Keep the existing detail graph
+                // and let SwiftData migrate the added optional marker normally.
+                for snapshot in snapshots
+                where !cleanupPlan.discardedParentOldIDs.contains(snapshot.oldID) {
+                    let parentID = Self.resolvedParentOldID(for: snapshot, cleanupPlan: cleanupPlan)
+                    let parent = parentID.flatMap { entriesByID[$0] }
+                    if snapshot.parentSeriesOldID != parent?.persistentModelID {
+                        entriesByID[snapshot.oldID]?.parentSeriesEntry = parent
+                    }
+                }
+                for entry in entries
+                where cleanupPlan.discardedParentOldIDs.contains(entry.persistentModelID) {
+                    context.delete(entry)
+                }
+                if context.hasChanges {
+                    try context.save()
+                }
+            },
+            didMigrate: nil
         )
     }
 
     static func migrateV279ToV280() -> MigrationStage {
-        let snapshots = MigrationState<[AnimeEntryMigrationDTO]>([])
+        let imagePaths = MigrationState(ImagePathMigrationSnapshotV2_7_9.empty)
 
         return MigrationStage.custom(
             fromVersion: SchemaV2_7_9.self,
             toVersion: SchemaV2_8_0.self,
             willMigrate: { context in
-                snapshots.set(
-                    try Self.captureAndDeleteEntries(in: context) {
-                        (index: Int, entry: SchemaV2_7_9.AnimeEntry) in
-                        entry.migrationDTO(index: index)
-                    })
+                imagePaths.set(try SchemaV2_7_9.imagePathMigrationSnapshot(in: context))
             },
             didMigrate: { context in
-                try Self.rebuildEntries(
-                    from: snapshots.get(),
-                    in: context,
-                    makeEntry: { snapshot in
-                        SchemaV2_8_0.AnimeEntry(
-                            migrationDTO: snapshot,
-                            detail: snapshot.detail.map(SchemaV2_8_0.AnimeEntryDetail.init(from:)),
-                            watchStatus: .init(snapshot.watchStatus)
-                        )
-                    },
-                    setParent: { entry, parentEntry in
-                        entry.parentSeriesEntry = parentEntry
-                    }
+                try SchemaV2_8_0.applyImagePathMigrationSnapshot(
+                    imagePaths.get(),
+                    in: context
                 )
+                imagePaths.set(.empty)
             }
         )
     }
 
-    private static func captureAndDeleteEntries<Entry: PersistentModel>(
+    static func captureAndDeleteEntries<Entry: PersistentModel>(
         in context: ModelContext,
         map: (Int, Entry) -> AnimeEntryMigrationDTO
     ) throws -> [AnimeEntryMigrationDTO] {
@@ -326,7 +316,7 @@ extension MigrationStage {
         return snapshots
     }
 
-    private static func rebuildEntries<Entry: PersistentModel>(
+    static func rebuildEntries<Entry: PersistentModel>(
         from snapshots: [AnimeEntryMigrationDTO],
         in context: ModelContext,
         include: (AnimeEntryMigrationDTO) -> Bool = { _ in true },
@@ -359,7 +349,7 @@ extension MigrationStage {
     }
 
     private static func parentSeriesCleanupPlan(
-        from snapshots: [AnimeEntryMigrationDTO]
+        from snapshots: [ParentSeriesCleanupSnapshotV2_7_3]
     ) -> ParentSeriesCleanupPlan {
         let rootSeriesSnapshots = snapshots.filter(\.isRootSeriesEntry)
         let referencedChildCountByOldID = snapshots.reduce(into: [PersistentIdentifier: Int]()) {
@@ -419,10 +409,10 @@ extension MigrationStage {
     }
 
     private static func bestParentSeriesSnapshot(
-        from candidates: [AnimeEntryMigrationDTO],
+        from candidates: [ParentSeriesCleanupSnapshotV2_7_3],
         referencedChildCountByOldID: [PersistentIdentifier: Int]
-    ) -> AnimeEntryMigrationDTO? {
-        candidates.sorted { lhs, rhs in
+    ) -> ParentSeriesCleanupSnapshotV2_7_3? {
+        candidates.min { lhs, rhs in
             if lhs.onDisplay != rhs.onDisplay {
                 return lhs.onDisplay && !rhs.onDisplay
             }
@@ -446,11 +436,11 @@ extension MigrationStage {
             }
 
             return lhs.originalIndex < rhs.originalIndex
-        }.first
+        }
     }
 
     private static func resolvedParentOldID(
-        for snapshot: AnimeEntryMigrationDTO,
+        for snapshot: ParentSeriesCleanupSnapshotV2_7_3,
         cleanupPlan: ParentSeriesCleanupPlan
     ) -> PersistentIdentifier? {
         guard let parentSeriesID = snapshot.parentSeriesID else {

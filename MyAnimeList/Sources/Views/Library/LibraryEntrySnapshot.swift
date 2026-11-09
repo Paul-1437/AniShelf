@@ -6,7 +6,7 @@ struct LibraryEntryDisplayItem: Identifiable {
     let entry: AnimeEntry
     let snapshot: LibraryEntrySnapshot
 
-    var id: Int { snapshot.id }
+    var id: LibraryEntryIdentity { snapshot.id }
 
     init(entry: AnimeEntry) {
         self.entry = entry
@@ -15,13 +15,15 @@ struct LibraryEntryDisplayItem: Identifiable {
 }
 
 struct LibraryEntrySnapshot: Identifiable, Equatable {
-    let id: Int
+    let id: LibraryEntryIdentity
     private let posterPath: String?
     let title: String
     let overview: String?
     let primaryMetadata: [String]
     let secondaryMetadata: String?
     let watchStatus: AnimeEntry.WatchStatus
+    let isRewatching: Bool
+    let rewatchCount: Int
     let score: Int?
     let isFavorite: Bool
     let episodeProgressLabel: String?
@@ -32,13 +34,15 @@ struct LibraryEntrySnapshot: Identifiable, Equatable {
     init(entry: AnimeEntry) {
         let episodeProgress = Self.episodeProgressDisplay(for: entry)
 
-        id = entry.tmdbID
+        id = entry.libraryIdentity
         posterPath = entry.selectedPosterPath
         title = entry.displayName
         overview = Self.cleanOverview(entry.displayOverview)
         primaryMetadata = Self.primaryMetadata(for: entry)
         secondaryMetadata = Self.secondaryMetadata(for: entry)
         watchStatus = entry.watchStatus
+        isRewatching = entry.isRewatching
+        rewatchCount = entry.rewatchCount
         score = entry.score
         isFavorite = entry.favorite
         episodeProgressLabel = episodeProgress.label

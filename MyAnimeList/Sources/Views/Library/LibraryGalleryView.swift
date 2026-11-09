@@ -13,11 +13,19 @@ struct LibraryGalleryView: View {
     @Environment(LibraryStore.self) private var store
     @Environment(LibraryEntryInteractionState.self) var interaction
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Binding var scrolledID: Int?
-    @State private var localScrolledID: Int?
+    @Binding var scrolledID: LibraryEntryIdentity?
+    let scrollRequest: LibraryScrollRequest?
+    let detailActions: LibraryEntryDetailActions
+    @State private var localScrolledID: LibraryEntryIdentity?
 
-    init(scrolledID: Binding<Int?>) {
+    init(
+        scrolledID: Binding<LibraryEntryIdentity?>,
+        scrollRequest: LibraryScrollRequest?,
+        detailActions: LibraryEntryDetailActions
+    ) {
         self._scrolledID = scrolledID
+        self.scrollRequest = scrollRequest
+        self.detailActions = detailActions
         self._localScrolledID = State(initialValue: scrolledID.wrappedValue)
     }
 
@@ -76,7 +84,9 @@ struct LibraryGalleryView: View {
                     AnimeEntryCardWrapper(
                         entry: item.entry,
                         snapshot: item.snapshot,
-                        scrolledID: $scrolledID
+                        scrolledID: $scrolledID,
+                        detailActions: detailActions,
+                        onToggleFavorite: toggleFavorite
                     )
                     .frame(width: itemWidth, height: height)
                 }
@@ -109,9 +119,9 @@ struct LibraryGalleryView: View {
             else { return }
             interaction.focus(entry)
         }
-        .onChange(of: scrolledID) {
-            guard localScrolledID != scrolledID else { return }
-            localScrolledID = scrolledID
+        .onChange(of: scrollRequest) {
+            guard localScrolledID != scrollRequest?.entryID else { return }
+            localScrolledID = scrollRequest?.entryID
         }
         .onScrollPhaseChange { _, newPhase in
             if !newPhase.isScrolling {
@@ -132,16 +142,20 @@ struct LibraryGalleryView: View {
         "The library is empty."
     }
 
+    private func toggleFavorite(_ entry: AnimeEntry) {
+        store.repository.toggleFavorite(entry)
+    }
+
 }
 
 fileprivate struct AnimeEntryCardWrapper: View {
     var entry: AnimeEntry
     var snapshot: LibraryEntrySnapshot
-    @Binding var scrolledID: Int?
+    @Binding var scrolledID: LibraryEntryIdentity?
+    let detailActions: LibraryEntryDetailActions
+    let onToggleFavorite: (AnimeEntry) -> Void
 
     @Environment(LibraryEntryInteractionState.self) private var interaction
-    @Environment(\.libraryEntryOpenDetailAction) private var openDetailAction
-    @Environment(\.libraryEntryEditAction) private var editAction
     @State private var imageLoaded: Bool = false
 
     var body: some View {
@@ -156,6 +170,7 @@ fileprivate struct AnimeEntryCardWrapper: View {
                     openDetails()
                     scrolledID = snapshot.id
                 },
+                onToggleFavorite: onToggleFavorite,
                 imageLoaded: $imageLoaded
             )
             .contextMenu {
@@ -184,18 +199,10 @@ fileprivate struct AnimeEntryCardWrapper: View {
     }
 
     private func openDetails() {
-        if let openDetailAction {
-            openDetailAction(entry)
-        } else {
-            interaction.openDetails(for: entry)
-        }
+        detailActions.open(entry)
     }
 
     private func editEntry(_ entry: AnimeEntry) {
-        if let editAction {
-            editAction(entry)
-        } else {
-            interaction.setEditingEntry(entry)
-        }
+        detailActions.edit(entry)
     }
 }

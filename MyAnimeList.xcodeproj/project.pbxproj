@@ -53,18 +53,34 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Resources/Info.plist,
+				Tests/MyAnimeListTests/AiringReminderManagerTests.swift,
+				Tests/MyAnimeListTests/AnimeSharingTests.swift,
+				Tests/MyAnimeListTests/AppLifecycleEventGateTests.swift,
 				Tests/MyAnimeListTests/AppReviewPromptControllerTests.swift,
+				Tests/MyAnimeListTests/EntryDetailBroadcastModelTests.swift,
 				Tests/MyAnimeListTests/EntryDetailSessionTests.swift,
 				Tests/MyAnimeListTests/EntryDetailViewModelTests.swift,
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+EpisodePresentation.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+EpisodePreview.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+Loading.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+SeasonEpisodes.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+Staff.swift",
+				Tests/MyAnimeListTests/EntryDetailViewModelTestSupport.swift,
 				Tests/MyAnimeListTests/InfoFetcherLiveFetchTests.swift,
 				Tests/MyAnimeListTests/InfoFetcherMetadataMappingTests.swift,
 				Tests/MyAnimeListTests/LibraryBackupRestoreTests.swift,
 				Tests/MyAnimeListTests/LibraryCloudSyncPreferencesTests.swift,
 				Tests/MyAnimeListTests/LibraryEntryInteractionStateTests.swift,
 				Tests/MyAnimeListTests/LibraryExportManagerTests.swift,
-				Tests/MyAnimeListTests/LibraryMetadataRefreshTests.swift,
-				Tests/MyAnimeListTests/LibraryPreferenceDefaultsTests.swift,
 				Tests/MyAnimeListTests/LibraryGalleryLayoutPolicyTests.swift,
+				Tests/MyAnimeListTests/LibraryMetadataRefreshTests.swift,
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+DetailComparison.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+ImageCache.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+Refresh.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+Search.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+Writer.swift",
+				Tests/MyAnimeListTests/LibraryMetadataRefreshTestSupport.swift,
+				Tests/MyAnimeListTests/LibraryPreferenceDefaultsTests.swift,
 				Tests/MyAnimeListTests/LibraryProfileSettingsLayoutPolicyTests.swift,
 				Tests/MyAnimeListTests/LibraryRelationshipAndConversionTests.swift,
 				Tests/MyAnimeListTests/LibrarySortingAndDeletionTests.swift,
@@ -73,6 +89,7 @@
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Export.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+OrdinarySync.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+RemoteChanges.swift",
+				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Restoration.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Scheduler.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Settings.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Status.swift",
@@ -83,7 +100,15 @@
 				Tests/MyAnimeListTests/SupportStoreTests.swift,
 				Tests/MyAnimeListTests/TMDbAPIKeyStorageTests.swift,
 				Tests/MyAnimeListTests/TMDbImageAndTranslationTests.swift,
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+ImageSelection.swift",
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+ImageURLResolution.swift",
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+SVG.swift",
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+Translations.swift",
 				Tests/MyAnimeListTests/TMDbSearchServiceBatchTests.swift,
+				Tests/MyAnimeListTests/TVMazeClientTests.swift,
+				Tests/MyAnimeListTests/TVMazeConfirmedMappingStoreTests.swift,
+				Tests/MyAnimeListTests/TVMazeModelsTests.swift,
+				Tests/MyAnimeListTests/TVMazeResolverTests.swift,
 				Tests/MyAnimeListTests/UserEntryInfoAndLibraryStatsTests.swift,
 				Tests/MyAnimeListTests/WhatsNewAndRefreshTests.swift,
 				Tests/MyAnimeListUITests/MyAnimeListUITests.swift,
@@ -94,18 +119,34 @@
 		9F93FC182DE1FD800071FB56 /* Exceptions for "MyAnimeList" folder in "MyAnimeListTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Tests/MyAnimeListTests/AiringReminderManagerTests.swift,
+				Tests/MyAnimeListTests/AnimeSharingTests.swift,
+				Tests/MyAnimeListTests/AppLifecycleEventGateTests.swift,
 				Tests/MyAnimeListTests/AppReviewPromptControllerTests.swift,
+				Tests/MyAnimeListTests/EntryDetailBroadcastModelTests.swift,
 				Tests/MyAnimeListTests/EntryDetailSessionTests.swift,
 				Tests/MyAnimeListTests/EntryDetailViewModelTests.swift,
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+EpisodePresentation.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+EpisodePreview.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+Loading.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+SeasonEpisodes.swift",
+				"Tests/MyAnimeListTests/EntryDetailViewModelTests+Staff.swift",
+				Tests/MyAnimeListTests/EntryDetailViewModelTestSupport.swift,
 				Tests/MyAnimeListTests/InfoFetcherLiveFetchTests.swift,
 				Tests/MyAnimeListTests/InfoFetcherMetadataMappingTests.swift,
 				Tests/MyAnimeListTests/LibraryBackupRestoreTests.swift,
 				Tests/MyAnimeListTests/LibraryCloudSyncPreferencesTests.swift,
 				Tests/MyAnimeListTests/LibraryEntryInteractionStateTests.swift,
 				Tests/MyAnimeListTests/LibraryExportManagerTests.swift,
-				Tests/MyAnimeListTests/LibraryMetadataRefreshTests.swift,
-				Tests/MyAnimeListTests/LibraryPreferenceDefaultsTests.swift,
 				Tests/MyAnimeListTests/LibraryGalleryLayoutPolicyTests.swift,
+				Tests/MyAnimeListTests/LibraryMetadataRefreshTests.swift,
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+DetailComparison.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+ImageCache.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+Refresh.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+Search.swift",
+				"Tests/MyAnimeListTests/LibraryMetadataRefreshTests+Writer.swift",
+				Tests/MyAnimeListTests/LibraryMetadataRefreshTestSupport.swift,
+				Tests/MyAnimeListTests/LibraryPreferenceDefaultsTests.swift,
 				Tests/MyAnimeListTests/LibraryProfileSettingsLayoutPolicyTests.swift,
 				Tests/MyAnimeListTests/LibraryRelationshipAndConversionTests.swift,
 				Tests/MyAnimeListTests/LibrarySortingAndDeletionTests.swift,
@@ -114,6 +155,7 @@
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Export.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+OrdinarySync.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+RemoteChanges.swift",
+				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Restoration.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Scheduler.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Settings.swift",
 				"Tests/MyAnimeListTests/LibrarySyncCoordinatorTests+Status.swift",
@@ -124,7 +166,15 @@
 				Tests/MyAnimeListTests/SupportStoreTests.swift,
 				Tests/MyAnimeListTests/TMDbAPIKeyStorageTests.swift,
 				Tests/MyAnimeListTests/TMDbImageAndTranslationTests.swift,
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+ImageSelection.swift",
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+ImageURLResolution.swift",
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+SVG.swift",
+				"Tests/MyAnimeListTests/TMDbImageAndTranslationTests+Translations.swift",
 				Tests/MyAnimeListTests/TMDbSearchServiceBatchTests.swift,
+				Tests/MyAnimeListTests/TVMazeClientTests.swift,
+				Tests/MyAnimeListTests/TVMazeConfirmedMappingStoreTests.swift,
+				Tests/MyAnimeListTests/TVMazeModelsTests.swift,
+				Tests/MyAnimeListTests/TVMazeResolverTests.swift,
 				Tests/MyAnimeListTests/UserEntryInfoAndLibraryStatsTests.swift,
 				Tests/MyAnimeListTests/WhatsNewAndRefreshTests.swift,
 			);
@@ -558,6 +608,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save posters and Anime Sharing Cards into Photos. ";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -568,7 +619,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.96;
+				MARKETING_VERSION = 1.102.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.samuelhe.MyAnimeList;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -599,6 +650,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save posters and Anime Sharing Cards into Photos. ";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -609,7 +661,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.96;
+				MARKETING_VERSION = 1.102.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.samuelhe.MyAnimeList;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -757,7 +809,7 @@
 		};
 		9F720B872E584AD400C23949 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
+			repositoryURL = "https://github.com/samuelhe52/ZIPFoundation";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 0.9.19;
@@ -767,13 +819,13 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/adamayoung/TMDb";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = upToNextMajorVersion;
+				minimumVersion = 19.0.0;
 			};
 		};
 		9FB6FEEF2D8FCE5A00B423D0 /* XCRemoteSwiftPackageReference "Kingfisher" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/onevcat/Kingfisher";
+			repositoryURL = "https://github.com/samuelhe52/Kingfisher";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 8.3.1;

@@ -133,14 +133,8 @@ extension AnimeEntry {
         guard let seasonNumber = progressWritableSeasonNumber(requestedSeasonNumber) else { return }
         let episode = clampedEpisodeProgress(requestedEpisode, seasonNumber: seasonNumber)
 
-        if episode <= 0 {
-            for progress in episodeProgresses where progress.seasonNumber == seasonNumber {
-                modelContext?.delete(progress)
-            }
-            episodeProgresses.removeAll { $0.seasonNumber == seasonNumber }
-            return
-        }
-
+        // Zero progress keeps its row so the reset carries a clock that can
+        // win sync merges against older positive progress from other devices.
         if let progress = episodeProgress(forSeason: seasonNumber) {
             progress.watchedThroughEpisode = episode
             progress.updatedAt = updatedAt
@@ -166,10 +160,15 @@ extension AnimeEntry {
         let currentEpisode = episodeProgress(forSeason: seasonNumber)?.watchedThroughEpisode ?? 0
         guard currentEpisode != episode else { return false }
 
+        let progressClock = LibrarySyncTimestamp.next(
+            date,
+            after: episodeProgress(forSeason: seasonNumber)?.updatedAt
+        )
+
         applyEpisodeProgressSnapshot(
             seasonNumber: seasonNumber,
             watchedThroughEpisode: episode,
-            updatedAt: date
+            updatedAt: progressClock
         )
         markTrackingModified(at: date)
         return true

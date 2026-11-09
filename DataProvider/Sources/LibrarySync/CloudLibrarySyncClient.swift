@@ -19,7 +19,7 @@ fileprivate let cloudLibrarySyncLogger = Logger(
 ///
 /// `CloudLibrarySyncClient` owns the stable CloudKit schema constants and the
 /// validation rules that keep record names, entry types, and season identifiers
-/// aligned with `LibraryEntrySyncIdentity`.
+/// aligned with `LibraryEntryIdentity`.
 public struct CloudLibrarySyncClient: @unchecked Sendable {
     public static let defaultContainerIdentifier = "iCloud.com.samuelhe.MyAnimeList"
     public static let zoneName = "AniShelfLibrary"
@@ -54,7 +54,7 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
     }
 
     /// Returns the CloudKit record ID for a sync identity in AniShelf's library zone.
-    public func recordID(for identity: LibraryEntrySyncIdentity) -> CKRecord.ID {
+    public func recordID(for identity: LibraryEntryIdentity) -> CKRecord.ID {
         CKRecord.ID(recordName: identity.rawID, zoneID: Self.recordZoneID)
     }
 
@@ -129,6 +129,8 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
         // decode it via `customPosterURL`. Drop this once the old build is retired.
         record[Field.customPosterURL] = TMDbImagePath.fullURL(for: customPosterPath)?.absoluteString
         record[Field.episodeProgresses] = try Self.encodeEpisodeProgresses(snapshot.episodeProgresses)
+        record[Field.isRewatching] = snapshot.isRewatching
+        record[Field.rewatchCount] = snapshot.rewatchCount
         record[Field.libraryUpdatedAt] = snapshot.libraryUpdatedAt
         record[Field.trackingUpdatedAt] = snapshot.trackingUpdatedAt
         record[Field.deletedAt] = nil
@@ -171,6 +173,8 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
         record[Field.customPosterPath] = nil
         record[Field.customPosterURL] = nil
         record[Field.episodeProgresses] = nil
+        record[Field.isRewatching] = nil
+        record[Field.rewatchCount] = nil
         record[Field.libraryUpdatedAt] = nil
         record[Field.trackingUpdatedAt] = nil
         cloudLibrarySyncLogger.debug(
@@ -331,6 +335,9 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
         let usingCustomPoster: Bool = try Self.requiredValue(for: Field.usingCustomPoster, in: record)
         let customPosterPath = try Self.customPosterPath(from: record)
         let episodeProgressData: Data = try Self.requiredValue(for: Field.episodeProgresses, in: record)
+        // Records written before rewatch tracking omit these fields.
+        let isRewatching: Bool = try Self.optionalValue(for: Field.isRewatching, in: record) ?? false
+        let rewatchCount: Int = try Self.optionalValue(for: Field.rewatchCount, in: record) ?? 0
         let libraryUpdatedAt: Date? = try Self.optionalValue(for: Field.libraryUpdatedAt, in: record)
         let trackingUpdatedAt: Date? = try Self.optionalValue(for: Field.trackingUpdatedAt, in: record)
 
@@ -353,6 +360,8 @@ public struct CloudLibrarySyncClient: @unchecked Sendable {
             usingCustomPoster: usingCustomPoster,
             customPosterPath: customPosterPath,
             episodeProgresses: Self.decodeEpisodeProgresses(episodeProgressData),
+            isRewatching: isRewatching,
+            rewatchCount: rewatchCount,
             libraryUpdatedAt: libraryUpdatedAt,
             trackingUpdatedAt: trackingUpdatedAt
         )
@@ -471,6 +480,8 @@ extension CloudLibrarySyncClient {
         fileprivate static let customPosterPath = "customPosterPath"
         fileprivate static let customPosterURL = "customPosterURL"
         fileprivate static let episodeProgresses = "episodeProgresses"
+        fileprivate static let isRewatching = "isRewatching"
+        fileprivate static let rewatchCount = "rewatchCount"
         fileprivate static let libraryUpdatedAt = "libraryUpdatedAt"
         fileprivate static let trackingUpdatedAt = "trackingUpdatedAt"
         fileprivate static let deletedAt = "deletedAt"
@@ -541,14 +552,14 @@ extension CloudLibrarySyncClient {
         tmdbID: Int,
         parentSeriesID: Int?,
         seasonNumber: Int?
-    ) throws -> LibraryEntrySyncIdentity {
+    ) throws -> LibraryEntryIdentity {
         let entryType = try entryType(
             recordName: recordName,
             entryTypeValue: entryTypeValue,
             parentSeriesID: parentSeriesID,
             seasonNumber: seasonNumber
         )
-        let identity = LibraryEntrySyncIdentity(entryType: entryType, tmdbID: tmdbID)
+        let identity = LibraryEntryIdentity(entryType: entryType, tmdbID: tmdbID)
         guard identity.rawID == recordName else {
             throw CloudLibrarySyncDecodeError.invalidIdentityCombination(recordName: recordName)
         }

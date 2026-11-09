@@ -49,10 +49,10 @@ extension LibrarySyncCoordinatorTests {
         #expect(store.preferences.load().cloudSyncStatus.lastSuccessfulSyncDate != nil)
         #expect(database.savedRecords.count == 2)
         let savedEntryRecord = try #require(
-            database.savedRecords.first { $0.recordID == client.recordID(for: entry.syncIdentity) }
+            database.savedRecords.first { $0.recordID == client.recordID(for: entry.libraryIdentity) }
         )
         let savedSnapshot = try savedSnapshot(from: savedEntryRecord, client: client)
-        #expect(savedSnapshot.identity == entry.syncIdentity)
+        #expect(savedSnapshot.identity == entry.libraryIdentity)
         let savedSettingsRecord = try #require(
             database.savedRecords.first { $0.recordID == client.librarySettingsRecordID }
         )
@@ -86,7 +86,7 @@ extension LibrarySyncCoordinatorTests {
 
         let client = CloudLibrarySyncClient()
         let remoteSnapshot = makeSnapshot(
-            identity: entry.syncIdentity,
+            identity: entry.libraryIdentity,
             tmdbID: entry.tmdbID,
             notes: "Remote notes",
             trackingUpdatedAt: referenceDate(year: 2026, month: 5, day: 2)
@@ -262,7 +262,130 @@ extension LibrarySyncCoordinatorTests {
 
         #expect(!succeeded)
         #expect(!store.libraryCloudSyncStatus.isEnabled)
+        // A deliberate cancel must return without recording an outcome, leaving
+        // the reset the cancel itself performed intact. If the bootstrap ever
+        // stops distinguishing its own cancellation sentinel from an ambient
+        // `CancellationError`, this lands on `.failed` with a reason instead.
         #expect(store.libraryCloudSyncStatus.bootstrapState == .notStarted)
+        #expect(store.libraryCloudSyncStatus.lastResult == .skipped)
+        #expect(store.libraryCloudSyncStatus.lastFailureReason == nil)
         #expect(database.savedRecords.isEmpty)
     }
+
+    @Test @MainActor func backgroundExpirationMakesBootstrapRetryableInSameProcess() async throws {
+        let store = makeStore(
+            enabled: false,
+            bootstrapState: .notStarted,
+            hasTMDbAPIKey: true
+        )
+        let database = FakeCloudLibrarySyncDatabase(
+            changes: [makeEmptyChangeBatch(), makeEmptyChangeBatch()]
+        )
+        database.suspendNextFetch = true
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(),
+            database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+
+        let bootstrapTask = Task {
+            await store.bootstrapLibraryCloudSyncEnablement()
+        }
+        while !database.isFetchSuspended {
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+
+        store.cancelLibrarySyncForBackgroundExpiration()
+
+        #expect(store.libraryCloudSyncStatus.isEnabled)
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .notStarted)
+        #expect(store.libraryCloudSyncStatus.currentPhase == nil)
+        #expect(store.libraryCloudSyncStatus.lastResult == nil)
+        #expect(!store.libraryCloudSyncStatus.isSyncInProgress)
+
+        database.resumeSuspendedFetch()
+        let cancelledResult = await bootstrapTask.value
+        let retryResult = await store.performLibrarySyncResult(trigger: .foreground)
+
+        #expect(cancelledResult == .skipped(.disabled))
+        #expect(retryResult == .success)
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .completed)
+    }
+
+    @Test @MainActor func reenableStartsFreshBootstrapAfterCanceledPassDrains() async throws {
+        let store = makeStore(enabled: true, bootstrapState: .notStarted, hasTMDbAPIKey: true)
+        let database = FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch(), makeEmptyChangeBatch()])
+        database.suspendNextFetch = true
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(), database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+        let initial = Task { await store.performLibrarySyncResult(trigger: .appLaunch) }
+        while !database.isFetchSuspended { await Task.yield() }
+        store.disableLibraryCloudSync()
+        let reenable = Task { await store.enableLibraryCloudSync() }
+        while !store.libraryCloudSyncStatus.isEnabled { await Task.yield() }
+        #expect(database.ensureZoneCallCount == 1)
+        database.resumeSuspendedFetch()
+        #expect(await initial.value == .skipped(.disabled))
+        #expect(await reenable.value)
+        #expect(database.ensureZoneCallCount == 2)
+        #expect(database.fetchedChangeTokens.count == 2)
+        #expect(database.fetchedChangeTokens.allSatisfy { $0 == nil })
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .completed)
+    }
+
+    @Test @MainActor func disablingStalledPreparationReleasesBootstrapWithoutCallback() async throws {
+        let store = makeStore(enabled: true, bootstrapState: .notStarted, hasTMDbAPIKey: true)
+        let database = FakeCloudLibrarySyncDatabase(changes: [])
+        let operation = CKFetchRecordZonesOperation(recordZoneIDs: [])
+        let pending = CloudLibrarySyncOperation(operation)
+        let (started, signal) = AsyncStream<Void>.makeStream()
+        database.prepare = {
+            try await pending.run {
+                signal.yield(())
+                signal.finish()
+            }
+        }
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(), database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+        let initial = Task { await store.performLibrarySyncResult(trigger: .appLaunch) }
+        for await _ in started { break }
+        store.disableLibraryCloudSync()
+        #expect(await initial.value == .skipped(.disabled))
+        #expect(operation.isCancelled)
+        #expect(!store.libraryCloudSyncStatus.isEnabled)
+        #expect(!store.libraryCloudSyncStatus.isSyncInProgress)
+        #expect(database.fetchedChangeTokens.isEmpty)
+    }
+
+    @Test @MainActor func preparationTimeoutLeavesRetryableSetupFailure() async throws {
+        let store = makeStore(enabled: true, bootstrapState: .notStarted, hasTMDbAPIKey: true)
+        let database = FakeCloudLibrarySyncDatabase(changes: [])
+        database.prepare = {
+            let operation = CKFetchRecordZonesOperation(recordZoneIDs: [])
+            let pending = CloudLibrarySyncOperation(operation)
+            try await pending.run(timeout: 0.01, start: {})
+        }
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(), database: database,
+            namespaceProvider: { makeNamespace() }
+        )
+        #expect(await store.performLibrarySyncResult(trigger: .appLaunch) == .retryableFailure)
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .failed)
+        #expect(store.libraryCloudSyncStatus.lastFailurePhase == .prepareZoneSubscription)
+        #expect(!store.libraryCloudSyncStatus.isSyncInProgress)
+        database.prepare = nil
+        // Reconfigure only the fake remote data; retain the failed store status.
+        store.configureLibrarySyncCoordinator(
+            client: CloudLibrarySyncClient(),
+            database: FakeCloudLibrarySyncDatabase(changes: [makeEmptyChangeBatch()]),
+            namespaceProvider: { makeNamespace() }
+        )
+        #expect(await store.retryLibraryCloudSync())
+        #expect(store.libraryCloudSyncStatus.bootstrapState == .completed)
+    }
+
 }

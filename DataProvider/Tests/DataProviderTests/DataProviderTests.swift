@@ -3,6 +3,30 @@ import Testing
 
 @testable import DataProvider
 
+@Test func libraryIdentityLookupsDisambiguateTMDbIDCollisions() {
+    let movie = AnimeEntry(name: "Movie", type: .movie, tmdbID: 42)
+    let series = AnimeEntry(name: "Series", type: .series, tmdbID: 42)
+    let entries = [movie, series]
+
+    #expect(entries.entry(with: movie.libraryIdentity) === movie)
+    #expect(entries.entry(with: series.libraryIdentity) === series)
+}
+
+@Test func libraryIdentityReconstructsTypeFromRawID() throws {
+    let movie = try #require(LibraryEntryIdentity(rawID: "movie:11"))
+    let series = try #require(LibraryEntryIdentity(rawID: "series:22"))
+    let season = try #require(LibraryEntryIdentity(rawID: "season:22:3:33"))
+
+    #expect(movie.entryType == .movie)
+    #expect(movie.parentSeriesID == nil)
+    #expect(series.entryType == .series)
+    #expect(series.parentSeriesID == nil)
+    #expect(season.entryType == .season(seasonNumber: 3, parentSeriesID: 22))
+    #expect(season.parentSeriesID == 22)
+    #expect(season.tmdbID == 33)
+    #expect(LibraryEntryIdentity(rawID: "season:22:3") == nil)
+}
+
 @Test @MainActor func dataProviderCreatesMissingStoreParentDirectory() throws {
     let rootDirectory = FileManager.default.temporaryDirectory
         .appendingPathComponent("AniShelfTests-missing-store-parent-\(UUID().uuidString)", isDirectory: true)
@@ -218,6 +242,43 @@ fileprivate enum TestStartupError: Error {
     #expect(entry.dateFinished == referenceDate(day: 7))
 }
 
+@Test func finishingOnlyAMarkedRewatchCountsAnotherRewatch() async throws {
+    let entry = AnimeEntry.template()
+    entry.updateWatchStatus(.watched)
+
+    entry.updateWatchStatus(.watching)
+    #expect(!entry.isRewatching)
+    entry.updateWatchStatus(.watched)
+    #expect(entry.rewatchCount == 0)
+
+    entry.updateWatchStatus(.watching)
+    #expect(entry.updateRewatching(true))
+    entry.updateWatchStatus(.watched)
+    #expect(entry.rewatchCount == 1)
+    #expect(!entry.isRewatching)
+
+    entry.updateWatchStatus(.watching)
+    entry.updateRewatching(true)
+    entry.updateWatchStatus(.dropped)
+    #expect(entry.rewatchCount == 1)
+    #expect(!entry.isRewatching)
+    #expect(!entry.updateRewatching(true))
+}
+
+@Test func startRewatchMarksEntryAndClearsEpisodeProgress() async throws {
+    let entry = AnimeEntry(name: "Series", type: .series, tmdbID: 7_001)
+    entry.applyEpisodeProgressSnapshot(seasonNumber: 1, watchedThroughEpisode: 12)
+    entry.applyEpisodeProgressSnapshot(seasonNumber: 2, watchedThroughEpisode: 10)
+    entry.updateWatchStatus(.watched)
+    #expect(!entry.startRewatch())
+
+    entry.updateWatchStatus(.watching)
+    #expect(entry.startRewatch())
+
+    #expect(entry.isRewatching)
+    #expect(entry.episodeProgressSummaries.isEmpty)
+}
+
 @Test func entryDetailOrdersPersistedChildrenByDisplayOrder() async throws {
     let detail = AnimeEntryDetail(
         language: "en-US",
@@ -316,6 +377,75 @@ fileprivate enum TestStartupError: Error {
     #expect(detail.orderedEpisodes.map(\.id) == [2, 1])
 }
 
+@Test func productionCompanyRoundTripPreservesOrderAndNormalizesLogoPaths() async throws {
+    let detail = AnimeEntryDetail(
+        from: AnimeEntryDetailDTO(
+            language: "en-US",
+            title: "Production Detail",
+            productionCompanies: [
+                AnimeEntryProductionCompanyDTO(
+                    id: 30,
+                    name: "Third ID, First Company",
+                    logoPath: "logos/first.png"
+                ),
+                AnimeEntryProductionCompanyDTO(
+                    id: 10,
+                    name: "First ID, Second Company",
+                    logoPath: "/logos/second.svg"
+                )
+            ]
+        )
+    )
+
+    #expect(detail.orderedProductionCompanies.map(\.id) == [30, 10])
+    #expect(
+        detail.orderedProductionCompanies.map(\.logoPath) == [
+            "/logos/first.png", "/logos/second.svg"
+        ])
+    #expect(detail.snapshotDTO().productionCompanies.map(\.id) == [30, 10])
+    #expect(
+        detail.snapshotDTO().productionCompanies.map(\.logoPath) == [
+            "/logos/first.png", "/logos/second.svg"
+        ])
+}
+
+@Test @MainActor func applyingDetailReplacesAndDeletesOldProductionCompanies() throws {
+    let provider = DataProvider(inMemory: true)
+    let entry = AnimeEntry(
+        name: "Production Replacement",
+        type: .movie,
+        tmdbID: 808_101,
+        detail: AnimeEntryDetail(
+            from: AnimeEntryDetailDTO(
+                language: "en-US",
+                title: "Old",
+                productionCompanies: [
+                    AnimeEntryProductionCompanyDTO(id: 1, name: "Old Company")
+                ]
+            )
+        )
+    )
+    provider.sharedModelContainer.mainContext.insert(entry)
+    try provider.sharedModelContainer.mainContext.save()
+    let oldCompanyID = try #require(entry.detail?.orderedProductionCompanies.first?.persistentModelID)
+
+    entry.detail?.apply(
+        dto: AnimeEntryDetailDTO(
+            language: "en-US",
+            title: "New",
+            productionCompanies: [
+                AnimeEntryProductionCompanyDTO(id: 2, name: "New Company")
+            ]
+        )
+    )
+    try provider.sharedModelContainer.mainContext.save()
+
+    let companies = try provider.getAllModels(ofType: AnimeEntryProductionCompany.self)
+    #expect(companies.map(\.id) == [2])
+    #expect(companies.allSatisfy { $0.persistentModelID != oldCompanyID })
+    #expect(companies.first?.detail?.entry?.tmdbID == 808_101)
+}
+
 @Test func replaceDetailPersistsAggregateStaffJobs() async throws {
     let entry = AnimeEntry.template()
 
@@ -374,7 +504,9 @@ fileprivate enum TestStartupError: Error {
     #expect(entry.episodeProgressSummary(forSeason: 1).watchedThroughEpisode == 10)
 
     entry.clearEpisodeProgress(seasonNumber: 1)
-    #expect(entry.episodeProgresses.isEmpty)
+    #expect(entry.episodeProgressSummaries.isEmpty)
+    // Clearing keeps a zero row so the reset clock can win later sync merges.
+    #expect(entry.episodeProgresses.map(\.watchedThroughEpisode) == [0])
 }
 
 @Test func userEntryInfoRoundTripPreservesEpisodeProgress() async throws {

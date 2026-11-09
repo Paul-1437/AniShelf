@@ -5,7 +5,31 @@
 //  Created by OpenAI Codex on behalf of Samuel He on 2026/6/3.
 //
 
+import CloudKit
 import Foundation
+import LibrarySync
+
+struct LibraryCloudSyncScope: Codable, Equatable, Hashable {
+    static let privateDatabaseScope = "private"
+
+    var containerIdentifier: String
+    var accountIdentifier: String
+    var databaseScope: String
+    var zoneOwnerName: String
+    var zoneName: String
+
+    init(
+        namespace: CloudLibrarySyncChangeTokenStore.Namespace,
+        databaseScope: String = Self.privateDatabaseScope,
+        zoneID: CKRecordZone.ID = CloudLibrarySyncClient.recordZoneID
+    ) {
+        self.containerIdentifier = namespace.containerIdentifier
+        self.accountIdentifier = namespace.accountIdentifier
+        self.databaseScope = databaseScope
+        self.zoneOwnerName = zoneID.ownerName
+        self.zoneName = zoneID.zoneName
+    }
+}
 
 enum LibraryCloudSyncBootstrapState: String, Codable, Equatable {
     case notStarted
@@ -85,6 +109,32 @@ enum LibraryCloudSyncPhase: Codable, Equatable, RawRepresentable {
     }
 }
 
+/// Exact pipeline operation retained for failure diagnostics, separate from UI progress.
+enum LibraryCloudSyncOperation: String, Codable, Equatable {
+    case prepareZoneSubscription
+    case namespaceResolution
+    case remoteFetch
+    case conflictDetection
+    case dirtyQueueSeeding
+    case hydrationApply
+    case tokenCommit
+    case libraryRefresh
+    case dirtyQueueReconciliation
+    case export
+
+    var progressPhase: LibraryCloudSyncPhase {
+        switch self {
+        case .prepareZoneSubscription, .namespaceResolution:
+            .preparing
+        case .remoteFetch, .conflictDetection, .dirtyQueueSeeding, .hydrationApply,
+            .tokenCommit, .libraryRefresh, .dirtyQueueReconciliation:
+            .syncing
+        case .export:
+            .exporting
+        }
+    }
+}
+
 enum LibraryCloudSyncResultClass: String, Codable, Equatable {
     case success
     case skipped
@@ -105,6 +155,7 @@ enum LibraryCloudSyncPolicyBlockReason: String, Codable, Equatable {
     case disabled
     case bootstrapIncomplete
     case missingTMDbAPIKey
+    case duplicateRepairRequired
 }
 
 struct LibraryCloudSyncConflictSummary: Codable, Equatable {
@@ -152,8 +203,16 @@ struct LibraryCloudSyncStatus: Equatable {
     var lastAttemptDate: Date?
     var lastSuccessfulSyncDate: Date?
     var lastReconciledCloudSyncedSettingsUpdatedAt: Date?
+    var restoration: LibraryRestorationState?
+    var pendingReconstructions: [LibraryPendingReconstructionState]
+    var quarantinedRecordCount: Int
+    /// Queued changes CloudKit rejected during the last completed export.
+    var rejectedUploadCount: Int
+    var lastFailurePhase: LibraryCloudSyncOperation?
     var lastFailureReason: String?
+    var lastRetryAfterSeconds: TimeInterval?
     var degradedReason: String?
+    var lastCompletedScope: LibraryCloudSyncScope?
 
     static let defaultValue = LibraryCloudSyncStatus(
         isEnabled: false,
@@ -167,11 +226,26 @@ struct LibraryCloudSyncStatus: Equatable {
         lastAttemptDate: nil,
         lastSuccessfulSyncDate: nil,
         lastReconciledCloudSyncedSettingsUpdatedAt: nil,
+        restoration: nil,
+        pendingReconstructions: [],
+        quarantinedRecordCount: 0,
+        rejectedUploadCount: 0,
+        lastFailurePhase: nil,
         lastFailureReason: nil,
-        degradedReason: nil
+        lastRetryAfterSeconds: nil,
+        degradedReason: nil,
+        lastCompletedScope: nil
     )
 
+    /// Whether a sync operation is active or has unfinished persisted work.
+    ///
+    /// A running bootstrap has no phase until its first remote operation begins,
+    /// so it must be included independently of `currentPhase`.
+    var isSyncInProgress: Bool {
+        bootstrapState == .running || (currentPhase != nil && lastResult == nil)
+    }
+
     var blocksBackupRestore: Bool {
-        isEnabled || (currentPhase != nil && lastResult == nil)
+        isEnabled || isSyncInProgress
     }
 }

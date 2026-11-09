@@ -28,13 +28,39 @@ final class LibraryRepository {
     }
 
     func deleteEntry(_ entry: AnimeEntry) throws {
-        entry.resolveLibraryDisplayFaultsBeforeDeletion()
-        let deleteToken = try syncChangeRecorder?.recordDeletion(for: entry)
+        try deleteEntries([entry])
+    }
+
+    func deleteEntries(_ entries: [AnimeEntry]) throws {
+        guard !entries.isEmpty else { return }
+        let selectedIDs = Set(entries.map(\.id))
+        // Surviving seasons still use their parent for display metadata, so remove
+        // the series from the library view without deleting its backing entry.
+        let entriesToHide = entries.filter { entry in
+            guard case .series = entry.type else { return false }
+            return entry.childSeasonEntries.contains { !selectedIDs.contains($0.id) }
+        }
+        let hiddenIDs = Set(entriesToHide.map(\.id))
+        let entriesToDelete = entries.filter { !hiddenIDs.contains($0.id) }
+        for entry in entriesToDelete {
+            entry.resolveLibraryDisplayFaultsBeforeDeletion()
+        }
+        let deleteTokens =
+            entriesToDelete.isEmpty
+            ? nil : try syncChangeRecorder?.recordDeletions(for: entriesToDelete)
+        let context = dataProvider.dataHandler.modelContext
         do {
-            try dataProvider.dataHandler.deleteEntry(entry)
+            for entry in entriesToHide {
+                entry.updateDisplayState(false)
+            }
+            for entry in entriesToDelete {
+                context.delete(entry)
+            }
+            try transactionSaver(context)
         } catch {
-            if let deleteToken {
-                try? syncChangeRecorder?.restoreDeleteRecord(deleteToken)
+            context.rollback()
+            if let deleteTokens {
+                try? syncChangeRecorder?.restoreDeleteRecords(deleteTokens)
             }
             throw error
         }
@@ -86,32 +112,20 @@ final class LibraryRepository {
         dataProvider.dataHandler.modelContext.insert(entry)
     }
 
-    func existingEntry(tmdbID: Int) -> AnimeEntry? {
-        do {
-            return try matchingEntries(tmdbID: tmdbID)
-                .sorted(by: compareExistingEntries)
-                .first
-        } catch {
-            libraryStoreLogger.warning(
-                "Failed to fetch existing entry \(tmdbID, privacy: .public): \(error.localizedDescription)")
-            return nil
-        }
-    }
-
-    func existingEntry(identity: LibraryEntrySyncIdentity) -> AnimeEntry? {
+    func existingEntry(identity: LibraryEntryIdentity) -> AnimeEntry? {
         guard let tmdbID = identity.tmdbID else {
             libraryStoreLogger.warning(
-                "Failed to parse TMDb ID from sync entry \(identity.rawID, privacy: .public).")
+                "Failed to parse TMDb ID from library entry \(identity.rawID, privacy: .public).")
             return nil
         }
         do {
-            return try matchingEntries(tmdbID: tmdbID)
-                .filter { $0.syncIdentity == identity }
-                .sorted(by: compareExistingEntries)
-                .first
+            return AnimeEntryDuplicateResolver.preferredEntry(
+                from: try matchingEntries(tmdbID: tmdbID)
+                    .filter { $0.libraryIdentity == identity }
+            )
         } catch {
             libraryStoreLogger.warning(
-                "Failed to fetch sync entry \(identity.rawID, privacy: .public): \(error.localizedDescription)")
+                "Failed to fetch library entry \(identity.rawID, privacy: .public): \(error.localizedDescription)")
             return nil
         }
     }
@@ -125,10 +139,10 @@ final class LibraryRepository {
             return nil
         }
         do {
-            return try matchingEntries(tmdbID: tmdbID)
-                .filter { $0.syncIdentity.rawID == identityRawID }
-                .sorted(by: compareExistingEntries)
-                .first
+            return AnimeEntryDuplicateResolver.preferredEntry(
+                from: try matchingEntries(tmdbID: tmdbID)
+                    .filter { $0.libraryIdentity.rawID == identityRawID }
+            )
         } catch {
             libraryStoreLogger.warning(
                 "Failed to fetch local entry identity \(identityRawID, privacy: .private): \(error.localizedDescription)"
@@ -142,25 +156,5 @@ final class LibraryRepository {
             ofType: AnimeEntry.self,
             predicate: #Predicate { $0.tmdbID == tmdbID }
         )
-    }
-
-    private func compareExistingEntries(_ lhs: AnimeEntry, _ rhs: AnimeEntry) -> Bool {
-        if lhs.onDisplay != rhs.onDisplay {
-            return lhs.onDisplay && !rhs.onDisplay
-        }
-
-        if lhs.childSeasonEntries.count != rhs.childSeasonEntries.count {
-            return lhs.childSeasonEntries.count > rhs.childSeasonEntries.count
-        }
-
-        if (lhs.detail != nil) != (rhs.detail != nil) {
-            return lhs.detail != nil
-        }
-
-        if lhs.dateSaved != rhs.dateSaved {
-            return lhs.dateSaved > rhs.dateSaved
-        }
-
-        return lhs.name < rhs.name
     }
 }

@@ -20,9 +20,10 @@ struct MyAnimeListApp: App {
     @State var supportStore: SupportStore
     @State private var appReview: AppReviewPromptController
     @State private var startupRecovery: PersistentStoreRecovery?
+    @State private var backgroundSyncExecution: LibrarySyncBackgroundExecutionController
     private let recoveryActivityGate: StartupRecoveryActivityGate
+    private let lifecycleEventGate = AppLifecycleEventGate()
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.requestReview) private var requestReview
     @AppStorage(.preferredAnimeInfoLanguage) var preferredLanguage: Language = .english
     @AppStorage(.useCurrentLocaleForAnimeInfoLanguage) var followsSystemLanguage: Bool =
         Language.followsSystemPreference()
@@ -33,19 +34,20 @@ struct MyAnimeListApp: App {
             bootstrapRecovery: startupBootstrap.recovery
         )
         let keyStorage = TMDbAPIKeyStorage()
+        let recoveryActivityGate = StartupRecoveryActivityGate(
+            isBlocked: startupRecovery != nil
+        )
         let libraryStore = LibraryStore(
             dataProvider: startupBootstrap.provider,
             hasTMDbAPIKey: {
                 guard let key = keyStorage.key else { return false }
                 return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
+            },
+            airingReminderPruningEnabled: recoveryActivityGate.allowsLibraryActivity
         )
         let whatsNew = WhatsNewController()
         let supportStore = SupportStore()
         let appReview = AppReviewPromptController()
-        let recoveryActivityGate = StartupRecoveryActivityGate(
-            isBlocked: startupRecovery != nil
-        )
 
         _libraryStore = State(initialValue: libraryStore)
         _keyStorage = State(initialValue: keyStorage)
@@ -53,11 +55,15 @@ struct MyAnimeListApp: App {
         _supportStore = State(initialValue: supportStore)
         _appReview = State(initialValue: appReview)
         _startupRecovery = State(initialValue: startupRecovery)
+        _backgroundSyncExecution = State(
+            initialValue: LibrarySyncBackgroundExecutionController()
+        )
         self.recoveryActivityGate = recoveryActivityGate
         RecoveryExportManager.cleanupAllTemporaryExports()
 
         LibrarySyncNotificationBridge.configureSyncHandler { [libraryStore, recoveryActivityGate] in
             guard recoveryActivityGate.allowsLibraryActivity else { return .noData }
+            guard !libraryStore.requiresDuplicateRepair else { return .noData }
             let result = await libraryStore.performLibrarySyncResult(trigger: .cloudNotification)
             switch result {
             case .success:
@@ -104,60 +110,40 @@ struct MyAnimeListApp: App {
             .environment(supportStore)
             .environment(appReview)
             .onAppear {
+                guard lifecycleEventGate.shouldHandleLaunch() else { return }
                 keyStorage.retryInitialLookupIfNeeded()
                 if startupRecovery == nil {
                     requestSync(trigger: .appLaunch)
                     recordActiveLibraryDayIfUsable()
+                    refreshAiringReminders()
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
+                // scenePhase here is the app-level phase; every window delivers each transition.
+                guard lifecycleEventGate.shouldHandlePhaseChange(to: newPhase) else { return }
                 if newPhase == .active {
                     keyStorage.retryInitialLookupIfNeeded()
                     requestSync(trigger: .foreground)
                     recordActiveLibraryDayIfUsable()
+                    refreshAiringReminders()
                 } else if newPhase == .background {
                     flushPendingLocalSync()
                 }
             }
-            .sheet(item: presentedWhatsNewEntry) { entry in
-                NavigationStack {
-                    WhatsNewRootSheet(
-                        entry: entry,
-                        settingsActions: .init(store: libraryStore),
-                        onDismiss: { whatsNew.dismissPresentedEntry() }
-                    )
-                }
-                .presentationDetents([.large])
-                .presentationSizing(.page)
-            }
+            .modifier(WhatsNewPresenter(whatsNew: whatsNew, libraryStore: libraryStore))
             .onAppear(perform: updateWhatsNewPresentation)
-            .onChange(of: keyStorage.key) { _, _ in
+            .onChange(of: keyStorage.key) { _, newKey in
+                guard lifecycleEventGate.shouldHandleKeyChange(to: newKey) else { return }
                 updateWhatsNewPresentation()
                 recordActiveLibraryDayIfUsable()
-            }
-            .task(id: reviewPresentationTaskID) {
-                guard appReview.scheduledRequestToken != nil, scenePhase == .active else { return }
-                try? await Task.sleep(for: .seconds(2))
-                guard !Task.isCancelled, scenePhase == .active, appReview.prepareForRequest() else {
-                    return
+                if hasTMDbAPIKey {
+                    requestSync(trigger: .foreground)
                 }
-                requestReview()
             }
+            .modifier(AppReviewPromptPresenter(appReview: appReview))
             .globalToasts()
+            .providesWindowSceneIdentifier()
         }
-    }
-
-    private var presentedWhatsNewEntry: Binding<WhatsNewEntry?> {
-        Binding(
-            get: { whatsNew.presentedEntry },
-            set: { newValue in
-                if let newValue {
-                    whatsNew.presentedEntry = newValue
-                } else {
-                    whatsNew.dismissPresentedEntry()
-                }
-            }
-        )
     }
 
     private func updateWhatsNewPresentation() {
@@ -172,18 +158,29 @@ struct MyAnimeListApp: App {
         }
         recoveryActivityGate.isBlocked = false
         startupRecovery = nil
+        libraryStore.enableAiringReminderPruning()
         requestSync(trigger: .appLaunch)
         updateWhatsNewPresentation()
     }
 
     private func requestSync(trigger: LibrarySyncCoordinator.Trigger) {
         guard startupRecovery == nil else { return }
+        guard !libraryStore.requiresDuplicateRepair else { return }
         libraryStore.syncLibrary(trigger: trigger)
     }
 
     private func flushPendingLocalSync() {
         guard recoveryActivityGate.allowsLibraryActivity else { return }
-        libraryStore.flushPendingLocalLibrarySync()
+        guard !libraryStore.requiresDuplicateRepair else { return }
+        guard libraryStore.needsBackgroundLibrarySyncProtection else { return }
+        backgroundSyncExecution.run(
+            onExpiration: {
+                libraryStore.cancelLibrarySyncForBackgroundExpiration()
+            },
+            operation: {
+                _ = await libraryStore.flushPendingLocalLibrarySyncAndWait()
+            }
+        )
     }
 
     private var hasTMDbAPIKey: Bool {
@@ -191,13 +188,17 @@ struct MyAnimeListApp: App {
         return !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var reviewPresentationTaskID: String {
-        "\(appReview.scheduledRequestToken?.uuidString ?? "none")-\(scenePhase)"
-    }
-
     private func recordActiveLibraryDayIfUsable() {
         guard scenePhase == .active, startupRecovery == nil, hasTMDbAPIKey else { return }
+        guard !libraryStore.requiresDuplicateRepair else { return }
         appReview.recordActiveLibraryDay()
+    }
+
+    private func refreshAiringReminders() {
+        Task { @MainActor in
+            await AiringReminderCoordinator.shared.reloadState()
+            _ = await AiringReminderCoordinator.shared.refreshAll()
+        }
     }
 
     private var checkingTMDbAPIKeyResource: LocalizedStringResource {
@@ -218,18 +219,87 @@ final class StartupRecoveryActivityGate {
     }
 }
 
+/// Shows What's New only in the window that claimed it; other windows' bindings stay `nil`.
+fileprivate struct WhatsNewPresenter: ViewModifier {
+    let whatsNew: WhatsNewController
+    let libraryStore: LibraryStore
+    @Environment(\.windowSceneIdentifier) private var windowSceneIdentifier
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: whatsNew.presentedEntry?.version, initial: true) { claimIfNeeded() }
+            .onChange(of: windowSceneIdentifier) { claimIfNeeded() }
+            .sheet(item: presentedEntry) { entry in
+                NavigationStack {
+                    WhatsNewRootSheet(
+                        entry: entry,
+                        pastEntries: whatsNew.presentationSource == .settings
+                            ? WhatsNewRegistry.pastEntries(before: entry.version)
+                            : [],
+                        settingsActions: .init(store: libraryStore),
+                        onDismiss: { whatsNew.dismissPresentedEntry() }
+                    )
+                }
+                .presentationDetents([.large])
+                .presentationSizing(.page)
+            }
+    }
+
+    private var presentedEntry: Binding<WhatsNewEntry?> {
+        Binding(
+            get: { whatsNew.presentedEntry(forSceneIdentifier: windowSceneIdentifier) },
+            set: { newValue in
+                if newValue == nil {
+                    whatsNew.dismissPresentedEntry()
+                }
+            }
+        )
+    }
+
+    private func claimIfNeeded() {
+        whatsNew.claimPresentation(forSceneIdentifier: windowSceneIdentifier)
+    }
+}
+
+/// Requests reviews from a window's own environment so StoreKit presents in that window.
+fileprivate struct AppReviewPromptPresenter: ViewModifier {
+    let appReview: AppReviewPromptController
+    @Environment(\.requestReview) private var requestReview
+    @Environment(\.scenePhase) private var scenePhase
+
+    func body(content: Content) -> some View {
+        content
+            .task(id: taskID) {
+                guard appReview.scheduledRequestToken != nil, scenePhase == .active else { return }
+                try? await Task.sleep(for: .seconds(2))
+                // prepareForRequest consumes the token, so only one active window requests.
+                guard !Task.isCancelled, scenePhase == .active, appReview.prepareForRequest() else {
+                    return
+                }
+                requestReview()
+            }
+    }
+
+    private var taskID: String {
+        "\(appReview.scheduledRequestToken?.uuidString ?? "none")-\(scenePhase)"
+    }
+}
+
 fileprivate struct WhatsNewRootSheet: View {
     let entry: WhatsNewEntry
+    let pastEntries: [WhatsNewEntry]
     let onDismiss: () -> Void
 
     @State private var actionRunner: WhatsNewActionRunner
 
     init(
         entry: WhatsNewEntry,
+        pastEntries: [WhatsNewEntry],
         settingsActions: LibraryProfileSettingsActions,
         onDismiss: @escaping () -> Void
     ) {
         self.entry = entry
+        self.pastEntries = pastEntries
         self.onDismiss = onDismiss
         _actionRunner = State(initialValue: settingsActions.makeWhatsNewActionRunner())
     }
@@ -237,6 +307,7 @@ fileprivate struct WhatsNewRootSheet: View {
     var body: some View {
         WhatsNewView(
             entry: entry,
+            pastEntries: pastEntries,
             actionRunner: actionRunner,
             onDismiss: onDismiss
         )

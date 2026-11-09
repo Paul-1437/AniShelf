@@ -59,6 +59,43 @@ struct LibraryPreferenceDefaultsTests {
         #expect(!defaults.isLibraryPosterProgressBarOverlayEnabled)
     }
 
+    @Test func testBroadcastSchedulePreferenceDefaultsOn() {
+        let suiteName = "MyAnimeListTests.BroadcastSchedulePreference"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(defaults.object(forKey: .broadcastScheduleEnabled) == nil)
+        #expect(defaults.isBroadcastScheduleEnabled)
+
+        defaults.set(false, forKey: .broadcastScheduleEnabled)
+
+        #expect(!defaults.isBroadcastScheduleEnabled)
+    }
+
+    @Test func testAiringReminderPreferencesRemainDeviceLocal() {
+        #expect(!String.allPreferenceKeys.contains(.airingReminderSubscriptions))
+        #expect(!String.allPreferenceKeys.contains(.airingReminderDefaultTimingOffsetMinutes))
+        #expect(!String.allPreferenceKeys.contains(.airingReminderWarning))
+        #expect(!String.cloudSyncedPreferenceKeys.contains(.airingReminderSubscriptions))
+        #expect(!String.cloudSyncedPreferenceKeys.contains(.airingReminderDefaultTimingOffsetMinutes))
+        #expect(!String.cloudSyncedPreferenceKeys.contains(.airingReminderWarning))
+    }
+
+    @Test func testSoftNavigationBarEdgesPreferenceDefaultsOn() {
+        let suiteName = "MyAnimeListTests.SoftNavigationBarEdgesPreference"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(defaults.object(forKey: .useSoftNavigationBarEdges) == nil)
+        #expect(defaults.bool(forKey: .useSoftNavigationBarEdges, defaultValue: true))
+
+        defaults.set(false, forKey: .useSoftNavigationBarEdges)
+
+        #expect(!defaults.bool(forKey: .useSoftNavigationBarEdges, defaultValue: true))
+    }
+
     @Test @MainActor func testLibraryGroupStrategyPreferenceRoundTrip() {
         let suiteName = "MyAnimeListTests.LibraryGroupStrategy"
         let defaults = UserDefaults(suiteName: suiteName)!

@@ -38,6 +38,9 @@ func makeStore(
     var status = LibraryCloudSyncStatus.defaultValue
     status.isEnabled = enabled
     status.bootstrapState = bootstrapState
+    if bootstrapState == .completed {
+        status.lastCompletedScope = makeSyncScope()
+    }
     preferences.saveCloudSyncStatus(status)
     return LibraryStore(
         dataProvider: DataProvider(inMemory: true),
@@ -50,7 +53,7 @@ struct ClocklessTrackingConflictFixture {
     let store: LibraryStore
     let client: CloudLibrarySyncClient
     let database: FakeCloudLibrarySyncDatabase
-    let identity: LibraryEntrySyncIdentity
+    let identity: LibraryEntryIdentity
 }
 
 @MainActor
@@ -80,7 +83,7 @@ func makeClocklessTrackingConflictFixture(
 
     let client = CloudLibrarySyncClient()
     var remoteSnapshot = makeSnapshot(
-        identity: entry.syncIdentity,
+        identity: entry.libraryIdentity,
         tmdbID: entry.tmdbID,
         notes: "Remote notes",
         trackingUpdatedAt: nil
@@ -100,7 +103,7 @@ func makeClocklessTrackingConflictFixture(
         store: store,
         client: client,
         database: database,
-        identity: entry.syncIdentity
+        identity: entry.libraryIdentity
     )
 }
 
@@ -114,6 +117,7 @@ final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked S
     var fetchedChangeTokens: [CKServerChangeToken?] = []
     var savedRecords: [CKRecord] = []
     var saveBatchSizes: [Int] = []
+    var prepare: (@Sendable () async throws -> Void)?
     var ensureZoneCallCount = 0
     var suspendNextFetch = false
     var suspendNextSave = false
@@ -136,6 +140,7 @@ final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked S
         subscriptionID: CKSubscription.ID
     ) async throws {
         ensureZoneCallCount += 1
+        try await prepare?()
     }
 
     func fetchRecordZoneChanges(
@@ -157,6 +162,10 @@ final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked S
             isFetchSuspended = false
         }
         return changes.removeFirst()
+    }
+
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
+        [:]
     }
 
     func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
@@ -188,11 +197,60 @@ final class FakeCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked S
     }
 }
 
+/// Lets one peer upload after another peer's fetch and before its save.
+final class InterleavingCloudLibrarySyncDatabase: CloudLibrarySyncDatabase, @unchecked Sendable {
+    var cloudRecord: CKRecord
+    var savedRecords: [CKRecord] = []
+    var beforeNextSave: (@MainActor () async throws -> Void)?
+
+    init(cloudRecord: CKRecord) {
+        self.cloudRecord = cloudRecord
+    }
+
+    func ensureZoneAndSubscription(
+        zoneID: CKRecordZone.ID,
+        subscriptionID: CKSubscription.ID
+    ) async throws {}
+
+    func fetchRecordZoneChanges(
+        in zoneID: CKRecordZone.ID,
+        since changeToken: CKServerChangeToken?
+    ) async throws -> CloudLibrarySyncZoneChangeBatch {
+        .init(
+            modifiedRecordsByID: [cloudRecord.recordID: cloudRecord],
+            deletedRecordIDs: [],
+            changeToken: makeToken(),
+            moreComing: false
+        )
+    }
+
+    func fetchRecords(ids: [CKRecord.ID]) async throws -> [CKRecord.ID: CKRecord] {
+        ids.contains(cloudRecord.recordID) ? [cloudRecord.recordID: cloudRecord] : [:]
+    }
+
+    func save(records: [CKRecord]) async throws -> [CKRecord.ID] {
+        let interleavedSave = beforeNextSave
+        beforeNextSave = nil
+        try await interleavedSave?()
+        for record in records {
+            cloudRecord = record
+            savedRecords.append(record)
+        }
+        return records.map(\.recordID)
+    }
+}
+
 func makeNamespace() -> CloudLibrarySyncChangeTokenStore.Namespace {
     .init(
         containerIdentifier: CloudLibrarySyncClient.defaultContainerIdentifier,
         accountIdentifier: "test-account"
     )
+}
+
+func makeSyncScope(
+    namespace: CloudLibrarySyncChangeTokenStore.Namespace = makeNamespace()
+) -> LibraryCloudSyncScope {
+    LibraryCloudSyncScope(namespace: namespace)
 }
 
 func makeToken() -> CKServerChangeToken {
@@ -253,7 +311,7 @@ func savedSnapshot(
 }
 
 func makeSnapshot(
-    identity: LibraryEntrySyncIdentity,
+    identity: LibraryEntryIdentity,
     tmdbID: Int,
     entryType: AnimeType = .series,
     notes: String = "",

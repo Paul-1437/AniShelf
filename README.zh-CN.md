@@ -1,29 +1,41 @@
-# AniShelf 📺
+<div align="center">
+  <img src="docs/images/anishelf-icon.webp" alt="AniShelf 应用图标" width="160" />
 
-一款原生 iOS 动漫收藏管理应用。
+  <h1>AniShelf</h1>
 
-[English](README.md) · [使用教程](docs/anishelf_overview.md)
+  <p>一款适用于 iPhone、iPad 和 Mac 的原生动漫收藏管理应用。</p>
+
+  <p>
+    <img src="https://img.shields.io/badge/platform-iOS%20%C2%B7%20iPadOS%2026%2B-34C759" alt="支持 iOS 和 iPadOS 26 及以上版本" />
+    <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache 2.0 许可证" />
+    <a href="https://apps.apple.com/app/id6759359144"><img src="https://img.shields.io/badge/App%20Store-%E7%AB%8B%E5%8D%B3%E4%B8%8B%E8%BD%BD-007AFF?logo=apple&logoColor=white" alt="从 App Store 下载 AniShelf" /></a>
+  </p>
+
+  <p><a href="README.md">English</a> · <a href="https://anishelf.konakona.dev/zh/">官方网站</a> · <a href="docs/anishelf_overview.md">使用教程</a> · <a href="https://testflight.apple.com/join/ns3sR38X">TestFlight 测试版</a></p>
+</div>
+
+---
 
 ## 📸 截图
 
 <div style="overflow-x: auto; padding: 0.25rem 0 1rem;">
   <table cellpadding="0" cellspacing="12">
     <tr>
-      <td><img src=".app-store-assets/screenshots/ios/featured-library-card.jpeg" alt="AniShelf featured library card" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/library-list-view.jpeg" alt="AniShelf library list view" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/poster-grid-view.jpeg" alt="AniShelf poster grid view" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/01-poster-grid-view.jpeg" alt="AniShelf poster grid view" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/02-featured-library-card.jpeg" alt="AniShelf featured library card" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/03-library-list-view.jpeg" alt="AniShelf library list view" width="240" /></td>
     </tr>
     <tr>
-      <td><img src=".app-store-assets/screenshots/ios/anime-detail-overview.jpeg" alt="AniShelf anime detail overview" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/watch-management-sheet.jpeg" alt="AniShelf watch management sheet" width="240" /></td>
-      <td><img src=".app-store-assets/screenshots/ios/library-stats-overview.jpeg" alt="AniShelf library stats overview" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/04-anime-detail-overview.jpeg" alt="AniShelf anime detail overview" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/05-watch-management-sheet.jpeg" alt="AniShelf watch management sheet" width="240" /></td>
+      <td><img src=".app-store-assets/screenshots/ios/06-library-stats-overview.jpeg" alt="AniShelf library stats overview" width="240" /></td>
     </tr>
   </table>
 </div>
 
 ## 📱 获取方式
 
-AniShelf 现已上架 [App Store](https://apps.apple.com/us/app/anishelf/id6759359144)。
+AniShelf 现已上架 [App Store](https://apps.apple.com/app/id6759359144)，支持运行 iOS 或 iPadOS 26 及以上版本的 iPhone 和 iPad，以及搭载 Apple 芯片的 Mac（运行 iPad 版应用）。
 
 新功能会先通过 TestFlight 发布，之后再推送到 App Store。你可以加入 [TestFlight 测试版](https://testflight.apple.com/join/ns3sR38X)，抢先体验新功能并提供反馈。
 
@@ -34,8 +46,9 @@ AniShelf 现已上架 [App Store](https://apps.apple.com/us/app/anishelf/id67593
 - **📚 资料库管理** - 整理收藏所有动漫作品
 - **🔍 智能检索** - 依托 TMDb 数据库多语言检索动漫资源
 - **🎨 精致界面** - 基于原生 SwiftUI 搭建，视觉风格统一精致
-- **📊 进度追踪** - 标记观看状态、打分，精准记录单集观看进度
-- **💾 备份还原** - 支持资料库数据导出与导入
+- **📊 进度追踪** - 标记观看状态、打分，精准记录单集观看进度和重看次数
+- **⏰ 播出与提醒** - 查看符合条件番剧的播出时间，并为新番每集设置播出前或播出后的提醒
+- **💾 备份还原** - 备份和恢复资料库与设置，也可以将资料库导出为常用文件格式
 - **☁️ iCloud同步** - 跨设备同步资料库数据与偏好设置
 - **🌍 多语言适配** - 动漫元数据支持英文、中文、日文
 

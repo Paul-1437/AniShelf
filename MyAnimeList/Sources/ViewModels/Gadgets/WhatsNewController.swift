@@ -11,6 +11,11 @@ fileprivate func currentWhatsNewAppVersion(bundle: Bundle = .main) -> String? {
     bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
 }
 
+enum WhatsNewPresentationSource: Equatable {
+    case automatic
+    case settings
+}
+
 @Observable @MainActor
 final class WhatsNewController {
     @ObservationIgnored private let defaults: UserDefaults
@@ -18,6 +23,9 @@ final class WhatsNewController {
     let currentVersion: String?
     let currentEntry: WhatsNewEntry?
     var presentedEntry: WhatsNewEntry?
+    private(set) var presentationSource: WhatsNewPresentationSource?
+    /// Window scene showing `presentedEntry`; `nil` until a window claims an automatic presentation.
+    private(set) var presentingSceneIdentifier: String?
 
     init(
         defaults: UserDefaults = .standard,
@@ -31,6 +39,7 @@ final class WhatsNewController {
                 entryProvider(version)
             }
         self.presentedEntry = nil
+        self.presentationSource = nil
     }
 
     func presentIfNeeded(allowsAutoPresentation: Bool) {
@@ -38,25 +47,39 @@ final class WhatsNewController {
         guard presentedEntry == nil else { return }
         guard let currentEntry else { return }
         guard lastSeenVersion != currentEntry.version else { return }
+        presentationSource = .automatic
         presentedEntry = currentEntry
     }
 
-    func presentCurrentEntry() {
+    func presentCurrentEntry(inSceneIdentifier sceneIdentifier: String?) {
         guard let currentEntry else { return }
+        presentationSource = .settings
         presentedEntry = currentEntry
+        presentingSceneIdentifier = sceneIdentifier
+    }
+
+    /// Lets the first window with a known scene take an unclaimed presentation, so only one shows it.
+    func claimPresentation(forSceneIdentifier sceneIdentifier: String?) {
+        guard presentedEntry != nil, presentingSceneIdentifier == nil, let sceneIdentifier else {
+            return
+        }
+        presentingSceneIdentifier = sceneIdentifier
+    }
+
+    func presentedEntry(forSceneIdentifier sceneIdentifier: String?) -> WhatsNewEntry? {
+        guard let sceneIdentifier, sceneIdentifier == presentingSceneIdentifier else { return nil }
+        return presentedEntry
     }
 
     func dismissPresentedEntry(markSeen: Bool = true) {
-        guard let presentedEntry else {
-            self.presentedEntry = nil
-            return
-        }
+        let dismissedEntry = presentedEntry
+        presentedEntry = nil
+        presentationSource = nil
+        presentingSceneIdentifier = nil
 
-        if markSeen {
-            defaults.set(presentedEntry.version, forKey: .lastSeenWhatsNewVersion)
+        if markSeen, let dismissedEntry {
+            defaults.set(dismissedEntry.version, forKey: .lastSeenWhatsNewVersion)
         }
-
-        self.presentedEntry = nil
     }
 
     private var lastSeenVersion: String? {

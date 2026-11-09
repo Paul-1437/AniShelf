@@ -11,16 +11,14 @@ import SwiftUI
 struct LibraryGridView: View {
     @AppStorage(.libraryOpenDetailWithSingleTap) private var openDetailWithSingleTap = false
     @Environment(\.libraryEntryDetailActivation) private var detailActivation
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Environment(LibraryStore.self) private var store
-    @Environment(\.toggleFavorite) var toggleFavorite
     @Environment(LibraryEntryInteractionState.self) var interaction
-    @Environment(\.libraryEntryOpenDetailAction) private var openDetailAction
-    @Environment(\.libraryEntryEditAction) private var editAction
+    let detailActions: LibraryEntryDetailActions
     let displayItems: [LibraryEntryDisplayItem]
-    @Binding var scrolledID: Int?
-    @Binding var highlightedEntryID: Int?
+    @Binding var scrolledID: LibraryEntryIdentity?
+    let scrollRequest: LibraryScrollRequest?
+    @Binding var highlightedEntryID: LibraryEntryIdentity?
     private let columns = [GridItem(.adaptive(minimum: 104, maximum: 132), spacing: 10)]
 
     var body: some View {
@@ -33,14 +31,15 @@ struct LibraryGridView: View {
                     }
                 }
                 .transaction(value: isInspectorPresented) { transaction in
-                    transaction.animation = reduceMotion ? nil : .smooth(duration: 0.3)
+                    transaction.animation = .smooth(duration: 0.3)
                 }
-                .onChange(of: scrolledID) { onChangeOfScrolledID(proxy: proxy) }
+                .onChange(of: scrollRequest) { handleScrollRequest(proxy: proxy) }
                 .onAppear { onGridViewAppear(proxy: proxy) }
                 .padding(.horizontal, 14)
                 .padding(.top, 6)
                 .padding(.bottom, 104)
             }
+            .preferredNavigationBarScrollEdgeEffect()
             .animation(.spring, value: store.groupStrategy)
             .animation(.spring, value: store.sortReversed)
             .animation(.spring, value: store.sortStrategy)
@@ -52,13 +51,10 @@ struct LibraryGridView: View {
         interaction.inspectorPresentation != nil
     }
 
-    private func onChangeOfScrolledID(proxy: ScrollViewProxy) {
-        guard let scrolledID else { return }
-        guard interaction.inspectorPresentation?.entryIdentity.tmdbID != scrolledID else {
-            return
-        }
+    private func handleScrollRequest(proxy: ScrollViewProxy) {
+        guard let entryID = scrollRequest?.entryID else { return }
         withAnimation(.bouncy) {
-            proxy.scrollTo(scrolledID)
+            proxy.scrollTo(entryID)
         }
     }
 
@@ -123,24 +119,20 @@ struct LibraryGridView: View {
             )
     }
 
-    private func toggleSelection(for id: Int) {
+    private func toggleSelection(for id: LibraryEntryIdentity) {
         interaction.toggleSelection(for: id)
     }
 
     private func openDetails(for entry: AnimeEntry) {
-        if let openDetailAction {
-            openDetailAction(entry)
-        } else {
-            interaction.openDetails(for: entry)
-        }
+        detailActions.open(entry)
     }
 
     private func editEntry(_ entry: AnimeEntry) {
-        if let editAction {
-            editAction(entry)
-        } else {
-            interaction.setEditingEntry(entry)
-        }
+        detailActions.edit(entry)
+    }
+
+    private func toggleFavorite(_ entry: AnimeEntry) {
+        store.repository.toggleFavorite(entry)
     }
 }
 
@@ -274,8 +266,13 @@ fileprivate struct LibraryGridItem: View {
     @Previewable let store = LibraryStore(dataProvider: .forPreview)
 
     LibraryGridView(
+        detailActions: LibraryEntryDetailActions(
+            open: { _ in },
+            edit: { _ in }
+        ),
         displayItems: store.libraryDisplayItems,
         scrolledID: .constant(nil),
+        scrollRequest: nil,
         highlightedEntryID: .constant(nil)
     )
     .onAppear {

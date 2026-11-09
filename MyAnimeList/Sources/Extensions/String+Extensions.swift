@@ -23,8 +23,15 @@ extension String {
     static let libraryOpenDetailWithSingleTap = "LibraryOpenDetailWithSingleTap"
     static let entryDetailCharactersExpandedByDefault = "EntryDetailCharactersExpandedByDefault"
     static let entryDetailStaffExpandedByDefault = "EntryDetailStaffExpandedByDefault"
+    static let showProductionCompanyInsteadOfRuntime = "ShowProductionCompanyInsteadOfRuntime"
     static let libraryScoringEnabled = "LibraryScoringEnabled"
     static let episodeProgressTrackingEnabled = "EpisodeProgressTrackingEnabled"
+    static let broadcastScheduleEnabled = "BroadcastScheduleEnabled"
+    // Device-local airing reminder state. Keep these out of backup and CloudKit allowlists.
+    static let airingReminderSubscriptions = "AiringReminderSubscriptions"
+    static let airingReminderDefaultTimingOffsetMinutes = "AiringReminderDefaultTimingOffsetMinutes"
+    static let legacyAiringReminderLeadTimeMinutes = "AiringReminderLeadTimeMinutes"
+    static let airingReminderWarning = "AiringReminderWarning"
     static let libraryPosterProgressBarOverlayEnabled = "LibraryPosterProgressBarOverlayEnabled"
     static let libraryHideDroppedByDefault = "LibraryHideDroppedByDefault"
     static let libraryDefaultWatchStatus = "LibraryDefaultWatchStatus"
@@ -32,6 +39,13 @@ extension String {
     static let libraryDefaultFilterPreset = "LibraryDefaultFilterPreset"
     static let libraryAutoPrefetchImagesOnAddAndRestore = "LibraryAutoPrefetchImagesOnAddAndRestore"
     static let libraryLongTermGalleryPosterCachingEnabled = "LibraryLongTermGalleryPosterCachingEnabled"
+    static let useSoftNavigationBarEdges = "UseSoftNavigationBarEdges"
+    // Device-local share-sheet settings. Keep these out of the backup and CloudKit allowlists below.
+    static let rememberShareSheetSettings = "RememberShareSheetSettings"
+    static let shareSheetLanguage = "ShareSheetLanguage"
+    static let shareSheetUsesRoundedCorners = "ShareSheetUsesRoundedCorners"
+    static let shareSheetRoundedExportFormat = "ShareSheetRoundedExportFormat"
+    static let shareSheetExportSize = "ShareSheetExportSize"
     static let libraryCloudSyncEnabled = "LibraryCloudSyncEnabled"
     static let libraryCloudSyncBootstrapState = "LibraryCloudSyncBootstrapState"
     static let libraryCloudSyncCloudKitAvailability = "LibraryCloudSyncCloudKitAvailability"
@@ -44,8 +58,14 @@ extension String {
     static let libraryCloudSyncLastSuccessfulSyncDate = "LibraryCloudSyncLastSuccessfulSyncDate"
     static let libraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt =
         "LibraryCloudSyncLastReconciledCloudSyncedSettingsUpdatedAt"
+    static let libraryCloudSyncRestoration = "LibraryCloudSyncRestoration"
+    static let libraryCloudSyncPendingReconstruction = "LibraryCloudSyncPendingReconstruction"
+    static let libraryCloudSyncQuarantinedRecordCount = "LibraryCloudSyncQuarantinedRecordCount"
+    static let libraryCloudSyncRejectedUploadCount = "LibraryCloudSyncRejectedUploadCount"
+    static let libraryCloudSyncLastFailurePhase = "LibraryCloudSyncLastFailurePhase"
     static let libraryCloudSyncLastFailureReason = "LibraryCloudSyncLastFailureReason"
     static let libraryCloudSyncDegradedReason = "LibraryCloudSyncDegradedReason"
+    static let libraryCloudSyncLastCompletedScope = "LibraryCloudSyncLastCompletedScope"
     static let libraryCloudSyncedDefaultsUpdatedAt = "LibraryCloudSyncedDefaultsUpdatedAt"
     static let useTMDbRelayServer = "UseTMDbRelayServer"
     static let lastSeenWhatsNewVersion = "LastSeenWhatsNewVersion"
@@ -63,14 +83,17 @@ extension String {
         .libraryOpenDetailWithSingleTap,
         .entryDetailCharactersExpandedByDefault,
         .entryDetailStaffExpandedByDefault,
+        .showProductionCompanyInsteadOfRuntime,
         .libraryScoringEnabled,
         .episodeProgressTrackingEnabled,
+        .broadcastScheduleEnabled,
         .libraryPosterProgressBarOverlayEnabled,
         .libraryHideDroppedByDefault,
         .libraryDefaultWatchStatus,
         .libraryDefaultFilters,
         .libraryAutoPrefetchImagesOnAddAndRestore,
         .libraryLongTermGalleryPosterCachingEnabled,
+        .useSoftNavigationBarEdges,
         .useTMDbRelayServer,
         .lastSeenWhatsNewVersion
     ]
@@ -85,8 +108,10 @@ extension String {
         .libraryOpenDetailWithSingleTap,
         .entryDetailCharactersExpandedByDefault,
         .entryDetailStaffExpandedByDefault,
+        .showProductionCompanyInsteadOfRuntime,
         .libraryScoringEnabled,
         .episodeProgressTrackingEnabled,
+        .broadcastScheduleEnabled,
         .libraryPosterProgressBarOverlayEnabled,
         .libraryHideDroppedByDefault,
         .libraryDefaultWatchStatus,

@@ -5,85 +5,43 @@
 //  Created by Samuel He on 2024/12/8.
 //
 
-import Collections
 import DataProvider
 import LibrarySync
-import SwiftData
 import SwiftUI
+import UIKit
 
-// MARK: - Environment Keys
-
-extension EnvironmentValues {
-    @Entry var toggleFavorite: (AnimeEntry) -> Void = { _ in }
-}
-
-enum LibraryInspectorDetailPersistenceAction: Equatable {
-    case clear
-    case persist(LibraryEntrySyncIdentity)
-    case preserve
-}
-
-enum LibraryInspectorDetailLaunchRestorationAction: Equatable {
-    case clearInvalidSavedIdentity
-    case none
-    case restore(String)
-}
-
-struct LibraryInspectorDetailWorkspaceState {
-    private(set) var hasCompletedLaunchRestoration = false
-
-    static func persistenceAction(
-        for presentedDetailEntryIdentity: LibraryEntrySyncIdentity?,
-        committedHostPresentation: LibraryEntryDetailHostPresentation?
-    ) -> LibraryInspectorDetailPersistenceAction {
-        guard let presentedDetailEntryIdentity else { return .clear }
-        guard committedHostPresentation?.host == .inspector,
-            committedHostPresentation?.isHostPresented == true
-        else { return .preserve }
-        return .persist(presentedDetailEntryIdentity)
-    }
-
-    mutating func initialRestorationAction(
-        for host: LibraryEntryDetailHost,
-        presentedDetailEntryIdentity: LibraryEntrySyncIdentity?,
-        savedIdentityRawID: String?,
-        isRestorableIdentity: (String) -> Bool
-    ) -> LibraryInspectorDetailLaunchRestorationAction {
-        guard !hasCompletedLaunchRestoration else { return .none }
-        hasCompletedLaunchRestoration = true
-
-        guard host == .inspector,
-            presentedDetailEntryIdentity == nil,
-            let savedIdentityRawID,
-            !savedIdentityRawID.isEmpty
-        else { return .none }
-        guard isRestorableIdentity(savedIdentityRawID) else {
-            return .clearInvalidSavedIdentity
-        }
-        return .restore(savedIdentityRawID)
-    }
+struct LibraryScrollRequest: Equatable {
+    // Keep repeated explicit requests to the same entry observable.
+    let token = UUID()
+    let entryID: LibraryEntryIdentity?
 }
 
 struct LibraryView: View {
     // MARK: - Stored Properties
 
-    @Environment(LibraryStore.self) private var store
-    @State private var interaction = LibraryEntryInteractionState()
-    @State private var detailSessionStore = EntryDetailSessionStore()
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(LibraryStore.self) var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(AppReviewPromptController.self) private var appReview
+    @Environment(\.windowSceneIdentifier) private var windowSceneIdentifier
+    @Environment(AppReviewPromptController.self) var appReview
+    private let airingReminders = AiringReminderCoordinator.shared
+
+    @State var interaction = LibraryEntryInteractionState()
+    @State private var detailSessionStore = EntryDetailSessionStore()
 
     // UI state
-    @State private var isSearching = false
+    @State var isSearching = false
     @State private var showProfileSettings = false
-    @State private var scrollState = ScrollState()
-    @State private var newEntriesAddedToggle = false
-    @State private var highlightedEntryID: Int?
-    @State private var isShowingBatchDeleteConfirmation = false
-    @State private var selectionDisplayItems: [LibraryEntryDisplayItem]?
-    @State private var selectionEntriesByID: [Int: AnimeEntry] = [:]
+    @State var scrollState = ScrollState()
+    @State var newEntriesAddedToggle = false
+    @State var highlightedEntryID: LibraryEntryIdentity?
+    @State var scrollRequest: LibraryScrollRequest?
     @State private var inspectorDetailWorkspaceState = LibraryInspectorDetailWorkspaceState()
+
+    // Multi-selection snapshot: decouples selection rendering from live store
+    // recomputation so toggling items stays cheap. See LibraryView+MultiSelection.
+    @State var selectionDisplayItems: [LibraryEntryDisplayItem]?
+    @State var selectionLayoutIDs: [LibraryEntryIdentity]?
+    @State var selectionEntriesByID: [LibraryEntryIdentity: AnimeEntry] = [:]
 
     // Persistent UI preference
     @AppStorage(.libraryViewStyle) var libraryViewStyle: LibraryViewStyle = .gallery
@@ -113,29 +71,76 @@ struct LibraryView: View {
             guard !newValue, store.groupStrategy == .score else { return }
             store.groupStrategy = .none
         }
-        .onAppear {
-            updateDetailHost()
-            restorePresentedDetailIfNeeded()
+        .libraryDetailHostCoordination(
+            store: store,
+            interaction: interaction,
+            detailSessionStore: detailSessionStore,
+            horizontalSizeClass: horizontalSizeClass,
+            isSearching: isSearching,
+            isShowingProfileSettings: showProfileSettings,
+            workspaceState: $inspectorDetailWorkspaceState,
+            persistedLastInspectorDetailEntryIdentity: $persistedLastInspectorDetailEntryIdentity
+        )
+        .onChange(of: store.libraryRevision) {
+            refreshSelectionDisplayItemsIfNeeded()
         }
-        .onChange(of: horizontalSizeClass) {
-            updateDetailHost()
+        .onChange(of: store.filters) {
+            refreshSelectionDisplayItemsIfNeeded()
         }
-        .onChange(of: detailHostMigrationBlocked) { _, isBlocked in
-            guard !isBlocked else { return }
-            interaction.reconcileDetailHostIfPossible(migrationBlocked: false)
+        .onChange(of: store.groupStrategy) {
+            refreshSelectionDisplayItemsIfNeeded()
         }
-        .onInteractiveResizeChange { isResizing in
-            interaction.interactiveResizeDidChange(
-                isResizing,
-                migrationBlocked: detailHostMigrationBlocked
+        .onChange(of: store.sortStrategy) {
+            refreshSelectionDisplayItemsIfNeeded()
+        }
+        .onChange(of: store.sortReversed) {
+            refreshSelectionDisplayItemsIfNeeded()
+        }
+        .onChange(of: store.hideDroppedByDefault) {
+            refreshSelectionDisplayItemsIfNeeded()
+        }
+        .onChange(of: airingReminders.pendingRoute, initial: true) {
+            handleAiringReminderRoute()
+        }
+        .onChange(of: windowSceneIdentifier) {
+            handleAiringReminderRoute()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)) {
+            notification in
+            // The disconnecting window still receives this before it is purged; only survivors retry.
+            let disconnectedSceneIdentifier = (notification.object as? UIScene)?.session.persistentIdentifier
+            guard disconnectedSceneIdentifier != windowSceneIdentifier else { return }
+            // A route targeting the closed window falls back to the remaining windows. Retry on the
+            // next turn so the disconnected scene has left `connectedScenes`.
+            Task { @MainActor in handleAiringReminderRoute() }
+        }
+        .alert(
+            airingReminderWarningTitle,
+            isPresented: Binding(
+                get: { airingReminders.presentedWarning != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        airingReminders.dismissPresentedWarning()
+                    }
+                }
             )
+        ) {
+            Button("OK") { airingReminders.dismissPresentedWarning() }
+        } message: {
+            Text(airingReminderWarningMessage)
         }
-        .onChange(of: interaction.presentedDetailEntryID) {
-            reconcileInspectorDetailPersistence()
+        .sheet(isPresented: duplicateRepairPresented) {
+            LibraryDuplicateRepairSheet(store: store)
+                .presentationDetents([.large])
+                .presentationSizing(.page)
         }
-        .onChange(of: interaction.detailHostPresentation) {
-            reconcileInspectorDetailPersistence()
-        }
+    }
+
+    private var duplicateRepairPresented: Binding<Bool> {
+        Binding(
+            get: { store.requiresDuplicateRepair },
+            set: { _ in }
+        )
     }
 
     private var libraryNavigation: some View {
@@ -156,8 +161,6 @@ struct LibraryView: View {
         return
             libraryNavigationStack
             .environment(\.libraryEntryDetailActivation, detailActivation)
-            .environment(\.libraryEntryOpenDetailAction, openDetails)
-            .environment(\.libraryEntryEditAction, editDetails)
             .inspector(
                 isPresented: Binding(
                     get: {
@@ -177,6 +180,7 @@ struct LibraryView: View {
                         presentation: inspectorPresentation,
                         session: detailSession
                     )
+                    .presentationBackground(inspectorPresentation.host.pageBackground)
                     .inspectorColumnWidth(min: 400, ideal: 480, max: 520)
                 }
             }
@@ -186,32 +190,10 @@ struct LibraryView: View {
             .libraryEntryInteractionOverlays(
                 state: interaction,
                 deleteEntry: { entry in
-                    store.deleteEntry(entry) { scrollState.scrolledID = $0 }
+                    store.deleteEntry(entry) { requestLibraryScroll(to: $0) }
                 },
                 resolveEntry: { store.repository.existingEntry(identity: $0) }
             )
-            .onChange(of: interaction.presentedDetailEntryID, initial: true) { _, identity in
-                synchronizePresentedDetail(identity)
-            }
-            .onChange(of: store.libraryRevision) {
-                refreshSelectionDisplayItemsIfNeeded()
-                synchronizePresentedDetail(interaction.presentedDetailEntryID)
-            }
-            .onChange(of: store.filters) {
-                refreshSelectionDisplayItemsIfNeeded()
-            }
-            .onChange(of: store.groupStrategy) {
-                refreshSelectionDisplayItemsIfNeeded()
-            }
-            .onChange(of: store.sortStrategy) {
-                refreshSelectionDisplayItemsIfNeeded()
-            }
-            .onChange(of: store.sortReversed) {
-                refreshSelectionDisplayItemsIfNeeded()
-            }
-            .onChange(of: store.hideDroppedByDefault) {
-                refreshSelectionDisplayItemsIfNeeded()
-            }
     }
 
     @ViewBuilder
@@ -226,6 +208,7 @@ struct LibraryView: View {
                     presentation: presentation,
                     session: detailSession
                 )
+                .presentationBackground(presentation.host.pageBackground)
             }
         case .workflow(let presentation):
             workflowContent(for: presentation)
@@ -239,6 +222,7 @@ struct LibraryView: View {
         NavigationStack {
             EntryDetailView(
                 session: session,
+                detailHost: presentation.host,
                 onClose: { _ in
                     interaction.dismissDetails(
                         ifHostPresentationID: presentation.id
@@ -260,7 +244,6 @@ struct LibraryView: View {
                 }
             )
         }
-        .environment(\.libraryEntryDetailHost, presentation.host)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -295,28 +278,32 @@ struct LibraryView: View {
             ZStack {
                 libraryView
             }
-            .toolbar { topBarContent }
-            .toolbar { bottomBarContent }
-            .environment(\.toggleFavorite, toggleFavorite)
+            .toolbar {
+                LibraryToolbar(
+                    store: store,
+                    interaction: interaction,
+                    libraryViewStyle: libraryViewStyleBinding,
+                    scoringEnabled: scoringEnabled,
+                    isSearching: $isSearching,
+                    selectionEntriesByID: selectionEntriesByID,
+                    supportsMultiSelection: supportsMultiSelection,
+                    enterMultiSelection: enterMultiSelection,
+                    exitMultiSelection: exitMultiSelection,
+                    applyBatchAction: applyBatchAction,
+                    deleteSelectedEntries: deleteSelectedEntries,
+                    openProfileSettings: openProfileSettings,
+                    checkDuplicate: { store.libraryOnDisplay.map(\.libraryIdentity).contains($0) },
+                    processTMDbSearchResults: processTMDbSearchResults,
+                    jumpToEntryInLibrary: jumpToEntryInLibrary
+                )
+            }
             .environment(interaction)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .animation(libraryViewStyleAnimation, value: libraryViewStyle)
-            .animation(.default, value: interaction.selectedEntryIDs.isEmpty)
             .sensoryFeedback(.success, trigger: newEntriesAddedToggle)
             .allowsHitTesting(!showProfileSettings)
             .accessibilityHidden(showProfileSettings)
-            .alert(
-                batchDeleteConfirmationTitle,
-                isPresented: $isShowingBatchDeleteConfirmation
-            ) {
-                Button("Delete", role: .destructive) {
-                    deleteSelectedEntries()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text(batchDeleteConfirmationMessage)
-            }
         }
     }
 
@@ -325,13 +312,19 @@ struct LibraryView: View {
     @ViewBuilder
     private var libraryView: some View {
         let displayItems = selectionDisplayItems ?? store.libraryDisplayItems
-        let layoutIDs = displayItems.map(\.id)
+        let layoutIDs = selectionLayoutIDs ?? displayItems.map(\.id)
+        let detailActions = LibraryEntryDetailActions(
+            open: openDetails,
+            edit: editDetails
+        )
 
         switch libraryViewStyle {
         case .gallery:
             libraryViewPage(id: .gallery, layoutIDs: layoutIDs) {
                 LibraryGalleryView(
-                    scrolledID: $scrollState.scrolledID
+                    scrolledID: $scrollState.scrolledID,
+                    scrollRequest: scrollRequest,
+                    detailActions: detailActions
                 )
                 .scenePadding(.vertical)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -339,8 +332,10 @@ struct LibraryView: View {
         case .list:
             libraryViewPage(id: .list, layoutIDs: layoutIDs) {
                 LibraryListView(
+                    detailActions: detailActions,
                     displayItems: displayItems,
                     scrolledID: $scrollState.scrolledID,
+                    scrollRequest: scrollRequest,
                     highlightedEntryID: $highlightedEntryID
                 )
                 .safeAreaPadding(.bottom, 20)
@@ -348,244 +343,15 @@ struct LibraryView: View {
         case .grid:
             libraryViewPage(id: .grid, layoutIDs: layoutIDs) {
                 LibraryGridView(
+                    detailActions: detailActions,
                     displayItems: displayItems,
                     scrolledID: $scrollState.scrolledID,
+                    scrollRequest: scrollRequest,
                     highlightedEntryID: $highlightedEntryID
                 )
                 .safeAreaPadding(.bottom, 20)
             }
         }
-    }
-
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    private var bottomBarContent: some ToolbarContent {
-        if interaction.isMultiSelecting {
-            ToolbarItem(placement: .bottomBar) {
-                Button("Delete", systemImage: "trash", role: .destructive) {
-                    isShowingBatchDeleteConfirmation = true
-                }
-                .disabled(interaction.selectedEntryIDs.isEmpty)
-                .tint(.red)
-            }
-            ToolbarItemGroup(placement: .status) {
-                Menu("Mark Status", systemImage: "checklist") {
-                    ForEach(AnimeEntry.WatchStatus.allCases, id: \.self) { status in
-                        Button {
-                            applyBatchAction(.watchStatus(status))
-                        } label: {
-                            Label(status.localizedStringResource, systemImage: status.batchActionSystemImage)
-                        }
-                    }
-                }
-                .disabled(interaction.selectedEntryIDs.isEmpty)
-
-                Button(
-                    allFavorite ? "Unfavorite" : "Favorite",
-                    systemImage: allFavorite ? "heart.slash.fill" : "heart.fill"
-                ) {
-                    applyBatchAction(.favorite(allFavorite ? false : true))
-                }
-                .disabled(interaction.selectedEntryIDs.isEmpty)
-                .animation(.snappy(duration: 0.3), value: allFavorite)
-            }
-            ToolbarItem(placement: .bottomBar) {
-                batchActionsMenu
-            }
-        } else {
-            ToolbarItem(placement: .bottomBar) {
-                Picker("View Style", selection: libraryViewStyleBinding) {
-                    ForEach(LibraryViewStyle.allCases, id: \.self) { style in
-                        Label(style.nameKey, systemImage: style.systemImageName).tag(style)
-                    }
-                }
-                .labelsHidden()
-            }
-            ToolbarItem(placement: .status) {
-                libraryBrowseSummaryMenu
-            }
-            ToolbarItem(placement: .bottomBar) {
-                searchButton
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var topBarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            LibraryNavigationTitleCapsule(
-                count:
-                    interaction.isMultiSelecting
-                    ? interaction.selectedEntryCount : store.libraryOnDisplay.count
-            )
-        }
-        if supportsMultiSelection && !interaction.isMultiSelecting {
-            // Counterbalances the trailing controls so the principal title sits visually left of center.
-            ToolbarItem(placement: .topBarTrailing) {
-                Color.clear
-                    .frame(width: 10, height: 0)
-            }
-            .sharedBackgroundVisibility(.hidden)
-        }
-        if interaction.isMultiSelecting {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    exitMultiSelection()
-                } label: {
-                    Image(systemName: "xmark")
-                }
-                .accessibilityLabel(Text("Dismiss Selection"))
-            }
-        } else {
-            ToolbarItem(placement: .topBarTrailing) {
-                if supportsMultiSelection {
-                    Button(action: enterMultiSelection) {
-                        Text("Select").font(.headline.weight(.semibold))
-                    }
-                    .accessibilityLabel(Text("Anime Multi-selection"))
-                    .padding(.leading, 3)
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                profileSettingsButton
-                    .padding(.trailing, 3)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var batchActionsMenu: some View {
-        Menu {
-            Button("Track Dates", systemImage: "calendar.badge.checkmark") {
-                applyBatchAction(.dateTracking(true))
-            }
-            Button("Hide Dates", systemImage: "calendar.badge.minus") {
-                applyBatchAction(.dateTracking(false))
-            }
-
-            if scoringEnabled {
-                Menu("Score", systemImage: "star") {
-                    ForEach(Array(AnimeEntry.validScoreRange), id: \.self) { score in
-                        Button("\(score)/5") {
-                            applyBatchAction(.score(score))
-                        }
-                    }
-                    Button("Clear Score", systemImage: "xmark.circle") {
-                        applyBatchAction(.score(nil))
-                    }
-                }
-            }
-        } label: {
-            Label("Actions", systemImage: "ellipsis")
-        }
-        .disabled(interaction.selectedEntryIDs.isEmpty)
-    }
-
-    @ViewBuilder
-    private var libraryBrowseSummaryMenu: some View {
-        @Bindable var store = store
-
-        Menu {
-            Section("Group By") {
-                Picker(
-                    "Group By",
-                    systemImage: "square.grid.2x2",
-                    selection: groupStrategyBinding
-                ) {
-                    ForEach(availableGroupStrategies, id: \.self) { strategy in
-                        Text(strategy.localizedStringResource).tag(strategy)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            Section("Sort") {
-                Toggle(
-                    "Reversed",
-                    systemImage: "arrow.counterclockwise.circle",
-                    isOn: $store.sortReversed
-                )
-                Picker(
-                    "Sort",
-                    systemImage: "arrow.up.arrow.down",
-                    selection: $store.sortStrategy
-                ) {
-                    ForEach(LibraryStore.AnimeSortStrategy.allCases, id: \.self) { strategy in
-                        Text(strategy.localizedStringResource).tag(strategy)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            Section("Filter") {
-                Toggle(
-                    "All",
-                    isOn: .init(
-                        get: { store.filters.isEmpty },
-                        set: {
-                            if $0 {
-                                store.filters.removeAll()
-                            }
-                        }
-                    )
-                )
-                ForEach(LibraryStore.AnimeFilter.typeCases, id: \.self) { filter in
-                    filterToggle(for: filter)
-                }
-                Menu("Watch Status") {
-                    ForEach(LibraryStore.AnimeFilter.watchStatusCases, id: \.self) { filter in
-                        filterToggle(for: filter)
-                    }
-                }
-                filterToggle(for: .favorited)
-            }
-        } label: {
-            LibraryToolbarSummaryCapsule(
-                primary: filterSummaryResource
-            )
-        }
-        .menuActionDismissBehavior(.disabled)
-    }
-
-    private var availableGroupStrategies: [LibraryStore.LibraryGroupStrategy] {
-        if scoringEnabled {
-            LibraryStore.LibraryGroupStrategy.allCases
-        } else {
-            LibraryStore.LibraryGroupStrategy.allCases.filter { $0 != .score }
-        }
-    }
-
-    private var supportsMultiSelection: Bool {
-        libraryViewStyle == .list || libraryViewStyle == .grid
-    }
-
-    private var selectedEntries: [AnimeEntry] {
-        interaction.selectedEntryIDs.compactMap { selectionEntriesByID[$0] }
-    }
-
-    private var allFavorite: Bool {
-        !interaction.selectedEntryIDs.isEmpty && selectedEntries.allSatisfy(\.favorite)
-    }
-
-    private var batchDeleteConfirmationTitle: LocalizedStringResource {
-        "Delete Selected Anime?"
-    }
-
-    private var batchDeleteConfirmationMessage: LocalizedStringResource {
-        "This will delete \(interaction.selectedEntryCount) selected anime from your library."
-    }
-
-    private var groupStrategyBinding: Binding<LibraryStore.LibraryGroupStrategy> {
-        Binding(
-            get: {
-                if !scoringEnabled, store.groupStrategy == .score {
-                    return .none
-                }
-                return store.groupStrategy
-            },
-            set: { store.groupStrategy = $0 }
-        )
     }
 
     private var libraryViewStyleBinding: Binding<LibraryViewStyle> {
@@ -600,147 +366,20 @@ struct LibraryView: View {
         )
     }
 
-    private var libraryViewStyleAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.34, extraBounce: 0.12)
-    }
-
-    private var selectionModeAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.26, extraBounce: 0.06)
+    private var libraryViewStyleAnimation: Animation {
+        LibraryViewTransitions.libraryViewStyleAnimation()
     }
 
     private var libraryViewTransition: AnyTransition {
-        guard !reduceMotion else { return .opacity }
-        return .asymmetric(
-            insertion: .modifier(
-                active: LibraryViewTransitionModifier(
-                    opacity: 0,
-                    scale: 0.975,
-                    blurRadius: 8,
-                    yOffset: 14
-                ),
-                identity: LibraryViewTransitionModifier(
-                    opacity: 1,
-                    scale: 1,
-                    blurRadius: 0,
-                    yOffset: 0
-                )
-            ),
-            removal: .modifier(
-                active: LibraryViewTransitionModifier(
-                    opacity: 0,
-                    scale: 1.018,
-                    blurRadius: 5,
-                    yOffset: -10
-                ),
-                identity: LibraryViewTransitionModifier(
-                    opacity: 1,
-                    scale: 1,
-                    blurRadius: 0,
-                    yOffset: 0
-                )
-            )
-        )
+        LibraryViewTransitions.libraryViewTransition()
     }
 
-    private var profileSettingsAnimation: Animation? {
-        reduceMotion ? nil : .smooth(duration: 0.45, extraBounce: 0)
+    private var profileSettingsAnimation: Animation {
+        LibraryViewTransitions.profileSettingsAnimation()
     }
 
     private var profileSettingsTransition: AnyTransition {
-        guard !reduceMotion else { return .opacity }
-        return .asymmetric(
-            insertion: .modifier(
-                active: LibraryProfileSettingsBlendModifier(
-                    opacity: 0,
-                    blurRadius: 22
-                ),
-                identity: LibraryProfileSettingsBlendModifier(
-                    opacity: 1,
-                    blurRadius: 0
-                )
-            ),
-            removal: .modifier(
-                active: LibraryProfileSettingsBlendModifier(
-                    opacity: 0,
-                    blurRadius: 14
-                ),
-                identity: LibraryProfileSettingsBlendModifier(
-                    opacity: 1,
-                    blurRadius: 0
-                )
-            )
-        )
-    }
-
-    // MARK: - Search
-
-    private var searchButton: some View {
-        Button("Search...", systemImage: "magnifyingglass") { isSearching = true }
-            .sheet(isPresented: $isSearching) {
-                NavigationStack {
-                    SearchPage(
-                        onDuplicateTapped: { tappedID in
-                            isSearching = false
-                            scrollState.scrolledID = tappedID
-                            highlightedEntryID = tappedID
-                        },
-                        checkDuplicate: { store.libraryOnDisplay.map(\.tmdbID).contains($0) },
-                        processTMDbSearchResults: processTMDbSearchResults,
-                        jumpToEntryInLibrary: { tmdbID in
-                            isSearching = false
-                            scrollState.scrolledID = tmdbID
-                            highlightedEntryID = tmdbID
-                        }
-                    )
-                    .navigationTitle("Search")
-                    .navigationBarTitleDisplayMode(.inline)
-                }
-            }
-    }
-
-    // MARK: - Profile Settings
-
-    private var profileSettingsButton: some View {
-        Button {
-            openProfileSettings()
-        } label: {
-            LibraryProfileLauncherBadge()
-        }
-        .accessibilityLabel(Text("Open Library Profile"))
-    }
-
-    private var activeFilters: [LibraryStore.AnimeFilter] {
-        LibraryStore.AnimeFilter.allCases.filter { store.filters.contains($0) }
-    }
-
-    private var filterSummaryResource: LocalizedStringResource {
-        switch activeFilters.count {
-        case 0:
-            return "All"
-        case 1:
-            return filterSummaryResource(for: activeFilters[0])
-        default:
-            return "\(activeFilters.count) Filters"
-        }
-    }
-
-    private func filterSummaryResource(
-        for filter: LibraryStore.AnimeFilter
-    ) -> LocalizedStringResource {
-        switch filter.id {
-        case LibraryStore.AnimeFilter.favorited.id:
-            return "Favorites"
-        case LibraryStore.AnimeFilter.watched.id:
-            return "Watched"
-        case LibraryStore.AnimeFilter.planToWatch.id:
-            return "Planned"
-        case LibraryStore.AnimeFilter.watching.id:
-            return "Watching"
-        case LibraryStore.AnimeFilter.dropped.id:
-            return "Dropped"
-        default:
-            return filter.name
-        }
+        LibraryViewTransitions.profileSettingsTransition()
     }
 
     // MARK: - Entry Actions
@@ -768,48 +407,68 @@ struct LibraryView: View {
             || interaction.workflowPresentation != nil
     }
 
-    private func updateDetailHost() {
-        let desiredHost = detailHostPolicy.host
-        if !isRootPresentationActive,
-            let presentation = interaction.detailHostPresentation,
-            presentation.host != desiredHost || !presentation.isHostPresented
-        {
-            detailSessionStore.session(for: interaction.presentedDetailEntryID)?
-                .dismissActiveSheetForHostChange()
-        }
+    private func openDetails(_ entry: AnimeEntry) {
+        prepareAndConfigureDetailHost(for: entry)
+        interaction.openDetails(for: entry)
+    }
 
-        interaction.requestDetailHost(
-            desiredHost,
+    private func handleAiringReminderRoute() {
+        // A window whose scene is already disconnected is being torn down and must not consume the route.
+        if let windowSceneIdentifier, !Self.isSceneConnected(windowSceneIdentifier) {
+            return
+        }
+        guard
+            let entryIdentityRawID = airingReminders.claimPendingRoute(
+                forSceneIdentifier: windowSceneIdentifier,
+                isSceneConnected: Self.isSceneConnected
+            )
+        else { return }
+        guard let entry = store.repository.existingEntry(identityRawID: entryIdentityRawID) else {
+            return
+        }
+        isSearching = false
+        showProfileSettings = false
+        openDetails(entry)
+    }
+
+    private static func isSceneConnected(_ identifier: String) -> Bool {
+        UIApplication.shared.connectedScenes.contains {
+            $0.session.persistentIdentifier == identifier
+        }
+    }
+
+    private var airingReminderWarningMessage: LocalizedStringResource {
+        airingReminders.presentedWarning?.localizedMessage
+            ?? "Some reminders could not be scheduled."
+    }
+
+    private var airingReminderWarningTitle: LocalizedStringResource {
+        airingReminders.presentedWarning?.localizedTitle
+            ?? "Reminder Scheduling Issue"
+    }
+
+    private func editDetails(_ entry: AnimeEntry) {
+        prepareAndConfigureDetailHost(for: entry)
+        interaction.setEditingEntry(entry)
+    }
+
+    private func prepareAndConfigureDetailHost(for entry: AnimeEntry) {
+        LibraryDetailHostCoordination.prepareDetailSession(
+            for: entry,
+            detailSessionStore: detailSessionStore,
+            repository: store.repository
+        )
+        LibraryDetailHostCoordination.updateDetailHost(
+            interaction: interaction,
+            detailSessionStore: detailSessionStore,
+            desiredHost: detailHostPolicy.host,
             migrationBlocked: detailHostMigrationBlocked,
             rootPresentationActive: isRootPresentationActive
         )
     }
 
-    private func prepareDetailSession(for entry: AnimeEntry) {
-        detailSessionStore.synchronizePresentedDetail(
-            identity: entry.syncIdentity,
-            repository: store.repository,
-            resolveEntry: { identity in
-                identity == entry.syncIdentity
-                    ? entry : store.repository.existingEntry(identity: identity)
-            }
-        )
-    }
-
-    private func openDetails(_ entry: AnimeEntry) {
-        prepareDetailSession(for: entry)
-        updateDetailHost()
-        interaction.openDetails(for: entry)
-    }
-
-    private func editDetails(_ entry: AnimeEntry) {
-        prepareDetailSession(for: entry)
-        updateDetailHost()
-        interaction.setEditingEntry(entry)
-    }
-
     private func detailEditingRequestID(
-        for identity: LibraryEntrySyncIdentity,
+        for identity: LibraryEntryIdentity,
         hostPresentationID: UUID
     ) -> UUID? {
         guard interaction.detailEditRequest?.entryIdentity == identity,
@@ -818,70 +477,9 @@ struct LibraryView: View {
         return interaction.detailEditRequest?.id
     }
 
-    private func toggleFavorite(_ entry: AnimeEntry) {
-        store.repository.toggleFavorite(entry)
-    }
-
-    private func synchronizePresentedDetail(_ identity: LibraryEntrySyncIdentity?) {
-        let didResolveDetail = detailSessionStore.synchronizePresentedDetail(
-            identity: identity,
-            repository: store.repository,
-            resolveEntry: { store.repository.existingEntry(identity: $0) }
-        )
-        if identity != nil, !didResolveDetail {
-            interaction.dismissDetails()
-        }
-    }
-
-    private func reconcileInspectorDetailPersistence() {
-        switch LibraryInspectorDetailWorkspaceState.persistenceAction(
-            for: interaction.presentedDetailEntryID,
-            committedHostPresentation: interaction.detailHostPresentation
-        ) {
-        case .clear:
-            persistedLastInspectorDetailEntryIdentity = nil
-        case .persist(let identity):
-            persistedLastInspectorDetailEntryIdentity = identity.rawID
-        case .preserve:
-            break
-        }
-    }
-
-    private func restorePresentedDetailIfNeeded() {
-        let restorationAction = inspectorDetailWorkspaceState.initialRestorationAction(
-            for: interaction.desiredDetailHost,
-            presentedDetailEntryIdentity: interaction.presentedDetailEntryID,
-            savedIdentityRawID: persistedLastInspectorDetailEntryIdentity,
-            isRestorableIdentity: { identityRawID in
-                guard let entry = store.repository.existingEntry(identityRawID: identityRawID) else {
-                    return false
-                }
-                return entry.onDisplay
-            }
-        )
-
-        switch restorationAction {
-        case .clearInvalidSavedIdentity:
-            persistedLastInspectorDetailEntryIdentity = nil
-            interaction.dismissDetails()
-        case .none:
-            return
-        case .restore(let identityRawID):
-            guard let entry = store.repository.existingEntry(identityRawID: identityRawID),
-                entry.onDisplay
-            else {
-                persistedLastInspectorDetailEntryIdentity = nil
-                interaction.dismissDetails()
-                return
-            }
-            prepareDetailSession(for: entry)
-            interaction.openDetails(for: entry)
-        }
-    }
-
-    private func jumpToEntryInLibrary(withID id: Int) {
-        scrollState.scrolledID = id
-        highlightedEntryID = id
+    func requestLibraryScroll(to entryID: LibraryEntryIdentity?) {
+        scrollState.scrolledID = entryID
+        scrollRequest = LibraryScrollRequest(entryID: entryID)
     }
 
     private func openProfileSettings() {
@@ -896,115 +494,9 @@ struct LibraryView: View {
         }
     }
 
-    private func processTMDbSearchResults(
-        _ results: OrderedSet<SearchResult>,
-        origin: SearchSubmissionOrigin
-    ) {
-        isSearching = false
-        Task {
-            ToastCenter.global.loadingMessage = .message("Loading...")
-            let success = await store.newEntryFromSearchResults(results)
-            if success {
-                appReview.record(origin == .regular ? .regularSearchAdd : .batchSearchAdd)
-                ToastCenter.global.loadingMessage = nil
-                withAnimation {
-                    newEntriesAddedToggle.toggle()
-                    if let id = results.first?.tmdbID {
-                        scrollState.scrolledID = id
-                        highlightedEntryID = id
-                    }
-                }
-            }
-        }
-    }
-
-    private func applyBatchAction(_ action: LibraryBatchAction) {
-        let entries = selectedEntries
-        guard !entries.isEmpty else { return }
-
-        action.apply(to: entries)
-        exitMultiSelection()
-        if entries.count >= 3 {
-            appReview.record(.multiSelectAction)
-        }
-    }
-
-    private func deleteSelectedEntries() {
-        let entries = selectedEntries
-        guard !entries.isEmpty else {
-            exitMultiSelection()
-            return
-        }
-
-        let remainingEntries = store.libraryOnDisplay.filter { entry in
-            !interaction.selectedEntryIDs.contains(entry.tmdbID)
-        }
-        let scrollTarget = remainingEntries.first?.tmdbID
-
-        for entry in entries {
-            _ = store.deleteEntry(entry)
-        }
-
-        scrollState.scrolledID = scrollTarget
-        exitMultiSelection()
-    }
-
-    private func enterMultiSelection() {
-        updateSelectionDisplayItems()
-        withAnimation(selectionModeAnimation) {
-            interaction.enterMultiSelection()
-        }
-    }
-
-    private func exitMultiSelection() {
-        withAnimation(selectionModeAnimation) {
-            interaction.exitMultiSelection()
-        }
-        selectionDisplayItems = nil
-        selectionEntriesByID.removeAll(keepingCapacity: true)
-    }
-
-    private func refreshSelectionDisplayItemsIfNeeded() {
-        guard interaction.isMultiSelecting else { return }
-        updateSelectionDisplayItems()
-    }
-
-    private func updateSelectionDisplayItems() {
-        let items = store.libraryDisplayItems
-        let displayedIDs = Set(items.map(\.id))
-        interaction.selectedEntryIDs.formIntersection(displayedIDs)
-        selectionDisplayItems = items
-        selectionEntriesByID = Dictionary(
-            uniqueKeysWithValues: items.map { ($0.id, $0.entry) }
-        )
-    }
-
-    // MARK: - Helpers
-
-    @ViewBuilder
-    private func filterToggle(for filter: LibraryStore.AnimeFilter) -> some View {
-        Toggle(
-            isOn: binding(for: filter),
-            label: { Text(filter.name) }
-        )
-    }
-
-    private func binding(for filter: LibraryStore.AnimeFilter) -> Binding<Bool> {
-        .init(
-            get: { store.filters.contains(filter) },
-            set: {
-                if $0 {
-                    store.filters.insert(filter)
-                } else {
-                    store.filters.remove(filter)
-                }
-            }
-        )
-    }
-
     private func libraryViewPage<Content: View>(
         id: LibraryViewStyle,
-        layoutIDs: [Int],
+        layoutIDs: [LibraryEntryIdentity],
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
@@ -1036,67 +528,6 @@ struct LibraryView: View {
             }
         }
 
-    }
-}
-
-fileprivate struct LibraryProfileLauncherBadge: View {
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(systemName: "books.vertical.fill")
-                .font(.system(size: 11, weight: .semibold))
-                .symbolRenderingMode(.monochrome)
-
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 6.5, weight: .bold))
-                .background(.primary.opacity(0.30), in: Circle())
-                .overlay {
-                    Circle().stroke(.white.opacity(0.4), lineWidth: 0.7)
-                }
-                .offset(x: 4, y: 4)
-        }
-    }
-}
-
-extension AnimeEntry.WatchStatus {
-    fileprivate var batchActionSystemImage: String {
-        switch self {
-        case .planToWatch:
-            "bookmark"
-        case .watching:
-            "play.circle"
-        case .watched:
-            "checkmark.circle"
-        case .dropped:
-            "xmark.circle"
-        }
-    }
-}
-
-fileprivate struct LibraryProfileSettingsBlendModifier: ViewModifier {
-    let opacity: Double
-    let blurRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .blur(radius: blurRadius)
-            .opacity(opacity)
-            .compositingGroup()
-    }
-}
-
-fileprivate struct LibraryViewTransitionModifier: ViewModifier {
-    let opacity: Double
-    let scale: CGFloat
-    let blurRadius: CGFloat
-    let yOffset: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(scale)
-            .offset(y: yOffset)
-            .blur(radius: blurRadius)
-            .opacity(opacity)
-            .compositingGroup()
     }
 }
 

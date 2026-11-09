@@ -23,7 +23,7 @@ public struct LibraryEntrySyncTombstone: Codable, Equatable, Sendable {
     public static let currentSchemaVersion = 2
 
     public var schemaVersion: Int
-    public var identity: LibraryEntrySyncIdentity
+    public var identity: LibraryEntryIdentity
     public var tmdbID: Int
     public var parentSeriesID: Int?
     public var seasonNumber: Int?
@@ -33,7 +33,7 @@ public struct LibraryEntrySyncTombstone: Codable, Equatable, Sendable {
     /// Captures an entry's stable sync identity as a delete tombstone.
     public init(entry: AnimeEntry, deletedAt: Date = .now) {
         self.init(
-            identity: entry.syncIdentity,
+            identity: entry.libraryIdentity,
             tmdbID: entry.tmdbID,
             parentSeriesID: entry.type.parentSeriesID,
             seasonNumber: entry.type.seasonNumber,
@@ -45,7 +45,7 @@ public struct LibraryEntrySyncTombstone: Codable, Equatable, Sendable {
     /// Creates a tombstone from stable identity fields.
     public init(
         schemaVersion: Int = Self.currentSchemaVersion,
-        identity: LibraryEntrySyncIdentity,
+        identity: LibraryEntryIdentity,
         tmdbID: Int,
         parentSeriesID: Int?,
         seasonNumber: Int?,
@@ -58,7 +58,7 @@ public struct LibraryEntrySyncTombstone: Codable, Equatable, Sendable {
         self.parentSeriesID = parentSeriesID
         self.seasonNumber = seasonNumber
         self.entryType = entryType
-        self.deletedAt = deletedAt
+        self.deletedAt = LibrarySyncTimestamp.normalized(deletedAt)
     }
 }
 
@@ -67,7 +67,7 @@ public enum LibraryEntrySyncRemoteChange: Equatable, Sendable {
     case snapshot(LibraryEntrySyncSnapshot)
     case tombstone(LibraryEntrySyncTombstone)
 
-    public var identity: LibraryEntrySyncIdentity {
+    public var identity: LibraryEntryIdentity {
         switch self {
         case .snapshot(let snapshot):
             snapshot.identity
@@ -98,23 +98,34 @@ public enum LibraryEntrySyncRemoteChange: Equatable, Sendable {
         case (.snapshot(let lhs), .snapshot(let rhs)):
             return .snapshot(try lhs.merged(with: rhs))
         case (.tombstone(let lhs), .tombstone(let rhs)):
-            return .tombstone(lhs.deletedAt >= rhs.deletedAt ? lhs : rhs)
+            var lhs = lhs
+            var rhs = rhs
+            lhs.deletedAt = LibrarySyncTimestamp.normalized(lhs.deletedAt)
+            rhs.deletedAt = LibrarySyncTimestamp.normalized(rhs.deletedAt)
+            let lhsClock = LibrarySyncTimestamp.milliseconds(lhs.deletedAt)
+            let rhsClock = LibrarySyncTimestamp.milliseconds(rhs.deletedAt)
+            if lhsClock == rhsClock {
+                return .tombstone(lhs.schemaVersion >= rhs.schemaVersion ? lhs : rhs)
+            }
+            return .tombstone(lhsClock > rhsClock ? lhs : rhs)
         case (.snapshot(let snapshot), .tombstone(let tombstone)):
             let snapshotClock = snapshot.latestUserStateClock ?? .distantPast
-            return tombstone.deletedAt > snapshotClock ? .tombstone(tombstone) : self
+            return LibrarySyncTimestamp.milliseconds(tombstone.deletedAt)
+                > LibrarySyncTimestamp.milliseconds(snapshotClock) ? .tombstone(tombstone) : self
         case (.tombstone(let tombstone), .snapshot(let snapshot)):
             let snapshotClock = snapshot.latestUserStateClock ?? .distantPast
-            return snapshotClock > tombstone.deletedAt ? other : self
+            return LibrarySyncTimestamp.milliseconds(snapshotClock)
+                >= LibrarySyncTimestamp.milliseconds(tombstone.deletedAt) ? other : self
         }
     }
 }
 
 /// Dirty-queue entry for a local insert or update.
 public struct LibraryEntrySyncPendingUpsert: Codable, Equatable, Sendable {
-    public var identity: LibraryEntrySyncIdentity
+    public var identity: LibraryEntryIdentity
     public var dirtyAt: Date
 
-    public init(identity: LibraryEntrySyncIdentity, dirtyAt: Date) {
+    public init(identity: LibraryEntryIdentity, dirtyAt: Date) {
         self.identity = identity
         self.dirtyAt = dirtyAt
     }
@@ -128,7 +139,7 @@ public struct LibraryEntrySyncPendingDelete: Codable, Equatable, Sendable {
         self.tombstone = tombstone
     }
 
-    public var identity: LibraryEntrySyncIdentity { tombstone.identity }
+    public var identity: LibraryEntryIdentity { tombstone.identity }
 }
 
 /// Coalesced local sync work waiting to be exported.
@@ -136,7 +147,7 @@ public enum LibraryEntrySyncDirtyQueueEntry: Codable, Equatable, Sendable {
     case upsert(LibraryEntrySyncPendingUpsert)
     case delete(LibraryEntrySyncPendingDelete)
 
-    public var identity: LibraryEntrySyncIdentity {
+    public var identity: LibraryEntryIdentity {
         switch self {
         case .upsert(let upsert):
             upsert.identity
@@ -198,7 +209,7 @@ public struct LibraryEntrySyncDirtyQueue: Codable, Equatable, Sendable {
     }
 
     /// Returns the queued entry for an identity, if any.
-    public func entry(for identity: LibraryEntrySyncIdentity) -> LibraryEntrySyncDirtyQueueEntry? {
+    public func entry(for identity: LibraryEntryIdentity) -> LibraryEntrySyncDirtyQueueEntry? {
         entries.first { $0.identity == identity }
     }
 
@@ -291,6 +302,27 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
         }
     }
 
+    /// Merges one save's upserts under the queue lock and writes at most once.
+    ///
+    /// Existing newer upserts are retained; deletes are replaced for recreated entries.
+    public func setPendingUpserts(_ pendingUpserts: [LibraryEntrySyncPendingUpsert]) throws {
+        guard !pendingUpserts.isEmpty else { return }
+        try withLock {
+            let queue = loadUnlocked()
+            var entriesByID = Dictionary(
+                queue.entries.map { ($0.identity, $0) }, uniquingKeysWith: { _, latest in latest })
+            for upsert in pendingUpserts {
+                if case .upsert(let previous) = entriesByID[upsert.identity], previous.dirtyAt >= upsert.dirtyAt {
+                    continue
+                }
+                entriesByID[upsert.identity] = .upsert(upsert)
+            }
+            let rewrittenQueue = LibraryEntrySyncDirtyQueue(entries: Array(entriesByID.values))
+            guard queue != rewrittenQueue else { return }
+            try writeQueueUnlocked(rewrittenQueue)
+        }
+    }
+
     @discardableResult
     /// Stores a delete tombstone unless an equal or newer tombstone is queued.
     ///
@@ -325,7 +357,7 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     /// - Returns: The previous entry for the identity, when one existed.
     public func replaceEntry(
         _ entry: LibraryEntrySyncDirtyQueueEntry?,
-        for identity: LibraryEntrySyncIdentity
+        for identity: LibraryEntryIdentity
     ) throws -> LibraryEntrySyncDirtyQueueEntry? {
         try withLock {
             try mutateQueueUnlocked(for: identity) { _, _ in
@@ -345,7 +377,7 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     }
 
     /// Removes queued work for an identity.
-    public func removeEntry(for identity: LibraryEntrySyncIdentity) throws {
+    public func removeEntry(for identity: LibraryEntryIdentity) throws {
         _ = try replaceEntry(nil, for: identity)
     }
 
@@ -355,7 +387,7 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     /// queued while the CloudKit save request was in flight.
     @discardableResult
     public func removeEntry(
-        for identity: LibraryEntrySyncIdentity,
+        for identity: LibraryEntryIdentity,
         ifCurrentEntryMatches expectedEntry: LibraryEntrySyncDirtyQueueEntry
     ) throws -> Bool {
         try withLock {
@@ -400,7 +432,7 @@ public final class LibraryEntrySyncDirtyQueueStore: @unchecked Sendable {
     /// The helper loads the current queue, asks the caller how to transform the
     /// existing entry, then writes the rewritten queue back only if it changed.
     private func mutateQueueUnlocked(
-        for identity: LibraryEntrySyncIdentity,
+        for identity: LibraryEntryIdentity,
         _ transform: (_ queue: LibraryEntrySyncDirtyQueue, _ existing: LibraryEntrySyncDirtyQueueEntry?) ->
             LibraryEntrySyncDirtyQueueEntry?
     ) throws -> LibraryEntrySyncDirtyQueueEntry? {

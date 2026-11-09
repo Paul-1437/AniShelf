@@ -9,8 +9,15 @@ import DataProvider
 import LibrarySync
 import Observation
 import SwiftUI
+import os
+
+fileprivate let episodeCountRefreshLogger = Logger(
+    subsystem: .bundleIdentifier,
+    category: "EpisodeCountRefresh"
+)
 
 enum EntryDetailSheet: Identifiable, Equatable {
+    case broadcastValidation
     case changePoster
     case sharing
 
@@ -23,6 +30,7 @@ struct EntryDetailPresentationState {
     var showSiblingSeasonWarning = false
     var episodeProgressCompletionPrompt: AnimeEntryEpisodeProgressCompletionPrompt?
     var dateUpdateSuggestion: AnimeEntryDateUpdateSuggestion?
+    var showRewatchPrompt = false
 
     var blocksHostMigration: Bool {
         activeSheet != nil
@@ -30,6 +38,7 @@ struct EntryDetailPresentationState {
             || showSiblingSeasonWarning
             || episodeProgressCompletionPrompt != nil
             || dateUpdateSuggestion != nil
+            || showRewatchPrompt
     }
 }
 
@@ -44,9 +53,11 @@ struct EntryDetailConversionState {
 final class EntryDetailSession {
     let instanceID = UUID()
     let entry: AnimeEntry
-    let entryIdentity: LibraryEntrySyncIdentity
+    let entryIdentity: LibraryEntryIdentity
     let model: EntryDetailViewModel
+    let broadcast: EntryDetailBroadcastModel
     private let repository: LibraryRepository
+    private let broadcastEligibilityChecker: TMDbBroadcastEligibilityChecker
 
     var presentation = EntryDetailPresentationState()
     var isEditingDetails = false
@@ -68,13 +79,23 @@ final class EntryDetailSession {
     init(
         entry: AnimeEntry,
         repository: LibraryRepository,
+        broadcastEligibilityChecker: TMDbBroadcastEligibilityChecker = .init(),
+        broadcastResolver: TVMazeResolver = TVMazeResolver(),
         isCharacterExpanded: Bool? = nil,
         isStaffExpanded: Bool? = nil
     ) {
         self.entry = entry
-        self.entryIdentity = entry.syncIdentity
+        self.entryIdentity = entry.libraryIdentity
         self.repository = repository
+        let broadcastEligibilityChecker = broadcastEligibilityChecker.forDetailSession()
+        self.broadcastEligibilityChecker = broadcastEligibilityChecker
         self.model = EntryDetailViewModel(repository: repository)
+        self.broadcast = EntryDetailBroadcastModel(
+            entryType: entry.type,
+            tmdbID: entry.tmdbID,
+            eligibilityChecker: broadcastEligibilityChecker,
+            resolver: broadcastResolver
+        )
         self.originalUserInfo = entry.userInfo
         self.originalTrackingUpdatedAt = entry.trackingUpdatedAt
         self.isCharacterExpanded =
@@ -97,6 +118,65 @@ final class EntryDetailSession {
 
     func toggleFavorite() {
         repository.toggleFavorite(entry)
+    }
+
+    func refreshEpisodeCountsIfEligible(language: Language) async {
+        guard !Task.isCancelled else { return }
+        guard
+            EntryDetailBroadcastModel.passesPreliminaryGate(
+                entryType: entry.type,
+                seriesStatus: entry.detail?.status
+            )
+        else { return }
+
+        let seriesID = entry.type.parentSeriesID ?? entry.tmdbID
+        do {
+            let checked = try await broadcastEligibilityChecker.checkWithDetails(
+                entryType: entry.type,
+                tmdbSeriesID: seriesID
+            )
+            guard !Task.isCancelled, case .eligible = checked.result,
+                let details = checked.details,
+                let detail = entry.detail
+            else { return }
+
+            var previousCounts: [(AnimeEntrySeasonSummary, Int?)] = []
+            let previousEpisodeCount = detail.episodeCount
+            switch entry.type {
+            case .series:
+                if let count = details.episodeCount, count > 0 {
+                    detail.episodeCount = count
+                }
+                for season in detail.seasons {
+                    guard let count = details.seasonEpisodeCounts[season.seasonNumber], count > 0,
+                        season.episodeCount != count
+                    else { continue }
+                    previousCounts.append((season, season.episodeCount))
+                    season.episodeCount = count
+                }
+            case .season(let seasonNumber, _):
+                if let count = details.seasonEpisodeCounts[seasonNumber], count > 0 {
+                    detail.episodeCount = count
+                }
+            case .movie:
+                return
+            }
+
+            guard detail.episodeCount != previousEpisodeCount || !previousCounts.isEmpty else { return }
+            do {
+                try repository.save()
+                model.refreshDisplayedDetail(for: entry, language: language)
+            } catch {
+                detail.episodeCount = previousEpisodeCount
+                for (season, count) in previousCounts { season.episodeCount = count }
+                throw error
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            episodeCountRefreshLogger.error(
+                "Failed to refresh episode counts for TMDb \(seriesID, privacy: .public): \(error.localizedDescription)"
+            )
+        }
     }
 
     func updatePresentation(
@@ -125,26 +205,41 @@ final class EntryDetailSession {
 @MainActor
 final class EntryDetailSessionStore {
     private(set) var presentedSession: EntryDetailSession?
+    private let broadcastEligibilityChecker: TMDbBroadcastEligibilityChecker
+    private let broadcastResolver: TVMazeResolver
+
+    init(
+        broadcastEligibilityChecker: TMDbBroadcastEligibilityChecker = .init(),
+        broadcastResolver: TVMazeResolver = TVMazeResolver()
+    ) {
+        self.broadcastEligibilityChecker = broadcastEligibilityChecker
+        self.broadcastResolver = broadcastResolver
+    }
 
     @discardableResult
     func synchronizePresentedDetail(
-        identity: LibraryEntrySyncIdentity?,
+        identity: LibraryEntryIdentity?,
         repository: LibraryRepository,
-        resolveEntry: (LibraryEntrySyncIdentity) -> AnimeEntry?
+        resolveEntry: (LibraryEntryIdentity) -> AnimeEntry?
     ) -> Bool {
         guard let identity else {
+            presentedSession?.broadcast.cancel()
             presentedSession = nil
             return true
         }
 
         guard let entry = resolveEntry(identity) else {
+            presentedSession?.broadcast.cancel()
             presentedSession = nil
             return false
         }
         guard presentedSession?.entry === entry else {
+            presentedSession?.broadcast.cancel()
             presentedSession = EntryDetailSession(
                 entry: entry,
-                repository: repository
+                repository: repository,
+                broadcastEligibilityChecker: broadcastEligibilityChecker,
+                broadcastResolver: broadcastResolver
             )
             return true
         }
@@ -152,7 +247,7 @@ final class EntryDetailSessionStore {
         return true
     }
 
-    func session(for identity: LibraryEntrySyncIdentity?) -> EntryDetailSession? {
+    func session(for identity: LibraryEntryIdentity?) -> EntryDetailSession? {
         guard presentedSession?.entryIdentity == identity else { return nil }
         return presentedSession
     }
